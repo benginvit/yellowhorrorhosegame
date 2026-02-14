@@ -15,6 +15,9 @@ const getAudioContext = () => {
 // Track all active voice recording audio elements
 let activeVoiceAudios = []
 
+// Cache for preloaded audio elements
+let preloadedAudio = {}
+
 // Initialize audio context on user interaction
 export const initAudio = () => {
   const ctx = getAudioContext()
@@ -24,8 +27,148 @@ export const initAudio = () => {
   return ctx
 }
 
-// Play custom voice recording
+// Preload audio files for a specific language
+export const preloadAudioFiles = (language = 'sv') => {
+  console.log(`🔊 Preloading audio files for language: ${language}`)
+
+  // List of audio files to preload
+  const filesToPreload = [
+    { character: 'Astrid', actions: ['wake', 'failed', 'success', 'snoring'] },
+    { character: 'Molltas', actions: ['meow'] }
+  ]
+
+  preloadedAudio = {}
+
+  filesToPreload.forEach(({ character, actions }) => {
+    actions.forEach(action => {
+      const fileName = `${character.toLowerCase()}-${action}.m4a`
+      const audioPath = `/sounds/${language}/${fileName}`
+      const cacheKey = `${character}-${action}-${language}`
+
+      try {
+        const audio = new Audio()
+        audio.preload = 'auto'
+        audio.src = audioPath
+        audio.volume = 0.7
+
+        // Store in cache
+        preloadedAudio[cacheKey] = audio
+
+        // Load the audio
+        audio.load()
+
+        console.log(`✅ Preloaded: ${audioPath}`)
+      } catch {
+        console.log(`⚠️ Failed to preload: ${audioPath}`)
+      }
+    })
+  })
+}
+
+// Play custom voice recording (uses preloaded audio if available)
 export const playVoiceRecording = (characterName, action, language = 'en') => {
+  const cacheKey = `${characterName}-${action}-${language}`
+
+  console.log(`🎤 Attempting to play voice: ${cacheKey}`)
+
+  // Try to use preloaded audio first
+  if (preloadedAudio[cacheKey]) {
+    const preloadedElement = preloadedAudio[cacheKey]
+
+    console.log(`📦 Preloaded audio found for ${cacheKey}`)
+    console.log(`   - src: ${preloadedElement.src}`)
+    console.log(`   - readyState: ${preloadedElement.readyState} (4=HAVE_ENOUGH_DATA)`)
+    console.log(`   - paused: ${preloadedElement.paused}`)
+    console.log(`   - ended: ${preloadedElement.ended}`)
+    console.log(`   - error: ${preloadedElement.error}`)
+
+    // Check if the preloaded audio is currently playing
+    const isPlaying = !preloadedElement.paused && !preloadedElement.ended
+
+    let audio
+    if (isPlaying) {
+      console.log(`⚠️  Audio is already playing, creating new instance`)
+      // Create a new instance from the cached source if already playing
+      audio = new Audio(preloadedElement.src)
+      audio.volume = 0.7
+      audio.preload = 'auto'
+
+      // Wait for the audio to be ready before playing
+      audio.addEventListener('canplaythrough', () => {
+        audio.play().catch((error) => {
+          console.log(`❌ Failed to play new audio instance: ${cacheKey}`)
+          console.log(`   Error: ${error.name} - ${error.message}`)
+          playFallbackSound(action)
+        })
+      }, { once: true })
+
+      // Track this audio element
+      activeVoiceAudios.push(audio)
+
+      // Remove from tracking when it finishes playing
+      const handleEnded = () => {
+        const index = activeVoiceAudios.indexOf(audio)
+        if (index > -1) {
+          activeVoiceAudios.splice(index, 1)
+        }
+        audio.removeEventListener('ended', handleEnded)
+      }
+      audio.addEventListener('ended', handleEnded)
+
+      // Return early - play will happen in the canplaythrough handler
+      return audio
+    } else {
+      console.log(`♻️  Reusing preloaded audio element`)
+      // Reuse the preloaded element if not playing
+      audio = preloadedElement
+      try {
+        audio.currentTime = 0
+      } catch (e) {
+        console.log(`⚠️  Could not reset currentTime:`, e)
+      }
+      audio.volume = 0.7
+    }
+
+    // Track this audio element
+    activeVoiceAudios.push(audio)
+
+    // Remove from tracking when it finishes playing
+    const handleEnded = () => {
+      const index = activeVoiceAudios.indexOf(audio)
+      if (index > -1) {
+        activeVoiceAudios.splice(index, 1)
+      }
+      audio.removeEventListener('ended', handleEnded)
+    }
+    audio.addEventListener('ended', handleEnded)
+
+    // Play the audio
+    console.log(`▶️  Calling audio.play()...`)
+    const playPromise = audio.play()
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log(`✅ Successfully playing: ${cacheKey}`)
+        })
+        .catch((error) => {
+          console.log(`❌ Failed to play preloaded voice: ${cacheKey}`)
+          console.log(`   Error name: ${error.name}`)
+          console.log(`   Error message: ${error.message}`)
+          console.log(`   Audio context state: ${getAudioContext().state}`)
+          // Remove from tracking if it failed to play
+          const index = activeVoiceAudios.indexOf(audio)
+          if (index > -1) {
+            activeVoiceAudios.splice(index, 1)
+          }
+          playFallbackSound(action)
+        })
+    }
+
+    return audio
+  }
+
+  // Fallback to creating new audio element
   const fileName = `${characterName.toLowerCase()}-${action}.m4a`
   const audioPath = `/sounds/${language}/${fileName}`
 
@@ -50,20 +193,24 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
     if (index > -1) {
       activeVoiceAudios.splice(index, 1)
     }
-    // Fallback to synthesized sound if custom recording not found
-    if (action === 'wake') {
-      playJumpscareSound()
-    } else if (action === 'catch') {
-      playHitSound()
-    } else if (action === 'failed') {
-      playHitSound() // "Nu ska du få!"
-    } else if (action === 'success') {
-      // No fallback sound for success - just silent if missing
-      console.log('Success voice not found, continuing silently')
-    }
+    playFallbackSound(action)
   })
 
   return audio
+}
+
+// Play fallback sound based on action
+function playFallbackSound(action) {
+  if (action === 'wake') {
+    playJumpscareSound()
+  } else if (action === 'catch') {
+    playHitSound()
+  } else if (action === 'failed') {
+    playHitSound() // "Nu ska du få!"
+  } else if (action === 'success') {
+    // No fallback sound for success - just silent if missing
+    console.log('Success voice not found, continuing silently')
+  }
 }
 
 // Scary hit sound effect

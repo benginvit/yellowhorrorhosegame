@@ -3,7 +3,7 @@ import Game from './components/Game'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
-import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring } from './utils/sounds'
+import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles } from './utils/sounds'
 
 function App() {
   const [language, setLanguage] = useState(null) // null = not selected yet
@@ -61,6 +61,11 @@ function App() {
     // Initialize audio on user interaction
     initAudio()
 
+    // Preload audio files for the selected language
+    if (language) {
+      preloadAudioFiles(language)
+    }
+
     setGameState({
       isPlaying: true,
       currentLevel: 1,
@@ -97,7 +102,8 @@ function App() {
 
   const nextLevel = () => {
     // Advance directly to next level (no confetti for normal levels)
-    if (gameState.currentLevel < levels.length) {
+    // Game ends after level 2
+    if (gameState.currentLevel < 2) {
       setGameState(prev => ({
         ...prev,
         currentLevel: prev.currentLevel + 1,
@@ -209,7 +215,8 @@ function App() {
     // Stop all sounds when continuing to prevent lingering audio
     stopAllSounds()
 
-    if (gameState.currentLevel < levels.length) {
+    // Game ends after level 2
+    if (gameState.currentLevel < 2) {
       setGameState(prev => ({
         ...prev,
         currentLevel: prev.currentLevel + 1,

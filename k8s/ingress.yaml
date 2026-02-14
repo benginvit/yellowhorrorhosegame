@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yellowhorrorhose-game
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - yellowhorrorhose.yourdomain.com
+    secretName: yellowhorrorhose-tls
+  rules:
+  - host: yellowhorrorhose.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: yellowhorrorhose-game
+            port:
+              number: 80

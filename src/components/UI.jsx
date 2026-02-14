@@ -96,7 +96,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           </div>
           <div className="instructions">
             {t('instructionsMove')} | {t('instructionsLook')}
-            {currentLevel.name === 'Astrid' && gameState.isInsideHouse && ` | ${t('instructionsHide')}`}
+            {currentLevel.name === 'Astrid' && gameState.isInsideHouse && gameState.astridAwake && ` | ${t('instructionsHide')}`}
           </div>
         </>
       )}

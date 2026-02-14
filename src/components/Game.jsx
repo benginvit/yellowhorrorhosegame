@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Player from './Player'
 import House from './House'
 import Ground from './Ground'
@@ -24,14 +24,18 @@ function Game({
   const [nearFurniture, setNearFurniture] = useState({})
   const isAstridLevel = level.name === 'Astrid'
 
+  // Update hiding state when furniture proximity changes
+  useEffect(() => {
+    // ONLY the bed is a safe hiding spot! All other furniture is useless
+    const isHidingInSafeSpot = nearFurniture.bed === true
+    onSetHiding(isHidingInSafeSpot)
+  }, [nearFurniture, onSetHiding])
+
   const handleFurnitureProximity = (furnitureId, isNear) => {
-    setNearFurniture(prev => {
-      const newState = { ...prev, [furnitureId]: isNear }
-      // ONLY the bed is a safe hiding spot! All other furniture is useless
-      const isHidingInSafeSpot = newState.bed === true
-      onSetHiding(isHidingInSafeSpot)
-      return newState
-    })
+    setNearFurniture(prev => ({
+      ...prev,
+      [furnitureId]: isNear
+    }))
   }
 
   return (
