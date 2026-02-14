@@ -19,7 +19,9 @@ function Game({
   onEnterHouse,
   onSetHiding,
   onWakeAstrid,
-  onUpdateHideTimer
+  onUpdateHideTimer,
+  mobileMovement,
+  mobileRotation
 }) {
   const [nearFurniture, setNearFurniture] = useState({})
   const isAstridLevel = level.name === 'Astrid'
@@ -118,7 +120,10 @@ function Game({
           </>
         )}
 
-        <Player />
+        <Player
+          mobileMovement={mobileMovement}
+          mobileRotation={mobileRotation}
+        />
       </Suspense>
     </Canvas>
   )

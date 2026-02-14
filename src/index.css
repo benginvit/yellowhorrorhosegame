@@ -182,3 +182,158 @@ canvas {
 .hidden {
   display: none !important;
 }
+
+/* Mobile Controls */
+.mobile-controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 900;
+}
+
+.joystick-area {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 100%;
+  pointer-events: all;
+}
+
+.joystick-base {
+  position: absolute;
+  left: 80px;
+  bottom: 80px;
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(255, 165, 0, 0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.joystick-handle {
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 165, 0, 0.8);
+  border: 3px solid #ffa500;
+  border-radius: 50%;
+  transition: transform 0.1s;
+  box-shadow: 0 0 15px rgba(255, 165, 0, 0.6);
+}
+
+.touch-hint {
+  position: absolute;
+  bottom: 40px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  font-weight: bold;
+  pointer-events: none;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.touch-hint.left {
+  left: 50%;
+  transform: translateX(-100%);
+  padding-right: 20px;
+}
+
+.touch-hint.right {
+  right: 50%;
+  transform: translateX(100%);
+  padding-left: 20px;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  .start-screen {
+    padding: 30px 40px;
+    max-width: 90%;
+  }
+
+  .start-screen h1 {
+    font-size: 36px;
+  }
+
+  .start-screen p {
+    font-size: 16px;
+  }
+
+  .start-btn {
+    padding: 14px 35px;
+    font-size: 18px;
+  }
+
+  .game-hud {
+    top: 10px;
+    left: 10px;
+  }
+
+  .hud-item {
+    padding: 8px 16px;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .instructions {
+    display: none; /* Hide keyboard instructions on mobile */
+  }
+
+  .game-over-screen,
+  .victory-screen {
+    padding: 30px;
+    max-width: 90%;
+  }
+
+  .game-over-screen h2,
+  .victory-screen h2 {
+    font-size: 32px;
+  }
+
+  .game-over-screen p,
+  .victory-screen p {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .start-screen h1 {
+    font-size: 28px;
+  }
+
+  .start-screen p {
+    font-size: 14px;
+  }
+
+  .start-btn {
+    padding: 12px 28px;
+    font-size: 16px;
+  }
+
+  .hud-item {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .touch-hint {
+    font-size: 14px;
+    bottom: 30px;
+  }
+
+  .joystick-base {
+    left: 60px;
+    bottom: 60px;
+    width: 80px;
+    height: 80px;
+  }
+
+  .joystick-handle {
+    width: 40px;
+    height: 40px;
+  }
+}

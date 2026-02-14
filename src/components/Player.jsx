@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-function Player() {
+function Player({ mobileMovement = { x: 0, y: 0 }, mobileRotation = { x: 0, y: 0 } }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
   const keys = useRef({})
@@ -45,6 +45,12 @@ function Player() {
       rotation.current.pitch -= rotSpeed
     }
 
+    // Mobile rotation controls
+    if (mobileRotation.x !== 0 || mobileRotation.y !== 0) {
+      rotation.current.yaw -= mobileRotation.x
+      rotation.current.pitch -= mobileRotation.y
+    }
+
     // Clamp pitch to prevent camera flipping
     rotation.current.pitch = THREE.MathUtils.clamp(rotation.current.pitch, -Math.PI / 3, Math.PI / 3)
 
@@ -69,16 +75,22 @@ function Player() {
     const speed = moveSpeed * delta
 
     if (keys.current['KeyW']) {
-      velocity.current.add(forward.multiplyScalar(speed))
+      velocity.current.add(forward.clone().multiplyScalar(speed))
     }
     if (keys.current['KeyS']) {
-      velocity.current.add(forward.multiplyScalar(-speed))
+      velocity.current.add(forward.clone().multiplyScalar(-speed))
     }
     if (keys.current['KeyA']) {
-      velocity.current.add(right.multiplyScalar(-speed))
+      velocity.current.add(right.clone().multiplyScalar(-speed))
     }
     if (keys.current['KeyD']) {
-      velocity.current.add(right.multiplyScalar(speed))
+      velocity.current.add(right.clone().multiplyScalar(speed))
+    }
+
+    // Mobile joystick movement
+    if (mobileMovement.x !== 0 || mobileMovement.y !== 0) {
+      velocity.current.add(right.clone().multiplyScalar(mobileMovement.x * speed * 2))
+      velocity.current.add(forward.clone().multiplyScalar(-mobileMovement.y * speed * 2))
     }
 
     // Apply velocity to camera

@@ -3,10 +3,13 @@ import Game from './components/Game'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
+import MobileControls from './components/MobileControls'
 import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles } from './utils/sounds'
 
 function App() {
   const [language, setLanguage] = useState(null) // null = not selected yet
+  const [mobileMovement, setMobileMovement] = useState({ x: 0, y: 0 })
+  const [mobileRotation, setMobileRotation] = useState({ x: 0, y: 0 })
   const [gameState, setGameState] = useState({
     isPlaying: false,
     currentLevel: 1,
@@ -250,18 +253,26 @@ function App() {
         onContinue={continueToNextLevel}
       />
       {gameState.isPlaying && (
-        <Game
-          gameState={gameState}
-          level={levels[gameState.currentLevel - 1]}
-          language={language}
-          onCollectKey={collectKey}
-          onNextLevel={nextLevel}
-          onTakeDamage={takeDamage}
-          onEnterHouse={enterHouse}
-          onSetHiding={setHiding}
-          onWakeAstrid={wakeAstrid}
-          onUpdateHideTimer={updateHideTimer}
-        />
+        <>
+          <Game
+            gameState={gameState}
+            level={levels[gameState.currentLevel - 1]}
+            language={language}
+            onCollectKey={collectKey}
+            onNextLevel={nextLevel}
+            onTakeDamage={takeDamage}
+            onEnterHouse={enterHouse}
+            onSetHiding={setHiding}
+            onWakeAstrid={wakeAstrid}
+            onUpdateHideTimer={updateHideTimer}
+            mobileMovement={mobileMovement}
+            mobileRotation={mobileRotation}
+          />
+          <MobileControls
+            onMove={setMobileMovement}
+            onRotate={setMobileRotation}
+          />
+        </>
       )}
       {showJumpscare && (
         <Jumpscare

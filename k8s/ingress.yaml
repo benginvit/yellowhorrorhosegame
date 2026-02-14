@@ -9,10 +9,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - yellowhorrorhose.yourdomain.com
+    - yellowhorrorhose.20-223-11-235.sslip.io
     secretName: yellowhorrorhose-tls
   rules:
-  - host: yellowhorrorhose.yourdomain.com
+  - host: yellowhorrorhose.20-223-11-235.sslip.io
     http:
       paths:
       - path: /
