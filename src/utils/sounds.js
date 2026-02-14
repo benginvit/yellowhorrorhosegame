@@ -12,6 +12,9 @@ const getAudioContext = () => {
   return audioContext
 }
 
+// Track all active voice recording audio elements
+let activeVoiceAudios = []
+
 // Initialize audio context on user interaction
 export const initAudio = () => {
   const ctx = getAudioContext()
@@ -29,8 +32,24 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
   const audio = new Audio(audioPath)
   audio.volume = 0.7
 
+  // Track this audio element
+  activeVoiceAudios.push(audio)
+
+  // Remove from tracking when it finishes playing
+  audio.addEventListener('ended', () => {
+    const index = activeVoiceAudios.indexOf(audio)
+    if (index > -1) {
+      activeVoiceAudios.splice(index, 1)
+    }
+  })
+
   audio.play().catch(err => {
     console.log(`Could not play custom voice: ${audioPath}, using fallback sound`)
+    // Remove from tracking if it failed to play
+    const index = activeVoiceAudios.indexOf(audio)
+    if (index > -1) {
+      activeVoiceAudios.splice(index, 1)
+    }
     // Fallback to synthesized sound if custom recording not found
     if (action === 'wake') {
       playJumpscareSound()
@@ -345,7 +364,24 @@ export const playCatMeow = (language = 'en') => {
   const audio = new Audio(`/sounds/${language}/molltas-meow.m4a`)
   audio.volume = 0.5
 
+  // Track this audio element
+  activeVoiceAudios.push(audio)
+
+  // Remove from tracking when it finishes playing
+  audio.addEventListener('ended', () => {
+    const index = activeVoiceAudios.indexOf(audio)
+    if (index > -1) {
+      activeVoiceAudios.splice(index, 1)
+    }
+  })
+
   audio.play().catch(() => {
+    // Remove from tracking if it failed to play
+    const index = activeVoiceAudios.indexOf(audio)
+    if (index > -1) {
+      activeVoiceAudios.splice(index, 1)
+    }
+
     // Fallback to synthesized meow if no custom recording
     const ctx = getAudioContext()
     const now = ctx.currentTime
@@ -384,62 +420,136 @@ export const playCatMeow = (language = 'en') => {
 
 // Snoring sound for sleeping Astrid
 let snoringInterval = null
+let snoringAudio = null
 
-export const startSnoring = () => {
+export const startSnoring = (language = 'en') => {
   if (snoringInterval) return // Already snoring
 
-  const playSnore = () => {
-    const ctx = getAudioContext()
-    const now = ctx.currentTime
+  // Try to use custom snoring recording
+  const tryCustomSnoring = () => {
+    const audio = new Audio(`/sounds/${language}/astrid-snoring.m4a`)
+    audio.volume = 0.5
+    audio.loop = true // Loop the snoring
 
-    // Create snoring sound - low rumble
-    const osc1 = ctx.createOscillator()
-    const osc2 = ctx.createOscillator()
-    const gainNode = ctx.createGain()
+    // Track this audio element
+    activeVoiceAudios.push(audio)
+    snoringAudio = audio
 
-    osc1.connect(gainNode)
-    osc2.connect(gainNode)
-    gainNode.connect(ctx.destination)
+    audio.play().catch(() => {
+      // Remove from tracking if custom recording not found
+      const index = activeVoiceAudios.indexOf(audio)
+      if (index > -1) {
+        activeVoiceAudios.splice(index, 1)
+      }
+      snoringAudio = null
 
-    osc1.type = 'sine'
-    osc2.type = 'sine'
-
-    // Low frequency snore
-    osc1.frequency.setValueAtTime(80, now)
-    osc1.frequency.linearRampToValueAtTime(85, now + 0.8)
-    osc1.frequency.linearRampToValueAtTime(75, now + 1.5)
-
-    osc2.frequency.setValueAtTime(120, now)
-    osc2.frequency.linearRampToValueAtTime(125, now + 0.8)
-    osc2.frequency.linearRampToValueAtTime(115, now + 1.5)
-
-    // Snore envelope - in and out breathing
-    gainNode.gain.setValueAtTime(0, now)
-    gainNode.gain.linearRampToValueAtTime(0.08, now + 0.7)
-    gainNode.gain.linearRampToValueAtTime(0.04, now + 1.2)
-    gainNode.gain.linearRampToValueAtTime(0, now + 1.5)
-
-    osc1.start(now)
-    osc2.start(now)
-    osc1.stop(now + 1.5)
-    osc2.stop(now + 1.5)
+      // Fallback to synthesized snoring
+      useSynthesizedSnoring()
+    })
   }
 
-  // Play first snore immediately
-  playSnore()
+  const useSynthesizedSnoring = () => {
+    const playSnore = () => {
+      const ctx = getAudioContext()
+      const now = ctx.currentTime
 
-  // Continue snoring every 2.5 seconds
-  snoringInterval = setInterval(playSnore, 2500)
+      // Create snoring sound - low rumble
+      const osc1 = ctx.createOscillator()
+      const osc2 = ctx.createOscillator()
+      const gainNode = ctx.createGain()
+
+      osc1.connect(gainNode)
+      osc2.connect(gainNode)
+      gainNode.connect(ctx.destination)
+
+      osc1.type = 'sine'
+      osc2.type = 'sine'
+
+      // Low frequency snore
+      osc1.frequency.setValueAtTime(80, now)
+      osc1.frequency.linearRampToValueAtTime(85, now + 0.8)
+      osc1.frequency.linearRampToValueAtTime(75, now + 1.5)
+
+      osc2.frequency.setValueAtTime(120, now)
+      osc2.frequency.linearRampToValueAtTime(125, now + 0.8)
+      osc2.frequency.linearRampToValueAtTime(115, now + 1.5)
+
+      // Snore envelope - in and out breathing
+      gainNode.gain.setValueAtTime(0, now)
+      gainNode.gain.linearRampToValueAtTime(0.08, now + 0.7)
+      gainNode.gain.linearRampToValueAtTime(0.04, now + 1.2)
+      gainNode.gain.linearRampToValueAtTime(0, now + 1.5)
+
+      osc1.start(now)
+      osc2.start(now)
+      osc1.stop(now + 1.5)
+      osc2.stop(now + 1.5)
+    }
+
+    // Play first snore immediately
+    playSnore()
+
+    // Continue snoring every 2.5 seconds
+    snoringInterval = setInterval(playSnore, 2500)
+  }
+
+  // Try custom recording first
+  tryCustomSnoring()
 }
 
 export const stopSnoring = () => {
+  // Stop custom snoring audio if playing
+  if (snoringAudio) {
+    try {
+      snoringAudio.pause()
+      snoringAudio.currentTime = 0
+      // Remove from tracking
+      const index = activeVoiceAudios.indexOf(snoringAudio)
+      if (index > -1) {
+        activeVoiceAudios.splice(index, 1)
+      }
+    } catch (e) {
+      // Already stopped
+    }
+    snoringAudio = null
+  }
+
+  // Stop synthesized snoring interval
   if (snoringInterval) {
     clearInterval(snoringInterval)
     snoringInterval = null
   }
 }
 
+// Stop all voice recordings (cat meows, voices, etc.) but keep music playing
+export const stopVoiceRecordings = () => {
+  // Stop all voice recording audio elements
+  activeVoiceAudios.forEach(audio => {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch (e) {
+      // Already stopped or error
+    }
+  })
+  activeVoiceAudios = []
+
+  // Stop snoring
+  stopSnoring()
+}
+
 export const stopAllSounds = () => {
+  // Stop all voice recording audio elements
+  activeVoiceAudios.forEach(audio => {
+    try {
+      audio.pause()
+      audio.currentTime = 0
+    } catch (e) {
+      // Already stopped or error
+    }
+  })
+  activeVoiceAudios = []
+
   // Stop background music
   if (backgroundMusic) {
     backgroundMusic.pause()
@@ -448,6 +558,9 @@ export const stopAllSounds = () => {
 
   // Stop generated music
   stopGeneratedMusic()
+
+  // Stop snoring
+  stopSnoring()
 
   // Close audio context
   if (audioContext) {

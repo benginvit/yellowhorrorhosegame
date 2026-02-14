@@ -1,6 +1,7 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { Text } from '@react-three/drei'
 import { playHitSound, playJumpscareSound, playTickSound, playCatMeow, startSnoring, stopSnoring, playVoiceRecording } from '../utils/sounds'
 
 function Character({
@@ -21,6 +22,8 @@ function Character({
   const countdownTimer = useRef(15)
   const hasRepositioned = useRef(false)
   const lastTickTime = useRef(0)
+  const [snoringBubbles, setSnoringBubbles] = useState([])
+  const snoringTimerRef = useRef(null)
 
   useEffect(() => {
     // Reset position when level changes
@@ -39,13 +42,13 @@ function Character({
   }, [level, isAstridLevel, isSleeping])
 
   useEffect(() => {
-    // Wake Astrid after 2 seconds when player enters house
+    // Wake Astrid after 10 seconds when player enters house (gives time to see her sleeping and hear snoring)
     let wakeTimer
     if (isAstridLevel && !astridAwake && !isSleeping && onWakeAstrid) {
       wakeTimer = setTimeout(() => {
         // Just call the callback - jumpscare and sound are handled in App.jsx
         onWakeAstrid()
-      }, 2000)
+      }, 10000)
     }
     return () => {
       if (wakeTimer) clearTimeout(wakeTimer)
@@ -74,7 +77,7 @@ function Character({
   // Snoring for sleeping Astrid
   useEffect(() => {
     if (isAstridLevel && !astridAwake) {
-      startSnoring()
+      startSnoring(language)
     } else {
       stopSnoring()
     }
@@ -82,9 +85,51 @@ function Character({
     return () => {
       stopSnoring()
     }
+  }, [isAstridLevel, astridAwake, language])
+
+  // Snoring bubble animation
+  useEffect(() => {
+    if (isAstridLevel && !astridAwake) {
+      // Create new "Z" bubble every 1.5 seconds
+      const createBubble = () => {
+        const newBubble = {
+          id: Math.random(),
+          opacity: 1,
+          yOffset: 0
+        }
+        setSnoringBubbles(prev => [...prev, newBubble])
+
+        // Remove bubble after 2 seconds
+        setTimeout(() => {
+          setSnoringBubbles(prev => prev.filter(b => b.id !== newBubble.id))
+        }, 2000)
+      }
+
+      // Create bubbles at regular intervals
+      createBubble()
+      snoringTimerRef.current = setInterval(createBubble, 1500)
+
+      return () => {
+        if (snoringTimerRef.current) {
+          clearInterval(snoringTimerRef.current)
+        }
+        setSnoringBubbles([])
+      }
+    } else {
+      setSnoringBubbles([])
+    }
   }, [isAstridLevel, astridAwake])
 
   useFrame((state, delta) => {
+    // Animate snoring bubbles
+    if (snoringBubbles.length > 0) {
+      setSnoringBubbles(prev => prev.map(bubble => ({
+        ...bubble,
+        yOffset: bubble.yOffset + delta * 0.8,
+        opacity: Math.max(0, bubble.opacity - delta * 0.5)
+      })))
+    }
+
     if (characterRef.current) {
       const characterPos = characterRef.current.position
 
@@ -131,42 +176,9 @@ function Character({
           }
         }
 
-        // If player is hiding, Astrid can't see them
-        if (isPlayerHiding) {
-          // Astrid looks around confused
-          characterRef.current.rotation.y += delta * 0.5
-          return
-        }
-
-        // Chase player if not hiding and timer is still running
-        if (countdownTimer.current > 0) {
-          const direction = new THREE.Vector3()
-          direction.subVectors(camera.position, characterPos)
-          direction.y = 0
-          direction.normalize()
-
-          const speed = level.speed * delta
-          characterRef.current.position.add(direction.multiplyScalar(speed))
-          characterRef.current.position.y = 1
-
-          characterRef.current.lookAt(camera.position.x, characterRef.current.position.y, camera.position.z)
-
-          // Check distance to player
-          const distance = Math.sqrt(
-            Math.pow(camera.position.x - characterPos.x, 2) +
-            Math.pow(camera.position.z - characterPos.z, 2)
-          )
-
-          if (distance < 2) {
-            const currentTime = state.clock.elapsedTime
-            if (currentTime - lastDamageTime.current > 0.5) {
-              // Try custom voice recording first
-              playVoiceRecording(level.name, 'catch', language)
-              onCatchPlayer(25)
-              lastDamageTime.current = currentTime
-            }
-          }
-        }
+        // Astrid doesn't chase or catch the player - just looks around
+        // The challenge is to hide before the timer runs out!
+        characterRef.current.rotation.y += delta * 0.5
       } else {
         // Normal character behavior for other levels
         const direction = new THREE.Vector3()
@@ -389,6 +401,23 @@ function Character({
         distance={appearance.isLarge ? 5 : 3}
         color="#ff0000"
       />
+
+      {/* Snoring bubbles when Astrid is sleeping */}
+      {isAstridLevel && !astridAwake && snoringBubbles.map((bubble, index) => (
+        <Text
+          key={bubble.id}
+          position={[0.5, appearance.bodySize[1] / 2 + appearance.headSize[1] + 1 + bubble.yOffset, 0.5]}
+          fontSize={0.5}
+          color="#ffffff"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.02}
+          outlineColor="#000000"
+        >
+          Z
+          <meshBasicMaterial opacity={bubble.opacity} transparent />
+        </Text>
+      ))}
     </group>
   )
 }

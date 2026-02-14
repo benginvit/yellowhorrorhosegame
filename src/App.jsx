@@ -3,7 +3,7 @@ import Game from './components/Game'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
-import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording } from './utils/sounds'
+import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring } from './utils/sounds'
 
 function App() {
   const [language, setLanguage] = useState(null) // null = not selected yet
@@ -23,9 +23,13 @@ function App() {
 
   const [showJumpscare, setShowJumpscare] = useState(false)
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
+  const [showQuickFlash, setShowQuickFlash] = useState(false)
 
   // Start horror music when playing or level changes
   useEffect(() => {
+    // Stop any voice recordings (cat meows, etc.) when level changes
+    stopVoiceRecordings()
+
     let stopMusic
     if (gameState.isPlaying) {
       stopMusic = createHorrorMusic(gameState.currentLevel)
@@ -72,6 +76,9 @@ function App() {
   }
 
   const restartGame = () => {
+    // Stop all sounds when restarting
+    stopAllSounds()
+
     setGameState({
       isPlaying: false,
       currentLevel: 1,
@@ -119,10 +126,7 @@ function App() {
     setShowBloodSplatter(true)
     setTimeout(() => setShowBloodSplatter(false), 2000)
 
-    // Random chance for jumpscare (30%)
-    if (Math.random() < 0.3) {
-      setShowJumpscare(true)
-    }
+    // No more random jumpscares when taking damage
 
     setGameState(prev => {
       const newHealth = Math.max(0, prev.health - amount)
@@ -142,19 +146,29 @@ function App() {
   }, [])
 
   const wakeAstrid = useCallback(() => {
-    // Show jumpscare first!
-    setShowJumpscare(true)
+    // Stop snoring immediately when Astrid wakes
+    stopSnoring()
 
-    // Play voice after a short delay (so jumpscare shows first)
+    // Show quick red flash (super short) with sound
+    setShowQuickFlash(true)
+    playJumpscareSound() // Play scary sound with the flash
+    setTimeout(() => setShowQuickFlash(false), 200)
+
+    // Play voice right after the flash
     setTimeout(() => {
       playVoiceRecording('Astrid', 'wake', language)
-    }, 300)
+    }, 200)
 
     setGameState(prev => ({ ...prev, astridAwake: true }))
   }, [language])
 
   const updateHideTimer = useCallback((time) => {
     setGameState(prev => {
+      // Don't do anything if already game over or level complete
+      if (prev.gameOver || prev.levelComplete) {
+        return prev
+      }
+
       if (time <= 0) {
         if (!prev.isHiding) {
           // Failed to hide - play "Nu ska du få!" and show game over screen
@@ -168,11 +182,14 @@ function App() {
           }
         } else {
           // Successfully hidden - play "Vart tog den vägen?" and show success message!
-          // Fade out music first, then play voice
+          // Fade out music first
           fadeOutMusic()
+
+          // Play success voice after a short delay
           setTimeout(() => {
             playVoiceRecording('Astrid', 'success', language)
-          }, 500)
+          }, 800)
+
           return {
             ...prev,
             hideTimer: 0,
@@ -185,6 +202,9 @@ function App() {
   }, [language])
 
   const continueToNextLevel = () => {
+    // Stop all sounds when continuing to prevent lingering audio
+    stopAllSounds()
+
     if (gameState.currentLevel < levels.length) {
       setGameState(prev => ({
         ...prev,
@@ -237,6 +257,29 @@ function App() {
           characterName={levels[gameState.currentLevel - 1]?.name}
           onComplete={() => setShowJumpscare(false)}
         />
+      )}
+      {showQuickFlash && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            background: 'radial-gradient(circle, rgba(255,0,0,0.9) 0%, rgba(0,0,0,0.7) 100%)',
+            zIndex: 10000,
+            pointerEvents: 'none',
+            animation: 'quickFlash 0.2s ease-out'
+          }}
+        >
+          <style>{`
+            @keyframes quickFlash {
+              0% { opacity: 0; }
+              50% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+          `}</style>
+        </div>
       )}
       <BloodSplatter show={showBloodSplatter} />
     </>

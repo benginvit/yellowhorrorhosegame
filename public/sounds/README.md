@@ -14,6 +14,7 @@
 ## Ljudfiler som behövs / Sound Files Needed:
 
 ### Svenska (sv folder):
+- `astrid-snoring.m4a` - Astrids snarkljud när hon sover (3-5 sekunder)
 - `astrid-wake.m4a` - "Vad gör du i mitt hus?" eller liknande
 - `astrid-catch.m4a` - När Astrid fångar spelaren
 - `astrid-failed.m4a` - "Nu ska du få!" (när timern tar slut)
@@ -22,6 +23,7 @@
 - (Valfritt) Lägg till fler för andra familjemedlemmar!
 
 ### English (en folder):
+- `astrid-snoring.m4a` - Astrid's snoring sound while sleeping (3-5 seconds)
 - `astrid-wake.m4a` - "What are you doing in my house?" or similar
 - `astrid-catch.m4a` - When Astrid catches the player
 - `astrid-failed.m4a` - "Now I got you!" (when timer runs out)
@@ -35,20 +37,22 @@
 public/
   sounds/
     sv/
+      astrid-snoring.m4a   ← NYTT! Snarkljud
       astrid-wake.m4a
       astrid-catch.m4a
-      astrid-failed.m4a    ← NYTT!
-      astrid-success.m4a   ← NYTT!
+      astrid-failed.m4a
+      astrid-success.m4a
       molltas-meow.m4a
       selma-catch.m4a
       kerstin-catch.m4a
       maria-catch.m4a
       pappa-catch.m4a
     en/
+      astrid-snoring.m4a   ← NEW! Snoring sound
       astrid-wake.m4a
       astrid-catch.m4a
-      astrid-failed.m4a    ← NEW!
-      astrid-success.m4a   ← NEW!
+      astrid-failed.m4a
+      astrid-success.m4a
       molltas-meow.m4a
       selma-catch.m4a
       kerstin-catch.m4a

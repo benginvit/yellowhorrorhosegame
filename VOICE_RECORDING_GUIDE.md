@@ -16,20 +16,22 @@ public/
   sounds/
     sv/              ← Svenska röster här
       molltas-meow.m4a
+      astrid-snoring.m4a   ← NYTT! Snarkljud
       astrid-wake.m4a
       astrid-catch.m4a
-      astrid-failed.m4a    ← NYTT!
-      astrid-success.m4a   ← NYTT!
+      astrid-failed.m4a
+      astrid-success.m4a
       selma-catch.m4a
       kerstin-catch.m4a
       maria-catch.m4a
       pappa-catch.m4a
     en/              ← Engelska röster här
       molltas-meow.m4a
+      astrid-snoring.m4a   ← NEW! Snoring sound
       astrid-wake.m4a
       astrid-catch.m4a
-      astrid-failed.m4a    ← NEW!
-      astrid-success.m4a   ← NEW!
+      astrid-failed.m4a
+      astrid-success.m4a
       selma-catch.m4a
       kerstin-catch.m4a
       maria-catch.m4a
@@ -66,6 +68,13 @@ public/
 - Din katts jamande
 - Flera versioner fungerar! Spelet väljer slumpmässigt
 - Tips: Spela in när katten är hungrig 😺
+
+#### **astrid-snoring.m4a** ⭐ NYTT!
+- Astrid snarkar när hon sover
+- Spela in ett snarkljud (kan vara riktigt eller låtsas)
+- Exempel: "Zzzzzz..." eller ett naturligt snarkande
+- Ljudet kommer loopa så gör det lagom långt (3-5 sekunder)
+- Tips: Gör det lite gulligt och lugnande först, sen kommer det läskiga!
 
 #### **astrid-wake.m4a**
 - Astrid säger när hon vaknar
@@ -105,6 +114,7 @@ public/
 
 ### Engelska versionen (en folder):
 Samma filer men på engelska!
+- astrid-snoring.m4a: "Zzzzzz..." (snoring sound - same recording can be used for both languages!)
 - astrid-wake.m4a: "What are you doing in my house?!"
 - astrid-catch.m4a: "I GOT YOU!"
 - astrid-failed.m4a: "Now I got you!" eller "There you are!"
