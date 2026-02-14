@@ -16,6 +16,9 @@
     },
     "ghcr.io/devcontainers/features/git:1": {
       "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
     }
   },
 
@@ -27,7 +30,8 @@
         "ms-azuretools.vscode-docker",
         "ms-kubernetes-tools.vscode-kubernetes-tools",
         "ms-vscode.azure-account",
-        "github.copilot"
+        "github.copilot",
+        "anthropic.claude-code"
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
@@ -43,11 +47,15 @@
 
   "forwardPorts": [5173, 80, 3000],
 
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "npm install && pip install --upgrade anthropic",
 
   "remoteUser": "node",
 
   "mounts": [
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-  ]
+  ],
+
+  "containerEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+  }
 }
