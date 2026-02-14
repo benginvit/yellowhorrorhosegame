@@ -1,0 +1,83 @@
+name: Deploy to Azure AKS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger
+
+env:
+  IMAGE_NAME: yellowhorrorhose
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: 🐳 Login to Azure Container Registry
+      run: |
+        az acr login --name ${{ env.ACR_NAME }}
+
+    - name: 🏗️ Build and push Docker image
+      run: |
+        IMAGE_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        IMAGE_LATEST=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+
+        docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+        docker push $IMAGE_TAG
+        docker push $IMAGE_LATEST
+
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+    - name: ☸️ Set up kubectl
+      uses: azure/setup-kubectl@v3
+
+    - name: 🔑 Get AKS credentials
+      run: |
+        az aks get-credentials \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ env.AKS_CLUSTER }} \
+          --overwrite-existing
+
+    - name: 📝 Update Kubernetes manifests
+      run: |
+        sed -i "s|<YOUR_ACR_NAME>.azurecr.io/yellowhorrorhose:latest|${{ env.IMAGE_TAG }}|g" k8s/deployment.yaml
+
+    - name: 🚀 Deploy to AKS
+      run: |
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
+
+        # Optionally deploy ingress
+        # kubectl apply -f k8s/ingress.yaml
+
+    - name: ⏳ Wait for rollout
+      run: |
+        kubectl rollout status deployment/yellowhorrorhose-game --timeout=5m
+
+    - name: ✅ Get deployment info
+      run: |
+        echo "### 🎮 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Pods:**" >> $GITHUB_STEP_SUMMARY
+        kubectl get pods -l app=yellowhorrorhose-game >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Service:**" >> $GITHUB_STEP_SUMMARY
+        kubectl get service yellowhorrorhose-game >> $GITHUB_STEP_SUMMARY
+
+        # Get external IP if available
+        EXTERNAL_IP=$(kubectl get service yellowhorrorhose-game -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        if [ ! -z "$EXTERNAL_IP" ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🌐 Game URL:** http://$EXTERNAL_IP" >> $GITHUB_STEP_SUMMARY
+        fi
