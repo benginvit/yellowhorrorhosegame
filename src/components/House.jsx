@@ -1,19 +1,32 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
 function House({ onEnter, hasKey, isAstridLevel = false }) {
   const doorRef = useRef()
   const { camera } = useThree()
+  const hasEnteredRef = useRef(false)
+
+  // Reset entry flag if player moves far from door or conditions change
+  useEffect(() => {
+    hasEnteredRef.current = false
+  }, [hasKey, isAstridLevel])
 
   useFrame(() => {
     if (doorRef.current) {
       const doorPos = doorRef.current.getWorldPosition(new THREE.Vector3())
       const distance = camera.position.distanceTo(doorPos)
 
+      // Reset flag if player moves far from door
+      if (distance > 5) {
+        hasEnteredRef.current = false
+      }
+
       // For Astrid level, can enter without key
       // For other levels, need key
-      if (distance < 3 && (isAstridLevel || hasKey)) {
+      // Only allow entering once per level to prevent multiple calls
+      if (distance < 3 && (isAstridLevel || hasKey) && !hasEnteredRef.current) {
+        hasEnteredRef.current = true
         onEnter()
       }
     }

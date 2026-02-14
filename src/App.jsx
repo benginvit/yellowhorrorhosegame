@@ -25,20 +25,21 @@ function App() {
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
   const [showQuickFlash, setShowQuickFlash] = useState(false)
 
-  // Start horror music when playing or level changes
+  // Start horror music when playing, level changes, or Astrid wakes up
   useEffect(() => {
     // Stop any voice recordings (cat meows, etc.) when level changes
     stopVoiceRecordings()
 
     let stopMusic
     if (gameState.isPlaying) {
-      stopMusic = createHorrorMusic(gameState.currentLevel)
+      // Pass astridAwake state to select appropriate music
+      stopMusic = createHorrorMusic(gameState.currentLevel, gameState.astridAwake)
     }
     return () => {
       if (stopMusic) stopMusic()
       if (!gameState.isPlaying) stopAllSounds()
     }
-  }, [gameState.isPlaying, gameState.currentLevel])
+  }, [gameState.isPlaying, gameState.currentLevel, gameState.astridAwake])
 
   // Fade out music when level complete
   useEffect(() => {
@@ -146,7 +147,10 @@ function App() {
   }, [])
 
   const wakeAstrid = useCallback(() => {
-    // Stop snoring immediately when Astrid wakes
+    // Stop all voice recordings including snoring immediately when Astrid wakes
+    stopVoiceRecordings()
+
+    // Double-check snoring is stopped
     stopSnoring()
 
     // Show quick red flash (super short) with sound
@@ -154,10 +158,10 @@ function App() {
     playJumpscareSound() // Play scary sound with the flash
     setTimeout(() => setShowQuickFlash(false), 200)
 
-    // Play voice right after the flash
+    // Play voice right after the flash (slightly longer delay to ensure snoring stopped)
     setTimeout(() => {
       playVoiceRecording('Astrid', 'wake', language)
-    }, 200)
+    }, 250)
 
     setGameState(prev => ({ ...prev, astridAwake: true }))
   }, [language])

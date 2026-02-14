@@ -175,46 +175,64 @@ const stopGeneratedMusic = () => {
   musicOscillators = []
 }
 
-const playGeneratedHorrorMusic = (isIntense = false) => {
+const playGeneratedHorrorMusic = (isIntense = false, isCalm = false) => {
   const ctx = getAudioContext()
 
-  // Different melodies for different intensity levels
-  const scaryMelody = isIntense ? [
-    // Faster, more frantic melody for Astrid level
-    880.00, // A5
-    830.61, // G#5
-    783.99, // G5
-    739.99, // F#5
-    880.00, // A5
-    783.99, // G5
-    698.46, // F5
-    659.25, // E5
-    739.99, // F#5
-    783.99, // G5
-    830.61, // G#5
-    880.00, // A5
-  ] : [
+  // Different melodies for different modes
+  let scaryMelody
+  let tempo
+
+  if (isCalm) {
+    // Very calm, sparse, low notes for sleeping Astrid
+    scaryMelody = [
+      220.00, // A3 - very low
+      246.94, // B3
+      196.00, // G3
+      174.61, // F3
+      220.00, // A3
+    ]
+    tempo = 1200 // Very slow
+  } else if (isIntense) {
+    // Faster, more frantic melody
+    scaryMelody = [
+      880.00, // A5
+      830.61, // G#5
+      783.99, // G5
+      739.99, // F#5
+      880.00, // A5
+      783.99, // G5
+      698.46, // F5
+      659.25, // E5
+      739.99, // F#5
+      783.99, // G5
+      830.61, // G#5
+      880.00, // A5
+    ]
+    tempo = 400 // Fast tempo
+  } else {
     // Original slower melody
-    659.25, // E5
-    622.25, // D#5
-    587.33, // D5
-    493.88, // B4
-    659.25, // E5
-    587.33, // D5
-    523.25, // C5
-    493.88, // B4
-    440.00, // A4
-    493.88, // B4
-    523.25, // C5
-    587.33, // D5
-    523.25, // C5
-    493.88, // B4
-    440.00, // A4
-    329.63, // E4
-  ]
+    scaryMelody = [
+      659.25, // E5
+      622.25, // D#5
+      587.33, // D5
+      493.88, // B4
+      659.25, // E5
+      587.33, // D5
+      523.25, // C5
+      493.88, // B4
+      440.00, // A4
+      493.88, // B4
+      523.25, // C5
+      587.33, // D5
+      523.25, // C5
+      493.88, // B4
+      440.00, // A4
+      329.63, // E4
+    ]
+    tempo = 600 // Medium tempo
+  }
 
   let noteIndex = 0
-  const tempo = isIntense ? 400 : 600 // Faster tempo for intense mode
 
   const playMelodyNote = () => {
     const now = ctx.currentTime
@@ -262,7 +280,7 @@ const playGeneratedHorrorMusic = (isIntense = false) => {
   musicInterval = setInterval(playMelodyNote, tempo)
 }
 
-export const createHorrorMusic = (currentLevel = 1) => {
+export const createHorrorMusic = (currentLevel = 1, astridAwake = false) => {
   // Stop any existing music
   if (backgroundMusic) {
     backgroundMusic.pause()
@@ -271,37 +289,22 @@ export const createHorrorMusic = (currentLevel = 1) => {
   stopGeneratedMusic()
 
   const isAstridLevel = currentLevel === 2
+  const isAstridSleeping = isAstridLevel && !astridAwake
 
-  // Try to use real audio files first
-  backgroundMusic = new Audio()
-
-  // Free horror music URLs - different for Astrid level
-  const musicUrls = isAstridLevel ? [
-    'https://assets.mixkit.co/music/preview/mixkit-creepy-atmosphere-364.m4a',
-    'https://assets.mixkit.co/music/preview/mixkit-games-worldbeat-466.m4a'
-  ] : [
-    'https://assets.mixkit.co/music/preview/mixkit-dark-tension-777.m4a',
-    'https://assets.mixkit.co/music/preview/mixkit-haunted-916.m4a',
-    'https://assets.mixkit.co/music/preview/mixkit-horror-atmosphere-601.m4a'
-  ]
-
-  const selectedUrl = musicUrls[Math.floor(Math.random() * musicUrls.length)]
-
-  backgroundMusic.src = selectedUrl
-  backgroundMusic.loop = true
-  backgroundMusic.volume = isAstridLevel ? 0.3 : 0.25
-  backgroundMusic.playbackRate = isAstridLevel ? 1.1 : 1.0 // Slightly faster for Astrid
-
-  // Try to play real audio
-  backgroundMusic.play()
-    .then(() => {
-      console.log(`Playing real horror music (Level ${currentLevel})`)
-    })
-    .catch(err => {
-      console.log('Real audio failed, using generated music:', err)
-      // Fallback to generated music with intensity based on level
-      playGeneratedHorrorMusic(isAstridLevel)
-    })
+  // Use generated music with different styles for sleeping vs awake
+  if (isAstridSleeping) {
+    console.log(`🎵 Playing CALM ambient music (Level ${currentLevel}, Astrid sleeping)`)
+    // Very calm, slow, sparse melody for sleeping Astrid
+    playGeneratedHorrorMusic(false, true) // false = not intense, true = calm mode
+  } else if (isAstridLevel) {
+    console.log(`🔥 Playing INTENSE horror music (Level ${currentLevel}, Astrid awake)`)
+    // Intense, fast, scary music when Astrid is awake
+    playGeneratedHorrorMusic(true) // true = intense
+  } else {
+    console.log(`🎵 Playing regular horror music (Level ${currentLevel})`)
+    // Regular horror music for other levels
+    playGeneratedHorrorMusic(false)
+  }
 
   return () => {
     if (backgroundMusic) {
@@ -423,7 +426,8 @@ let snoringInterval = null
 let snoringAudio = null
 
 export const startSnoring = (language = 'en') => {
-  if (snoringInterval) return // Already snoring
+  // Don't start if already snoring (either custom audio or synthesized)
+  if (snoringInterval || snoringAudio) return
 
   // Try to use custom snoring recording
   const tryCustomSnoring = () => {
@@ -503,13 +507,15 @@ export const stopSnoring = () => {
     try {
       snoringAudio.pause()
       snoringAudio.currentTime = 0
+      snoringAudio.loop = false // Ensure it doesn't restart
       // Remove from tracking
       const index = activeVoiceAudios.indexOf(snoringAudio)
       if (index > -1) {
         activeVoiceAudios.splice(index, 1)
       }
     } catch (e) {
-      // Already stopped
+      // Already stopped or error
+      console.log('Error stopping snoring audio:', e)
     }
     snoringAudio = null
   }
