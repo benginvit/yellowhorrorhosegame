@@ -26,7 +26,7 @@ function App() {
 
   const [showJumpscare, setShowJumpscare] = useState(false)
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
-  const [showQuickFlash, setShowQuickFlash] = useState(false)
+  const [showAstridJumpscare, setShowAstridJumpscare] = useState(false)
 
   // Start horror music when playing, level changes, or Astrid wakes up
   useEffect(() => {
@@ -158,19 +158,17 @@ function App() {
   const wakeAstrid = useCallback(() => {
     // Stop all voice recordings including snoring immediately when Astrid wakes
     stopVoiceRecordings()
-
-    // Double-check snoring is stopped
     stopSnoring()
 
-    // Show quick red flash (super short) with sound
-    setShowQuickFlash(true)
-    playJumpscareSound() // Play scary sound with the flash
-    setTimeout(() => setShowQuickFlash(false), 200)
+    // Show full Astrid jumpscare (1.5s intense)
+    setShowAstridJumpscare(true)
+    playJumpscareSound()
+    setTimeout(() => setShowAstridJumpscare(false), 1500)
 
-    // Play voice right after the flash (slightly longer delay to ensure snoring stopped)
+    // Play Astrid wake voice after jumpscare
     setTimeout(() => {
       playVoiceRecording('Astrid', 'wake', language)
-    }, 250)
+    }, 400)
 
     setGameState(prev => ({ ...prev, astridAwake: true }))
   }, [language])
@@ -280,7 +278,7 @@ function App() {
           onComplete={() => setShowJumpscare(false)}
         />
       )}
-      {showQuickFlash && (
+      {showAstridJumpscare && (
         <div
           style={{
             position: 'fixed',
@@ -288,17 +286,85 @@ function App() {
             left: 0,
             width: '100%',
             height: '100%',
-            background: 'radial-gradient(circle, rgba(255,0,0,0.9) 0%, rgba(0,0,0,0.7) 100%)',
             zIndex: 10000,
             pointerEvents: 'none',
-            animation: 'quickFlash 0.2s ease-out'
+            animation: 'astridShake 1.5s ease-out forwards'
           }}
         >
+          {/* Intense red flash */}
+          <div
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle, rgba(200,0,0,0.95) 0%, rgba(0,0,0,0.98) 100%)',
+              animation: 'astridFlash 1.5s ease-out forwards'
+            }}
+          />
+          {/* Astrid face */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: '200px',
+              animation: 'astridFace 1.5s ease-out forwards',
+              filter: 'drop-shadow(0 0 30px red)'
+            }}
+          >
+            😱
+          </div>
+          {/* "ASTRID!" text */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '20%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '80px',
+              fontWeight: 'bold',
+              color: '#ff0000',
+              textShadow: '0 0 30px #ff0000, 0 0 60px #ff0000',
+              fontFamily: 'Arial, sans-serif',
+              animation: 'astridText 1.5s ease-out forwards',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            ASTRID VAKNAR!
+          </div>
           <style>{`
-            @keyframes quickFlash {
+            @keyframes astridFlash {
               0% { opacity: 0; }
-              50% { opacity: 1; }
+              5% { opacity: 1; }
+              60% { opacity: 0.85; }
               100% { opacity: 0; }
+            }
+            @keyframes astridFace {
+              0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
+              10% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+              30% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+              80% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+              100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            }
+            @keyframes astridText {
+              0% { opacity: 0; transform: translateX(-50%) scale(2); }
+              10% { opacity: 1; transform: translateX(-50%) scale(1); }
+              70% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+            @keyframes astridShake {
+              0%, 100% { transform: translate(0, 0); }
+              5% { transform: translate(-20px, 15px); }
+              10% { transform: translate(20px, -15px); }
+              15% { transform: translate(-15px, -10px); }
+              20% { transform: translate(15px, 10px); }
+              25% { transform: translate(-10px, 8px); }
+              30% { transform: translate(10px, -8px); }
+              40% { transform: translate(-6px, 4px); }
+              50% { transform: translate(6px, -4px); }
+              60% { transform: translate(-3px, 2px); }
+              70% { transform: translate(3px, -2px); }
             }
           `}</style>
         </div>

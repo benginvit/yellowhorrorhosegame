@@ -42,13 +42,13 @@ function Character({
   }, [level, isAstridLevel, isSleeping])
 
   useEffect(() => {
-    // Wake Astrid after 10 seconds when player enters house (gives time to see her sleeping and hear snoring)
+    // Wake Astrid after 4 seconds when player enters house
     let wakeTimer
     if (isAstridLevel && !astridAwake && !isSleeping && onWakeAstrid) {
       wakeTimer = setTimeout(() => {
         // Just call the callback - jumpscare and sound are handled in App.jsx
         onWakeAstrid()
-      }, 10000)
+      }, 4000)
     }
     return () => {
       if (wakeTimer) clearTimeout(wakeTimer)
