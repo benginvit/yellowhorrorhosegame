@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-function Key({ onCollect }) {
+function Key({ onCollect, position = [8, 1, -10] }) {
   const keyRef = useRef()
   const { camera } = useThree()
 
@@ -25,7 +25,7 @@ function Key({ onCollect }) {
   })
 
   return (
-    <group ref={keyRef} position={[8, 1, -10]}>
+    <group ref={keyRef} position={position}>
       {/* Key shaft */}
       <mesh rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.1, 0.1, 2]} />

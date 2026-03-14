@@ -1,41 +1,57 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
 import MobileControls from './components/MobileControls'
-import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles } from './utils/sounds'
+import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playScreamSound } from './utils/sounds'
+
+const INITIAL_STATE = {
+  isPlaying: false,
+  currentLevel: 1,
+  hasKey: false,
+  health: 100,
+  gameOver: false,
+  victory: false,
+  isInsideHouse: false,
+  isHiding: false,
+  astridAwake: false,
+  hideTimer: 15,
+  levelComplete: false,
+  classroomIntroPhase: null // null | 'seated' | 'shots' | 'panic' | 'active'
+}
 
 function App() {
-  const [language, setLanguage] = useState(null) // null = not selected yet
+  const [language, setLanguage] = useState(null)
   const [mobileMovement, setMobileMovement] = useState({ x: 0, y: 0 })
   const [mobileRotation, setMobileRotation] = useState({ x: 0, y: 0 })
-  const [gameState, setGameState] = useState({
-    isPlaying: false,
-    currentLevel: 1,
-    hasKey: false,
-    health: 100,
-    gameOver: false,
-    victory: false,
-    isInsideHouse: false,
-    isHiding: false,
-    astridAwake: false,
-    hideTimer: 15,
-    levelComplete: false
-  })
+  const [gameState, setGameState] = useState(INITIAL_STATE)
 
   const [showJumpscare, setShowJumpscare] = useState(false)
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
   const [showAstridJumpscare, setShowAstridJumpscare] = useState(false)
+  const [showGomEr, setShowGomEr] = useState(false)
+  const [showGunshotFlash, setShowGunshotFlash] = useState(false)
+  const [showGunshotShake, setShowGunshotShake] = useState(false)
+
+  const introTimersRef = useRef([])
+  const introStartedRef = useRef(false)
+
+  const levels = [
+    { name: 'Molltas', description: 'White Cat', speed: 2.0 },
+    { name: 'Astrid', description: '13 years old', speed: 1.8 },
+    { name: 'Kerstin', description: '13 years old', speed: 2.3 },
+    { name: 'Selma', description: '11 years old', speed: 2.0 },
+    { name: 'Maria', description: '46 years old', speed: 2.6 },
+    { name: 'Pappa', description: '48 years old', speed: 3.0 }
+  ]
 
   // Start horror music when playing, level changes, or Astrid wakes up
   useEffect(() => {
-    // Stop any voice recordings (cat meows, etc.) when level changes
     stopVoiceRecordings()
 
     let stopMusic
     if (gameState.isPlaying) {
-      // Pass astridAwake state to select appropriate music
       stopMusic = createHorrorMusic(gameState.currentLevel, gameState.astridAwake)
     }
     return () => {
@@ -51,79 +67,92 @@ function App() {
     }
   }, [gameState.levelComplete])
 
-  const levels = [
-    { name: 'Molltas', description: 'White Cat', speed: 2.0 },
-    { name: 'Astrid', description: '13 years old', speed: 1.8 },
-    { name: 'Selma', description: '11 years old', speed: 2.0 },
-    { name: 'Kerstin', description: '13 years old', speed: 2.3 },
-    { name: 'Maria', description: '46 years old', speed: 2.6 },
-    { name: 'Pappa', description: '48 years old', speed: 3.0 }
-  ]
+  // Classroom intro sequence for Kerstin level — runs ONCE when level starts
+  useEffect(() => {
+    const currentLevelData = levels[gameState.currentLevel - 1]
+    if (!gameState.isPlaying || currentLevelData?.name !== 'Kerstin') {
+      introStartedRef.current = false
+      return
+    }
+    if (introStartedRef.current) return
+    introStartedRef.current = true
+
+    introTimersRef.current.forEach(t => clearTimeout(t))
+    introTimersRef.current = []
+
+    const t1 = setTimeout(() => {
+      playGunshotSound()
+      setShowGunshotFlash(true)
+      setShowGunshotShake(true)
+      setTimeout(() => setShowGunshotFlash(false), 300)
+      setTimeout(() => setShowGunshotShake(false), 1800)
+      setGameState(prev => ({ ...prev, classroomIntroPhase: 'shots' }))
+    }, 7000)
+
+    const t2 = setTimeout(() => {
+      playGunshotSound()
+      playScreamSound()
+    }, 8500)
+
+    const t3 = setTimeout(() => {
+      setGameState(prev => ({ ...prev, classroomIntroPhase: 'panic' }))
+      setShowGomEr(true)
+    }, 9000)
+
+    const t4 = setTimeout(() => {
+      setShowGomEr(false)
+      setGameState(prev => ({ ...prev, classroomIntroPhase: 'active' }))
+    }, 12500)
+
+    introTimersRef.current = [t1, t2, t3, t4]
+
+    return () => {
+      introTimersRef.current.forEach(t => clearTimeout(t))
+      introStartedRef.current = false
+    }
+  }, [gameState.isPlaying, gameState.currentLevel])
 
   const startGame = () => {
-    // Initialize audio on user interaction
     initAudio()
-
-    // Preload audio files for the selected language
-    if (language) {
-      preloadAudioFiles(language)
-    }
+    if (language) preloadAudioFiles(language)
 
     setGameState({
+      ...INITIAL_STATE,
       isPlaying: true,
-      currentLevel: 1,
-      hasKey: false,
-      health: 100,
-      gameOver: false,
-      victory: false,
-      isInsideHouse: false,
-      isHiding: false,
-      astridAwake: false,
-      hideTimer: 15,
-      levelComplete: false
     })
   }
 
   const restartGame = () => {
-    // Stop all sounds when restarting
     stopAllSounds()
+    introTimersRef.current.forEach(t => clearTimeout(t))
+    setShowGomEr(false)
+    setGameState(INITIAL_STATE)
+  }
 
-    setGameState({
-      isPlaying: false,
-      currentLevel: 1,
+  const getNextLevelState = (prev) => {
+    const nextLevel = prev.currentLevel + 1
+    const nextLevelData = levels[nextLevel - 1]
+    const isKerstinNext = nextLevelData?.name === 'Kerstin'
+
+    return {
+      ...prev,
+      currentLevel: nextLevel,
       hasKey: false,
       health: 100,
-      gameOver: false,
-      victory: false,
       isInsideHouse: false,
       isHiding: false,
       astridAwake: false,
       hideTimer: 15,
-      levelComplete: false
-    })
+      levelComplete: false,
+      classroomIntroPhase: isKerstinNext ? 'seated' : null
+    }
   }
 
   const nextLevel = () => {
-    // Advance directly to next level (no confetti for normal levels)
-    // Game ends after level 2
-    if (gameState.currentLevel < 2) {
-      setGameState(prev => ({
-        ...prev,
-        currentLevel: prev.currentLevel + 1,
-        hasKey: false,
-        health: 100,
-        isInsideHouse: false,
-        isHiding: false,
-        astridAwake: false,
-        hideTimer: 15,
-        levelComplete: false
-      }))
+    if (gameState.currentLevel < levels.length) {
+      setGameState(prev => getNextLevelState(prev))
     } else {
-      setGameState(prev => ({
-        ...prev,
-        victory: true,
-        isPlaying: false
-      }))
+      setGameState(prev => ({ ...prev, victory: true, isPlaying: false }))
     }
   }
 
@@ -132,11 +161,8 @@ function App() {
   }, [])
 
   const takeDamage = useCallback((amount) => {
-    // Trigger visual effects
     setShowBloodSplatter(true)
     setTimeout(() => setShowBloodSplatter(false), 2000)
-
-    // No more random jumpscares when taking damage
 
     setGameState(prev => {
       const newHealth = Math.max(0, prev.health - amount)
@@ -156,16 +182,13 @@ function App() {
   }, [])
 
   const wakeAstrid = useCallback(() => {
-    // Stop all voice recordings including snoring immediately when Astrid wakes
     stopVoiceRecordings()
     stopSnoring()
 
-    // Show full Astrid jumpscare (1.5s intense)
     setShowAstridJumpscare(true)
     playJumpscareSound()
     setTimeout(() => setShowAstridJumpscare(false), 1500)
 
-    // Play Astrid wake voice after jumpscare
     setTimeout(() => {
       playVoiceRecording('Astrid', 'wake', language)
     }, 400)
@@ -175,37 +198,18 @@ function App() {
 
   const updateHideTimer = useCallback((time) => {
     setGameState(prev => {
-      // Don't do anything if already game over or level complete
-      if (prev.gameOver || prev.levelComplete) {
-        return prev
-      }
+      if (prev.gameOver || prev.levelComplete) return prev
 
       if (time <= 0) {
         if (!prev.isHiding) {
-          // Failed to hide - play "Nu ska du få!" and show game over screen
           playVoiceRecording('Astrid', 'failed', language)
-          return {
-            ...prev,
-            health: 0,
-            gameOver: true,
-            isPlaying: false,
-            hideTimer: 0
-          }
+          return { ...prev, health: 0, gameOver: true, isPlaying: false, hideTimer: 0 }
         } else {
-          // Successfully hidden - play "Vart tog den vägen?" and show success message!
-          // Fade out music first
           fadeOutMusic()
-
-          // Play success voice after a short delay
           setTimeout(() => {
             playVoiceRecording('Astrid', 'success', language)
           }, 800)
-
-          return {
-            ...prev,
-            hideTimer: 0,
-            levelComplete: true
-          }
+          return { ...prev, hideTimer: 0, levelComplete: true }
         }
       }
       return { ...prev, hideTimer: time }
@@ -213,22 +217,12 @@ function App() {
   }, [language])
 
   const continueToNextLevel = () => {
-    // Stop all sounds when continuing to prevent lingering audio
     stopAllSounds()
+    introTimersRef.current.forEach(t => clearTimeout(t))
+    setShowGomEr(false)
 
-    // Game ends after level 2
-    if (gameState.currentLevel < 2) {
-      setGameState(prev => ({
-        ...prev,
-        currentLevel: prev.currentLevel + 1,
-        hasKey: false,
-        health: 100,
-        isInsideHouse: false,
-        isHiding: false,
-        astridAwake: false,
-        hideTimer: 15,
-        levelComplete: false
-      }))
+    if (gameState.currentLevel < levels.length) {
+      setGameState(prev => getNextLevelState(prev))
     } else {
       setGameState(prev => ({
         ...prev,
@@ -238,6 +232,8 @@ function App() {
       }))
     }
   }
+
+  const currentLevel = levels[gameState.currentLevel - 1]
 
   return (
     <>
@@ -254,7 +250,7 @@ function App() {
         <>
           <Game
             gameState={gameState}
-            level={levels[gameState.currentLevel - 1]}
+            level={currentLevel}
             language={language}
             onCollectKey={collectKey}
             onNextLevel={nextLevel}
@@ -272,73 +268,266 @@ function App() {
           />
         </>
       )}
+
+      {/* Classroom intro: "Göm er!" overlay */}
+      {showGomEr && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          zIndex: 9000,
+          pointerEvents: 'none',
+          animation: 'classroomShake 3.5s ease-out forwards'
+        }}>
+          {/* Dark vignette */}
+          <div style={{
+            position: 'absolute',
+            width: '100%', height: '100%',
+            background: 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.7) 100%)',
+            animation: 'vignetteFade 3.5s ease-out forwards'
+          }} />
+
+          {/* Teacher screams */}
+          <div style={{
+            position: 'absolute',
+            top: '30%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            textAlign: 'center',
+            animation: 'teacherText 3.5s ease-out forwards',
+            whiteSpace: 'nowrap'
+          }}>
+            <div style={{
+              fontSize: 'clamp(16px, 3vw, 28px)',
+              color: '#ffcc00',
+              fontFamily: 'Arial, sans-serif',
+              fontStyle: 'italic',
+              textShadow: '2px 2px 8px rgba(0,0,0,0.9)',
+              marginBottom: '12px'
+            }}>
+              Läraren skriker:
+            </div>
+            <div style={{
+              fontSize: 'clamp(48px, 10vw, 120px)',
+              fontWeight: 'bold',
+              color: '#ff2200',
+              fontFamily: 'Impact, Arial Black, sans-serif',
+              textShadow: '0 0 20px #ff0000, 4px 4px 0px #000, 0 0 60px #ff0000',
+              letterSpacing: '4px',
+              animation: 'gomErPulse 0.5s ease-in-out infinite alternate'
+            }}>
+              GÖM ER!
+            </div>
+          </div>
+
+          {/* Pops Academy logo top */}
+          <div style={{
+            position: 'absolute',
+            top: '8%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 'clamp(12px, 2vw, 20px)',
+            color: 'rgba(255,255,255,0.5)',
+            fontFamily: 'Arial, sans-serif',
+            letterSpacing: '6px',
+            textTransform: 'uppercase'
+          }}>
+            POPS ACADEMY
+          </div>
+
+          <style>{`
+            @keyframes classroomShake {
+              0%, 100% { transform: translate(0, 0); }
+              3% { transform: translate(-12px, 8px); }
+              6% { transform: translate(12px, -8px); }
+              9% { transform: translate(-8px, -6px); }
+              12% { transform: translate(8px, 6px); }
+              16% { transform: translate(-5px, 3px); }
+              20% { transform: translate(5px, -3px); }
+              28% { transform: translate(-2px, 2px); }
+              35% { transform: translate(2px, -2px); }
+            }
+            @keyframes vignetteFade {
+              0% { opacity: 0; }
+              10% { opacity: 1; }
+              80% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+            @keyframes teacherText {
+              0% { opacity: 0; transform: translateX(-50%) scale(1.5); }
+              8% { opacity: 1; transform: translateX(-50%) scale(1); }
+              75% { opacity: 1; transform: translateX(-50%) scale(1); }
+              100% { opacity: 0; transform: translateX(-50%) scale(0.9); }
+            }
+            @keyframes gomErPulse {
+              from { text-shadow: 0 0 20px #ff0000, 4px 4px 0px #000; }
+              to { text-shadow: 0 0 40px #ff0000, 4px 4px 0px #000, 0 0 80px #ff6600; }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Classroom: candy throw notification */}
+      {gameState.classroomIntroPhase === 'shots' && (
+        <div style={{
+          position: 'fixed',
+          bottom: '35%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 8500,
+          pointerEvents: 'none',
+          textAlign: 'center',
+          animation: 'candyToastIn 0.4s ease-out forwards'
+        }}>
+          <div style={{
+            fontSize: 'clamp(18px, 3.5vw, 32px)',
+            fontWeight: 'bold',
+            color: '#ffcc00',
+            fontFamily: 'Arial, sans-serif',
+            textShadow: '0 0 12px rgba(255,180,0,0.9), 2px 2px 0 #000',
+            background: 'rgba(0,0,0,0.55)',
+            padding: '10px 22px',
+            borderRadius: '8px',
+            border: '2px solid rgba(255,200,0,0.4)',
+            whiteSpace: 'nowrap'
+          }}>
+            🍬 Läraren kastar godis!
+          </div>
+          <style>{`
+            @keyframes candyToastIn {
+              0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+              100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Classroom: grab candy hint during panic/active */}
+      {(gameState.classroomIntroPhase === 'panic' || gameState.classroomIntroPhase === 'active') && !gameState.hasKey && (
+        <div style={{
+          position: 'fixed',
+          bottom: '12%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 8500,
+          pointerEvents: 'none',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            fontSize: 'clamp(14px, 2.5vw, 22px)',
+            color: '#ffffff',
+            fontFamily: 'Arial, sans-serif',
+            textShadow: '1px 1px 6px rgba(0,0,0,0.95)',
+            background: 'rgba(180,0,0,0.6)',
+            padding: '8px 20px',
+            borderRadius: '6px',
+            border: '1px solid rgba(255,100,100,0.5)',
+            whiteSpace: 'nowrap',
+            animation: 'candyHintPulse 1.8s ease-in-out infinite'
+          }}>
+            Ta ett godis innan eleverna äter allt!
+          </div>
+          <style>{`
+            @keyframes candyHintPulse {
+              0%, 100% { opacity: 0.85; }
+              50% { opacity: 1; box-shadow: 0 0 16px rgba(255,80,80,0.6); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Gunshot screen shake */}
+      {showGunshotShake && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          zIndex: 9400,
+          pointerEvents: 'none',
+          animation: 'gunshotShake 1.8s ease-out forwards'
+        }}>
+          <style>{`
+            @keyframes gunshotShake {
+              0%   { transform: translate(0, 0); }
+              4%   { transform: translate(-18px, 12px); }
+              8%   { transform: translate(18px, -12px); }
+              12%  { transform: translate(-14px, -10px); }
+              16%  { transform: translate(14px, 10px); }
+              22%  { transform: translate(-10px, 7px); }
+              28%  { transform: translate(10px, -7px); }
+              36%  { transform: translate(-6px, 4px); }
+              45%  { transform: translate(6px, -4px); }
+              55%  { transform: translate(-3px, 2px); }
+              65%  { transform: translate(3px, -2px); }
+              80%  { transform: translate(-1px, 1px); }
+              100% { transform: translate(0, 0); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Gunshot flash */}
+      {showGunshotFlash && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(255, 240, 200, 0.85)',
+          zIndex: 9500,
+          pointerEvents: 'none',
+          animation: 'gunshotFlash 0.3s ease-out forwards'
+        }}>
+          <style>{`
+            @keyframes gunshotFlash {
+              0% { opacity: 0; }
+              10% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+          `}</style>
+        </div>
+      )}
+
       {showJumpscare && (
         <Jumpscare
-          characterName={levels[gameState.currentLevel - 1]?.name}
+          characterName={currentLevel?.name}
           onComplete={() => setShowJumpscare(false)}
         />
       )}
+
       {showAstridJumpscare && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            zIndex: 10000,
-            pointerEvents: 'none',
-            animation: 'astridShake 1.5s ease-out forwards'
-          }}
-        >
-          {/* Intense red flash */}
-          <div
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              background: 'radial-gradient(circle, rgba(200,0,0,0.95) 0%, rgba(0,0,0,0.98) 100%)',
-              animation: 'astridFlash 1.5s ease-out forwards'
-            }}
-          />
-          {/* Astrid face */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: '200px',
-              animation: 'astridFace 1.5s ease-out forwards',
-              filter: 'drop-shadow(0 0 30px red)'
-            }}
-          >
-            😱
-          </div>
-          {/* "ASTRID!" text */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '20%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: '80px',
-              fontWeight: 'bold',
-              color: '#ff0000',
-              textShadow: '0 0 30px #ff0000, 0 0 60px #ff0000',
-              fontFamily: 'Arial, sans-serif',
-              animation: 'astridText 1.5s ease-out forwards',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            ASTRID VAKNAR!
-          </div>
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          zIndex: 10000,
+          pointerEvents: 'none',
+          animation: 'astridShake 1.5s ease-out forwards'
+        }}>
+          <div style={{
+            position: 'absolute',
+            width: '100%', height: '100%',
+            background: 'radial-gradient(circle, rgba(200,0,0,0.95) 0%, rgba(0,0,0,0.98) 100%)',
+            animation: 'astridFlash 1.5s ease-out forwards'
+          }} />
+          <div style={{
+            position: 'absolute',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: '200px',
+            animation: 'astridFace 1.5s ease-out forwards',
+            filter: 'drop-shadow(0 0 30px red)'
+          }}>😱</div>
+          <div style={{
+            position: 'absolute',
+            top: '20%', left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: '80px',
+            fontWeight: 'bold',
+            color: '#ff0000',
+            textShadow: '0 0 30px #ff0000, 0 0 60px #ff0000',
+            fontFamily: 'Arial, sans-serif',
+            animation: 'astridText 1.5s ease-out forwards',
+            whiteSpace: 'nowrap'
+          }}>ASTRID VAKNAR!</div>
           <style>{`
             @keyframes astridFlash {
-              0% { opacity: 0; }
-              5% { opacity: 1; }
-              60% { opacity: 0.85; }
-              100% { opacity: 0; }
+              0% { opacity: 0; } 5% { opacity: 1; } 60% { opacity: 0.85; } 100% { opacity: 0; }
             }
             @keyframes astridFace {
               0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
@@ -369,6 +558,7 @@ function App() {
           `}</style>
         </div>
       )}
+
       <BloodSplatter show={showBloodSplatter} />
     </>
   )

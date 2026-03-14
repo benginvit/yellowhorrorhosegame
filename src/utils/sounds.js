@@ -674,6 +674,112 @@ export const stopSnoring = () => {
   }
 }
 
+// Gunshot sounds - multiple shots in rapid succession
+export const playGunshotSound = () => {
+  const ctx = getAudioContext()
+  const numberOfShots = 3 + Math.floor(Math.random() * 3) // 3-5 shots
+
+  for (let i = 0; i < numberOfShots; i++) {
+    const delay = i * (0.25 + Math.random() * 0.2)
+    const now = ctx.currentTime + delay
+
+    const bufferSize = Math.floor(ctx.sampleRate * 0.1)
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let j = 0; j < bufferSize; j++) {
+      data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.3))
+    }
+
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+
+    const filter = ctx.createBiquadFilter()
+    filter.type = 'lowpass'
+    filter.frequency.value = 800
+
+    const gainNode = ctx.createGain()
+    gainNode.gain.setValueAtTime(12.0, now)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.18)
+
+    // Low boom layer for impact
+    const boomBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.15), ctx.sampleRate)
+    const boomData = boomBuffer.getChannelData(0)
+    for (let j = 0; j < boomData.length; j++) {
+      boomData[j] = (Math.random() * 2 - 1) * Math.exp(-j / (boomData.length * 0.15))
+    }
+    const boomSrc = ctx.createBufferSource()
+    boomSrc.buffer = boomBuffer
+    const boomFilter = ctx.createBiquadFilter()
+    boomFilter.type = 'lowpass'
+    boomFilter.frequency.value = 200
+    const boomGain = ctx.createGain()
+    boomGain.gain.setValueAtTime(18.0, now)
+    boomGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15)
+    boomSrc.connect(boomFilter)
+    boomFilter.connect(boomGain)
+    boomGain.connect(ctx.destination)
+    boomSrc.start(now)
+    boomSrc.stop(now + 0.15)
+
+    source.connect(filter)
+    filter.connect(gainNode)
+    gainNode.connect(ctx.destination)
+
+    // Short echo with more reverb
+    const echoGain = ctx.createGain()
+    echoGain.gain.value = 0.5
+    const echoDelay = ctx.createDelay(0.5)
+    echoDelay.delayTime.value = 0.15
+    gainNode.connect(echoDelay)
+    echoDelay.connect(echoGain)
+    echoGain.connect(ctx.destination)
+
+    source.start(now)
+    source.stop(now + 0.1)
+  }
+}
+
+// Screaming/panic sound for teacher
+export const playScreamSound = () => {
+  const ctx = getAudioContext()
+  const now = ctx.currentTime
+
+  const osc1 = ctx.createOscillator()
+  const osc2 = ctx.createOscillator()
+  const gainNode = ctx.createGain()
+  const filter = ctx.createBiquadFilter()
+
+  filter.type = 'bandpass'
+  filter.frequency.value = 1800
+  filter.Q.value = 0.8
+
+  osc1.connect(filter)
+  osc2.connect(filter)
+  filter.connect(gainNode)
+  gainNode.connect(ctx.destination)
+
+  osc1.type = 'sawtooth'
+  osc2.type = 'square'
+
+  // Rising scream pitch
+  osc1.frequency.setValueAtTime(400, now)
+  osc1.frequency.linearRampToValueAtTime(900, now + 0.4)
+  osc1.frequency.linearRampToValueAtTime(700, now + 0.9)
+
+  osc2.frequency.setValueAtTime(410, now)
+  osc2.frequency.linearRampToValueAtTime(915, now + 0.4)
+
+  gainNode.gain.setValueAtTime(0, now)
+  gainNode.gain.linearRampToValueAtTime(0.5, now + 0.05)
+  gainNode.gain.linearRampToValueAtTime(0.4, now + 0.7)
+  gainNode.gain.exponentialRampToValueAtTime(0.01, now + 1.2)
+
+  osc1.start(now)
+  osc2.start(now)
+  osc1.stop(now + 1.2)
+  osc2.stop(now + 1.2)
+}
+
 // Stop all voice recordings (cat meows, voices, etc.) but keep music playing
 export const stopVoiceRecordings = () => {
   // Stop all voice recording audio elements

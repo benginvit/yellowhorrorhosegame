@@ -14,7 +14,8 @@ function Character({
   isPlayerHiding = false,
   hideTimer,
   onUpdateHideTimer,
-  language = 'en'
+  language = 'en',
+  startPosition = null
 }) {
   const characterRef = useRef()
   const { camera } = useThree()
@@ -35,6 +36,8 @@ function Character({
       } else if (isAstridLevel && !isSleeping && !astridAwake) {
         // Sleeping in the bed inside the house
         characterRef.current.position.set(5, 0.7, -20)
+      } else if (startPosition) {
+        characterRef.current.position.set(startPosition[0], startPosition[1], startPosition[2])
       } else {
         characterRef.current.position.set(-8, 1, -18)
       }
@@ -254,14 +257,20 @@ function Character({
         }
       case 'Kerstin':
         return {
-          skinColor: '#fdd8b5',
-          hairColor: '#f5e6a8',
-          eyeColor: '#4A90E2',
-          bodySize: [0.8, 1.8, 0.5],
-          headSize: [0.7, 0.8, 0.7],
+          skinColor: '#f5c08a',
+          hairColor: '#3d2200',
+          eyeColor: '#2c5f2e',
+          bodySize: [0.52, 2.2, 0.3],
+          headSize: [0.62, 0.68, 0.62],
           isCat: false,
           isLarge: false,
-          hasLongHair: true
+          hasLongHair: true,
+          shirtColor: '#1a1a1a',
+          pantsColor: '#1e4080',
+          hasGun: true,
+          hasSkinHands: true,
+          isKerstin: true,
+          armLength: 1.5
         }
       case 'Maria':
         return {
@@ -302,11 +311,11 @@ function Character({
   return (
     <>
       {/* Character group */}
-      <group ref={characterRef} position={[-8, yOffset, -18]}>
+      <group ref={characterRef} position={startPosition ? [startPosition[0], startPosition[1], startPosition[2]] : [-8, yOffset, -18]}>
         {/* Body */}
         <mesh castShadow>
           <boxGeometry args={appearance.bodySize} />
-          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : '#666666'} />
+          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : (appearance.shirtColor || '#666666')} />
         </mesh>
 
         {/* Head */}
@@ -316,33 +325,58 @@ function Character({
         </mesh>
 
         {/* Hair */}
-        {!appearance.isCat && (
-          <>
-            <mesh position={[0, appearance.bodySize[1] / 2 + appearance.headSize[1] + 0.15, 0]} castShadow>
-              <boxGeometry args={[appearance.headSize[0] + 0.1, 0.3, appearance.headSize[2] + 0.1]} />
-              <meshStandardMaterial color={appearance.hairColor} />
-            </mesh>
-
-            {/* Long hair for Kerstin */}
-            {appearance.hasLongHair && (
-              <>
-                <mesh position={[0, appearance.bodySize[1] / 2 + 0.3, -0.4]} castShadow>
-                  <boxGeometry args={[0.7, 1.2, 0.3]} />
-                  <meshStandardMaterial color={appearance.hairColor} />
-                </mesh>
-                {/* Curly sides */}
-                <mesh position={[-0.4, appearance.bodySize[1] / 2 + 0.5, -0.2]} castShadow>
-                  <boxGeometry args={[0.2, 1, 0.2]} />
-                  <meshStandardMaterial color={appearance.hairColor} />
-                </mesh>
-                <mesh position={[0.4, appearance.bodySize[1] / 2 + 0.5, -0.2]} castShadow>
-                  <boxGeometry args={[0.2, 1, 0.2]} />
-                  <meshStandardMaterial color={appearance.hairColor} />
-                </mesh>
-              </>
-            )}
-          </>
+        {!appearance.isCat && !appearance.hasLongHair && (
+          <mesh position={[0, appearance.bodySize[1] / 2 + appearance.headSize[1] + 0.15, 0]} castShadow>
+            <boxGeometry args={[appearance.headSize[0] + 0.1, 0.3, appearance.headSize[2] + 0.1]} />
+            <meshStandardMaterial color={appearance.hairColor} />
+          </mesh>
         )}
+
+        {/* Curly hair for Kerstin */}
+        {appearance.hasLongHair && (() => {
+          const hx = appearance.headSize[0] / 2
+          const hy = appearance.bodySize[1] / 2 + appearance.headSize[1]
+          const hz = appearance.headSize[2] / 2
+          const c = appearance.hairColor
+          // top curls
+          const topCurls = [
+            [0, 0.18, 0], [-hx + 0.05, 0.1, 0.05], [hx - 0.05, 0.1, 0.05],
+            [-hx + 0.1, 0.18, -0.05], [hx - 0.1, 0.18, -0.05],
+            [0, 0.1, -hz + 0.08], [-0.15, 0.22, -0.1], [0.15, 0.22, -0.1],
+          ]
+          // back curly strands flowing down
+          const backCurls = [0, 0.38, 0.7, 1.0, 1.28, 1.5].map((dy, i) => ({
+            pos: [(i % 2 === 0 ? 0.08 : -0.08), hy - dy - 0.1, -hz - 0.1],
+            r: 0.19 - dy * 0.01
+          }))
+          // side strands
+          const sideCurls = [0, 0.3, 0.6, 0.9].flatMap((dy) => [
+            { pos: [-hx - 0.08, hy - dy, 0.02], r: 0.13 },
+            { pos: [hx + 0.08, hy - dy, 0.02], r: 0.13 },
+          ])
+          return (
+            <>
+              {topCurls.map(([ox, oy, oz], i) => (
+                <mesh key={`tc${i}`} position={[ox, hy + oy, oz]} castShadow>
+                  <sphereGeometry args={[0.21, 7, 7]} />
+                  <meshStandardMaterial color={c} />
+                </mesh>
+              ))}
+              {backCurls.map(({ pos, r }, i) => (
+                <mesh key={`bc${i}`} position={pos} castShadow>
+                  <sphereGeometry args={[r, 7, 7]} />
+                  <meshStandardMaterial color={c} />
+                </mesh>
+              ))}
+              {sideCurls.map(({ pos, r }, i) => (
+                <mesh key={`sc${i}`} position={pos} castShadow>
+                  <sphereGeometry args={[r, 7, 7]} />
+                  <meshStandardMaterial color={c} />
+                </mesh>
+              ))}
+            </>
+          )
+        })()}
 
         {/* Eyes */}
         <mesh position={[-0.15, appearance.bodySize[1] / 2 + appearance.headSize[1] / 2 + 0.15, appearance.headSize[2] / 2 + 0.05]}>
@@ -363,27 +397,105 @@ function Character({
           />
         </mesh>
 
-        {/* Arms */}
-        <mesh position={[-appearance.bodySize[0] / 2 - 0.15, appearance.bodySize[1] / 4, 0]} castShadow>
-          <boxGeometry args={[0.25, appearance.bodySize[1] * 0.6, 0.25]} />
-          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : '#666666'} />
-        </mesh>
+        {/* Nose + mouth for human characters */}
+        {appearance.isKerstin && (
+          <>
+            {/* Nose */}
+            <mesh position={[0, appearance.bodySize[1] / 2 + appearance.headSize[1] / 2 + 0.05, appearance.headSize[2] / 2 + 0.08]}>
+              <boxGeometry args={[0.08, 0.08, 0.1]} />
+              <meshStandardMaterial color="#e8a882" />
+            </mesh>
+            {/* Mouth */}
+            <mesh position={[0, appearance.bodySize[1] / 2 + appearance.headSize[1] / 2 - 0.08, appearance.headSize[2] / 2 + 0.05]}>
+              <boxGeometry args={[0.2, 0.05, 0.06]} />
+              <meshStandardMaterial color="#c0605a" />
+            </mesh>
+          </>
+        )}
 
-        <mesh position={[appearance.bodySize[0] / 2 + 0.15, appearance.bodySize[1] / 4, 0]} castShadow>
-          <boxGeometry args={[0.25, appearance.bodySize[1] * 0.6, 0.25]} />
-          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : '#666666'} />
-        </mesh>
+        {/* Arms */}
+        {(() => {
+          const armLen = appearance.armLength || appearance.bodySize[1] * 0.5
+          const armW = 0.16
+          const armY = appearance.bodySize[1] * 0.72
+          const armHandY = armY - armLen / 2 - 0.1
+          return (
+            <>
+              <mesh position={[-appearance.bodySize[0] / 2 - 0.1, armY - armLen / 2, 0]} castShadow>
+                <boxGeometry args={[armW, armLen, armW]} />
+                <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : (appearance.shirtColor || '#666666')} />
+              </mesh>
+              {appearance.hasSkinHands && (
+                <mesh position={[-appearance.bodySize[0] / 2 - 0.1, armHandY, 0]} castShadow>
+                  <boxGeometry args={[0.17, 0.17, 0.15]} />
+                  <meshStandardMaterial color={appearance.skinColor} />
+                </mesh>
+              )}
+              <mesh position={[appearance.bodySize[0] / 2 + 0.1, armY - armLen / 2, 0]} castShadow>
+                <boxGeometry args={[armW, armLen, armW]} />
+                <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : (appearance.shirtColor || '#666666')} />
+              </mesh>
+              {appearance.hasSkinHands && (
+                <mesh position={[appearance.bodySize[0] / 2 + 0.1, armHandY, 0]} castShadow>
+                  <boxGeometry args={[0.17, 0.17, 0.15]} />
+                  <meshStandardMaterial color={appearance.skinColor} />
+                </mesh>
+              )}
+            </>
+          )
+        })()}
 
         {/* Legs */}
         <mesh position={[-appearance.bodySize[0] / 4, -appearance.bodySize[1] / 2 - 0.5, 0]} castShadow>
           <boxGeometry args={[0.3, 1, 0.3]} />
-          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : '#4a4a4a'} />
+          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : (appearance.pantsColor || '#4a4a4a')} />
         </mesh>
 
         <mesh position={[appearance.bodySize[0] / 4, -appearance.bodySize[1] / 2 - 0.5, 0]} castShadow>
           <boxGeometry args={[0.3, 1, 0.3]} />
-          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : '#4a4a4a'} />
+          <meshStandardMaterial color={appearance.isCat ? appearance.skinColor : (appearance.pantsColor || '#4a4a4a')} />
         </mesh>
+
+        {/* Name on shirt */}
+        {appearance.isKerstin && (
+          <Text
+            position={[0, appearance.bodySize[1] * 0.55, appearance.bodySize[2] / 2 + 0.01]}
+            fontSize={0.13}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            fontWeight="bold"
+          >
+            KERSTIN
+          </Text>
+        )}
+
+        {/* Gun in right hand */}
+        {appearance.hasGun && (
+          <group position={[appearance.bodySize[0] / 2 + 0.15, appearance.bodySize[1] / 4 - 0.3, 0.3]}
+                 rotation={[Math.PI / 6, 0, 0]}>
+            {/* Stock */}
+            <mesh castShadow>
+              <boxGeometry args={[0.12, 0.12, 0.8]} />
+              <meshStandardMaterial color="#2a1a0a" />
+            </mesh>
+            {/* Barrel */}
+            <mesh position={[0, 0.03, -0.75]} castShadow>
+              <boxGeometry args={[0.07, 0.07, 0.7]} />
+              <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.2} />
+            </mesh>
+            {/* Magazine */}
+            <mesh position={[0, -0.12, 0.1]} castShadow>
+              <boxGeometry args={[0.08, 0.22, 0.12]} />
+              <meshStandardMaterial color="#111111" />
+            </mesh>
+            {/* Muzzle */}
+            <mesh position={[0, 0.03, -1.15]} castShadow>
+              <boxGeometry args={[0.09, 0.09, 0.12]} />
+              <meshStandardMaterial color="#0a0a0a" metalness={0.9} />
+            </mesh>
+          </group>
+        )}
 
         {/* Cat ears */}
         {appearance.isCat && (
