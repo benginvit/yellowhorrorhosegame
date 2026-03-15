@@ -55,15 +55,16 @@ function Game({
     }
   }, [isKerstinLevel, classroomIntroPhase])
 
-  // Fail if all candy eaten before player gets any
+  // Fail if all candy eaten before player gets any — only after Kerstin has entered
   useEffect(() => {
     if (candyPieces.length === 0) return
+    if (classroomIntroPhase !== 'active') return
     const playerHas = candyPieces.some(p => p.collectedByPlayer)
     const anyLeft = candyPieces.some(p => !p.eaten && !p.collectedByPlayer)
     if (!anyLeft && !playerHas) {
       onTakeDamage(100)
     }
-  }, [candyPieces, onTakeDamage])
+  }, [candyPieces, classroomIntroPhase, onTakeDamage])
 
   const handleCandyEaten = useCallback((id) => {
     setCandyPieces(prev => prev.map(p => p.id === id ? { ...p, eaten: true } : p))
@@ -114,7 +115,7 @@ function Game({
               level={level}
               onCatchPlayer={onTakeDamage}
               language={language}
-              startPosition={[8.5, 1, 4]}
+              startPosition={[6, 1, 3]}
             />
           )}
 

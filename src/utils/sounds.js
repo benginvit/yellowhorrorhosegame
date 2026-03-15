@@ -675,67 +675,75 @@ export const stopSnoring = () => {
 }
 
 // Gunshot sounds - multiple shots in rapid succession
+const fireSingleShot = (ctx, startTime) => {
+  const bufferSize = Math.floor(ctx.sampleRate * 0.12)
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let j = 0; j < bufferSize; j++) {
+    data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.25))
+  }
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+
+  const filter = ctx.createBiquadFilter()
+  filter.type = 'lowpass'
+  filter.frequency.value = 1200
+
+  const gainNode = ctx.createGain()
+  gainNode.gain.setValueAtTime(28.0, startTime)
+  gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2)
+
+  // Low boom layer
+  const boomBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.18), ctx.sampleRate)
+  const boomData = boomBuffer.getChannelData(0)
+  for (let j = 0; j < boomData.length; j++) {
+    boomData[j] = (Math.random() * 2 - 1) * Math.exp(-j / (boomData.length * 0.12))
+  }
+  const boomSrc = ctx.createBufferSource()
+  boomSrc.buffer = boomBuffer
+  const boomFilter = ctx.createBiquadFilter()
+  boomFilter.type = 'lowpass'
+  boomFilter.frequency.value = 180
+  const boomGain = ctx.createGain()
+  boomGain.gain.setValueAtTime(38.0, startTime)
+  boomGain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.18)
+  boomSrc.connect(boomFilter)
+  boomFilter.connect(boomGain)
+  boomGain.connect(ctx.destination)
+  boomSrc.start(startTime)
+  boomSrc.stop(startTime + 0.18)
+
+  source.connect(filter)
+  filter.connect(gainNode)
+  gainNode.connect(ctx.destination)
+
+  // Echo/reverb
+  const echoGain = ctx.createGain()
+  echoGain.gain.value = 0.45
+  const echoDelay = ctx.createDelay(0.5)
+  echoDelay.delayTime.value = 0.14
+  gainNode.connect(echoDelay)
+  echoDelay.connect(echoGain)
+  echoGain.connect(ctx.destination)
+
+  source.start(startTime)
+  source.stop(startTime + 0.12)
+}
+
 export const playGunshotSound = () => {
   const ctx = getAudioContext()
-  const numberOfShots = 3 + Math.floor(Math.random() * 3) // 3-5 shots
-
+  const numberOfShots = 3 + Math.floor(Math.random() * 3)
   for (let i = 0; i < numberOfShots; i++) {
-    const delay = i * (0.25 + Math.random() * 0.2)
-    const now = ctx.currentTime + delay
+    fireSingleShot(ctx, ctx.currentTime + i * (0.28 + Math.random() * 0.18))
+  }
+}
 
-    const bufferSize = Math.floor(ctx.sampleRate * 0.1)
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
-    const data = buffer.getChannelData(0)
-    for (let j = 0; j < bufferSize; j++) {
-      data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.3))
-    }
-
-    const source = ctx.createBufferSource()
-    source.buffer = buffer
-
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = 800
-
-    const gainNode = ctx.createGain()
-    gainNode.gain.setValueAtTime(12.0, now)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.18)
-
-    // Low boom layer for impact
-    const boomBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.15), ctx.sampleRate)
-    const boomData = boomBuffer.getChannelData(0)
-    for (let j = 0; j < boomData.length; j++) {
-      boomData[j] = (Math.random() * 2 - 1) * Math.exp(-j / (boomData.length * 0.15))
-    }
-    const boomSrc = ctx.createBufferSource()
-    boomSrc.buffer = boomBuffer
-    const boomFilter = ctx.createBiquadFilter()
-    boomFilter.type = 'lowpass'
-    boomFilter.frequency.value = 200
-    const boomGain = ctx.createGain()
-    boomGain.gain.setValueAtTime(18.0, now)
-    boomGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15)
-    boomSrc.connect(boomFilter)
-    boomFilter.connect(boomGain)
-    boomGain.connect(ctx.destination)
-    boomSrc.start(now)
-    boomSrc.stop(now + 0.15)
-
-    source.connect(filter)
-    filter.connect(gainNode)
-    gainNode.connect(ctx.destination)
-
-    // Short echo with more reverb
-    const echoGain = ctx.createGain()
-    echoGain.gain.value = 0.5
-    const echoDelay = ctx.createDelay(0.5)
-    echoDelay.delayTime.value = 0.15
-    gainNode.connect(echoDelay)
-    echoDelay.connect(echoGain)
-    echoGain.connect(ctx.destination)
-
-    source.start(now)
-    source.stop(now + 0.1)
+export const playMachineGunSound = () => {
+  const ctx = getAudioContext()
+  // ~12 rapid shots over 1.4s
+  const rounds = 12
+  for (let i = 0; i < rounds; i++) {
+    fireSingleShot(ctx, ctx.currentTime + i * 0.115)
   }
 }
 

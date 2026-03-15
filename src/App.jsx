@@ -4,7 +4,7 @@ import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
 import MobileControls from './components/MobileControls'
-import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playScreamSound } from './utils/sounds'
+import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playMachineGunSound, playScreamSound } from './utils/sounds'
 
 const INITIAL_STATE = {
   isPlaying: false,
@@ -90,7 +90,7 @@ function App() {
     }, 7000)
 
     const t2 = setTimeout(() => {
-      playGunshotSound()
+      playMachineGunSound()
       playScreamSound()
     }, 8500)
 
@@ -139,6 +139,7 @@ function App() {
       currentLevel: nextLevel,
       hasKey: false,
       health: 100,
+      gameOver: false,
       isInsideHouse: false,
       isHiding: false,
       astridAwake: false,
@@ -198,7 +199,7 @@ function App() {
 
   const updateHideTimer = useCallback((time) => {
     setGameState(prev => {
-      if (prev.gameOver || prev.levelComplete) return prev
+      if (prev.gameOver || prev.levelComplete || !prev.isInsideHouse) return prev
 
       if (time <= 0) {
         if (!prev.isHiding) {
