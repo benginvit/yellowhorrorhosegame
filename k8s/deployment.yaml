@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: yellowhorrorhose-game
-        image: <YOUR_ACR_NAME>.azurecr.io/yellowhorrorhose:latest
+        image: IMAGE_PLACEHOLDER
         ports:
         - containerPort: 80
         resources:
