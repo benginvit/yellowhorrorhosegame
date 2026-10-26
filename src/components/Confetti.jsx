@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { rand } from '../testMode'
 
 function Confetti() {
   const [confetti, setConfetti] = useState([])
@@ -8,10 +9,10 @@ function Confetti() {
     for (let i = 0; i < 100; i++) {
       pieces.push({
         id: i,
-        left: Math.random() * 100,
-        delay: Math.random() * 3,
-        duration: 3 + Math.random() * 2,
-        color: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'][Math.floor(Math.random() * 6)]
+        left: rand() * 100,
+        delay: rand() * 3,
+        duration: 3 + rand() * 2,
+        color: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'][Math.floor(rand() * 6)]
       })
     }
     setConfetti(pieces)

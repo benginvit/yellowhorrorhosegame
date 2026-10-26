@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { rand } from '../testMode'
 
 function BloodSplatter({ show }) {
   const [splatters, setSplatters] = useState([])
@@ -10,11 +11,11 @@ function BloodSplatter({ show }) {
       for (let i = 0; i < 15; i++) {
         newSplatters.push({
           id: i,
-          left: Math.random() * 100,
-          top: Math.random() * 100,
-          size: 20 + Math.random() * 80,
-          delay: Math.random() * 0.2,
-          rotation: Math.random() * 360
+          left: rand() * 100,
+          top: rand() * 100,
+          size: 20 + rand() * 80,
+          delay: rand() * 0.2,
+          rotation: rand() * 360
         })
       }
       setSplatters(newSplatters)
@@ -52,7 +53,7 @@ function BloodSplatter({ show }) {
             width: `${splatter.size}px`,
             height: `${splatter.size}px`,
             background: 'radial-gradient(circle, #8B0000 0%, #660000 50%, transparent 70%)',
-            borderRadius: `${Math.random() * 50}% ${Math.random() * 50}% ${Math.random() * 50}% ${Math.random() * 50}%`,
+            borderRadius: `${rand() * 50}% ${rand() * 50}% ${rand() * 50}% ${rand() * 50}%`,
             animation: `splat 0.5s ease-out ${splatter.delay}s forwards`,
             transform: `rotate(${splatter.rotation}deg)`,
             opacity: 0
@@ -74,15 +75,15 @@ function BloodSplatter({ show }) {
       <style>{`
         @keyframes splat {
           0% {
-            transform: scale(0) rotate(${Math.random() * 360}deg);
+            transform: scale(0) rotate(${rand() * 360}deg);
             opacity: 0;
           }
           50% {
-            transform: scale(1.2) rotate(${Math.random() * 360}deg);
+            transform: scale(1.2) rotate(${rand() * 360}deg);
             opacity: 0.8;
           }
           100% {
-            transform: scale(1) rotate(${Math.random() * 360}deg);
+            transform: scale(1) rotate(${rand() * 360}deg);
             opacity: 0.6;
           }
         }
