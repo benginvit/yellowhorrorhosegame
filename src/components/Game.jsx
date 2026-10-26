@@ -11,6 +11,7 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
+import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated } from '../testMode'
 
@@ -141,6 +142,7 @@ function Game({
           />
           <TestModeProbe />
         </Suspense>
+        <HorrorEffects />
       </Canvas>
     )
   }
@@ -216,6 +218,7 @@ function Game({
         <Player mobileMovement={mobileMovement} mobileRotation={mobileRotation} />
         <TestModeProbe />
       </Suspense>
+      <HorrorEffects />
     </Canvas>
   )
 }
