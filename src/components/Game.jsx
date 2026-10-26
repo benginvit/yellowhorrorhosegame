@@ -12,6 +12,7 @@ import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
 import Candy, { CANDY_POSITIONS } from './Candy'
+import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
 const CLASSROOM_START_YAW = 0
@@ -87,7 +88,14 @@ function Game({
   // Classroom level
   if (isKerstinLevel) {
     return (
-      <Canvas shadows camera={{ fov: 75, position: CLASSROOM_START }}>
+      <Canvas
+        shadows
+        dpr={CANVAS_DPR}
+        frameloop={CANVAS_FRAMELOOP}
+        gl={CANVAS_GL}
+        onCreated={onCanvasCreated}
+        camera={{ fov: 75, position: CLASSROOM_START }}
+      >
         <ambientLight intensity={0.5} />
         <directionalLight
           position={[5, 8, 5]}
@@ -131,6 +139,7 @@ function Game({
             startYaw={CLASSROOM_START_YAW}
             inClassroom={true}
           />
+          <TestModeProbe />
         </Suspense>
       </Canvas>
     )
@@ -138,7 +147,14 @@ function Game({
 
   // Outdoor levels
   return (
-    <Canvas shadows camera={{ fov: 75, position: [0, 1.6, 15] }}>
+    <Canvas
+      shadows
+      dpr={CANVAS_DPR}
+      frameloop={CANVAS_FRAMELOOP}
+      gl={CANVAS_GL}
+      onCreated={onCanvasCreated}
+      camera={{ fov: 75, position: [0, 1.6, 15] }}
+    >
       <Sky sunPosition={[100, -10, 100]} turbidity={10} rayleigh={0.5} />
       <ambientLight intensity={gameState.isInsideHouse ? 0.2 : 0.25} />
       <directionalLight
@@ -198,6 +214,7 @@ function Game({
         )}
 
         <Player mobileMovement={mobileMovement} mobileRotation={mobileRotation} />
+        <TestModeProbe />
       </Suspense>
     </Canvas>
   )
