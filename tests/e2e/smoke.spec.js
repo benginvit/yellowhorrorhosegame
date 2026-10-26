@@ -3,8 +3,10 @@ import { GAME_CANVAS, trackErrors, startGame, openFrozen, waitTextSynced, replay
 
 // Runs against both projects: the test build and the prod build.
 test.describe('smoke', () => {
-  test('canvas renders and there are no console errors (level 1)', async ({ page }) => {
+  test('canvas renders and there are no console errors (level 1)', async ({ page }, testInfo) => {
     const errors = trackErrors(page)
+    // Test build: offline-safe fonts. Prod keeps hitting the real CDN on purpose.
+    if (testInfo.project.name === 'test') await replayCdnFonts(page)
     await page.goto('/')
     await expect(page.locator('.start-screen')).toBeVisible()
     await startGame(page)

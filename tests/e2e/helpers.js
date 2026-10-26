@@ -129,3 +129,27 @@ export async function waitTextSynced(page) {
 export async function hideHud(page) {
   await page.addStyleTag({ content: '.ui-overlay { visibility: hidden !important; }' })
 }
+
+/**
+ * Number of pixels that differ (any RGBA channel) between two PNG buffers of the
+ * same size. Decoded in the browser (createImageBitmap) so no PNG library is needed.
+ */
+export async function countDifferingPixels(page, pngA, pngB) {
+  return page.evaluate(async ([a, b]) => {
+    const decode = async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+      const c = new OffscreenCanvas(bmp.width, bmp.height)
+      const ctx = c.getContext('2d')
+      ctx.drawImage(bmp, 0, 0)
+      return ctx.getImageData(0, 0, bmp.width, bmp.height)
+    }
+    const [ia, ib] = await Promise.all([decode(a), decode(b)])
+    if (ia.width !== ib.width || ia.height !== ib.height) return -1
+    let n = 0
+    for (let i = 0; i < ia.data.length; i += 4) {
+      if (ia.data[i] !== ib.data[i] || ia.data[i + 1] !== ib.data[i + 1] || ia.data[i + 2] !== ib.data[i + 2] || ia.data[i + 3] !== ib.data[i + 3]) n++
+    }
+    return n
+  }, [pngA.toString('base64'), pngB.toString('base64')])
+}

@@ -11,7 +11,9 @@ import { startGame, waitReady, waitTextSynced, replayCdnFonts } from './helpers.
 // Budget policy:
 //  * p95 < 16.7 ms is the target and is REPORTED on every run.
 //  * The baseline (tests/e2e/perf-baseline.json) is per environment and not committed.
-//    No baseline -> this run records one and cannot fail.
+//    No baseline -> locally this run records one and cannot fail (a warning is printed and an
+//    annotation added). With CI set a missing baseline FAILS (fail-closed); E2E_SET_BASELINE=1
+//    may still write one.
 //  * With a baseline -> the test fails on regressions: p95 > max(baseline * P95_TOLERANCE,
 //    baseline + P95_MIN_SLACK_MS) or calls/triangles > baseline * COUNT_TOLERANCE. p95 is the
 //    best of WINDOWS measurement windows. The absolute 16.7 ms budget is
@@ -87,10 +89,19 @@ for (const scenario of SCENARIOS) {
 
     const baselines = readBaseline()
     const baseline = baselines[scenario.name]
-    if (!baseline || process.env.E2E_SET_BASELINE === '1') {
+    const setBaseline = process.env.E2E_SET_BASELINE === '1'
+    if (!baseline && process.env.CI && !setBaseline) {
+      throw new Error(
+        `[perf] ${scenario.name}: no baseline in ${path.relative(process.cwd(), BASELINE_FILE)} and CI is set - refusing to pass without a regression check. ` +
+        'Record one in this environment first (E2E_SET_BASELINE=1) or restore it from a CI artifact.',
+      )
+    }
+    if (!baseline || setBaseline) {
       baselines[scenario.name] = { ...result, recordedAt: new Date().toISOString() }
       fs.writeFileSync(BASELINE_FILE, JSON.stringify(baselines, null, 2) + '\n')
-      console.log(`[perf] ${scenario.name}: baseline recorded - no enforcement this run`)
+      const warning = `perf baseline for "${scenario.name}" ${baseline ? 're-recorded (E2E_SET_BASELINE=1)' : 'was missing and has been recorded'}; no regression check was done this run. Review ${path.relative(process.cwd(), BASELINE_FILE)} before relying on it.`
+      console.warn(`[perf] WARNING: ${warning}`)
+      testInfo.annotations.push({ type: 'baseline-written', description: warning })
       return
     }
 

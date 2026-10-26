@@ -12,7 +12,10 @@ const preview = (dir, port) => ({
   command: `node node_modules/vite/bin/vite.js preview --outDir dist-e2e/${dir} --host 127.0.0.1 --port ${port} --strictPort`,
   cwd: new URL('../..', import.meta.url).pathname,
   url: `http://127.0.0.1:${port}`,
-  reuseExistingServer: true,
+  // Never reuse a listening server: a stale `vite preview` left behind by another
+  // worktree would silently serve the wrong build. With a busy port Playwright
+  // aborts with "http://127.0.0.1:<port> is already used ...".
+  reuseExistingServer: false,
   timeout: 30_000,
 })
 
@@ -22,8 +25,10 @@ export default defineConfig({
   outputDir: '../../test-results',
   // Baselines are generated in the environment that runs the tests (SwiftShader
   // output differs per machine/driver), so they are not committed. The first
-  // run writes them and passes; later runs compare against them.
-  updateSnapshots: 'missing',
+  // run writes them and passes; later runs compare against them. With CI set
+  // ('none') a missing baseline fails instead, so a fresh environment cannot
+  // pass vacuously.
+  updateSnapshots: process.env.CI ? 'none' : 'missing',
   snapshotPathTemplate: '{testDir}/__baselines__/{projectName}/{testFilePath}/{arg}{ext}',
   workers: 1, // software rendering is CPU bound; parallel runs distort frame times
   fullyParallel: false,
