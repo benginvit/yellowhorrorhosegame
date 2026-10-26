@@ -28,6 +28,12 @@ if [ ! -d "$DIST" ]; then
   exit 1
 fi
 
+# Guard against a vacuous pass: an empty or nginx-only dir (no app JS) must fail.
+if ! compgen -G "$DIST/assets/*.js" >/dev/null; then
+  echo "FAIL: no JS bundle found in '$DIST/assets' (nothing to check)." >&2
+  exit 1
+fi
+
 HITS=$(grep -rlF -- "$MARKER" "$DIST" || true)
 
 if [ "$MODE" = "prod" ]; then
