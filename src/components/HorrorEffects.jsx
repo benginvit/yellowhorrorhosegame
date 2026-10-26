@@ -47,7 +47,7 @@ export default function HorrorEffects() {
   const { bloom, chromaticAberration, hueSaturation, toneMapping, vignette, noise } = HORROR_FX
 
   return (
-    <EffectComposer multisampling={HORROR_FX.multisampling} disableNormalPass>
+    <EffectComposer multisampling={HORROR_FX.multisampling}>
       <Bloom {...bloom} />
       <ChromaticAberration
         offset={CA_OFFSET}

@@ -17,14 +17,16 @@
 // Test API (test builds only): window.__YHH_TEST_MODE__ (alias window.__YHH_TEST__)
 //   seed, freeze  parsed params
 //   rand()        the seeded PRNG
-//   gl            WebGLRenderer of the current Canvas (renderer.info etc.)
+//   gl            WebGLRenderer of the current Canvas. gl.info.render/memory =
+//                 the whole frame incl. post-FX passes (autoReset is off and
+//                 info is reset once before each frame, see onCanvasCreated)
 //   ready         true once the scene has mounted and a frame has been rendered
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
 //                 advancing clock.elapsedTime by dt and passing dt to useFrame
 //   setTime(t)    freeze only: set clock.elapsedTime without rendering
 
 import { useEffect } from 'react'
-import { addAfterEffect, useThree } from '@react-three/fiber'
+import { addAfterEffect, addEffect, useThree } from '@react-three/fiber'
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -97,7 +99,7 @@ export function rand() {
 export const CANVAS_DPR = import.meta.env.VITE_TEST_MODE === '1' ? 1 : [1, 2]
 
 /** Shared renderer settings for every <Canvas>. */
-export const CANVAS_GL = { antialias: true, powerPreference: 'high-performance' }
+export const CANVAS_GL = { antialias: false, powerPreference: 'high-performance' }
 
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
@@ -108,6 +110,11 @@ export function onCanvasCreated(state) {
     const api = window.__YHH_TEST_MODE__
     api.gl = state.gl
     api.ready = false
+
+    // EffectComposer does several gl.render() calls per frame; with the default
+    // autoReset only the last pass would be visible. Reset once per frame instead.
+    state.gl.info.autoReset = false
+    addEffect(() => state.gl.info.reset())
 
     if (api.freeze) {
       api.advance = (frames = 1, dt = 1 / 60) => {
