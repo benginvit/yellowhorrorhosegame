@@ -34,7 +34,14 @@ if ! compgen -G "$DIST/assets/*.js" >/dev/null; then
   exit 1
 fi
 
-HITS=$(grep -rlF -- "$MARKER" "$DIST" || true)
+# grep exit: 0 = hit, 1 = no hit, 2+ = read error. Only 1 means "clean";
+# an unreadable file must fail the check, not silently pass it.
+RC=0
+HITS=$(grep -rlF -- "$MARKER" "$DIST") || RC=$?
+if [ "$RC" -gt 1 ]; then
+  echo "ERROR: grep failed (exit $RC) while scanning '$DIST'." >&2
+  exit 1
+fi
 
 if [ "$MODE" = "prod" ]; then
   if [ -n "$HITS" ]; then
