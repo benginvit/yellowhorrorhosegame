@@ -51,6 +51,23 @@ npm run dev
 npm run build
 ```
 
+Kontrollera att testläge-markören inte läckt in i prod-bygget (exit 1 om den finns):
+
+```bash
+bash scripts/check-prod-bundle.sh
+```
+
+### Testimage (lokalt)
+
+Test-imagen byggs med build-arg `VITE_TEST_MODE=1` (default är `0` = prod). Den taggas `yellowhorrorhose:test`, pushas **inte** till ghcr och körs lokalt på port 3003, skilt från prod på 3002:
+
+```bash
+docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
+docker run -d -p 127.0.0.1:3003:80 yellowhorrorhose:test
+```
+
+Prod-imagen bygger du som vanligt med `docker build -t yellowhorrorhose .`.
+
 ## 🛠️ Teknologier
 
 - **React** - UI-ramverk

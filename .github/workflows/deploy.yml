@@ -9,7 +9,32 @@ env:
   IMAGE_NAME: ghcr.io/benginvit/yellowhorrorhose
 
 jobs:
+  verify-bundle:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build prod bundle
+        run: npm run build
+
+      - name: Verify prod bundle has no test-mode marker
+        run: bash scripts/check-prod-bundle.sh
+
   build-and-deploy:
+    needs: verify-bundle
     runs-on: ubuntu-latest
 
     permissions:
