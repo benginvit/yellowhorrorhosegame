@@ -2,7 +2,7 @@
 # Checks the test-mode marker in a Vite build output directory.
 #
 #   scripts/check-prod-bundle.sh [dist-dir]        prod (default): FAIL (exit 1) if the marker is present
-#   scripts/check-prod-bundle.sh --test [dist-dir] test build: expects the marker; WARN (exit 0) if missing
+#   scripts/check-prod-bundle.sh --test [dist-dir] test build: FAIL (exit 1) if the marker is missing
 #
 # The marker must never leak into prod bundles. Grepping for 'VITE_TEST_MODE'
 # is intentionally NOT used: Vite inlines env values, so that check is unreliable.
@@ -58,5 +58,5 @@ if [ -n "$HITS" ]; then
   echo "OK: marker '$MARKER' present in test build '$DIST'."
   exit 0
 fi
-echo "WARN: marker '$MARKER' missing in test build '$DIST'. Skipping test-direction check (pending t_50a711f3 merge)." >&2
-exit 0
+echo "FAIL: test-mode marker '$MARKER' missing in test build '$DIST'." >&2
+exit 1

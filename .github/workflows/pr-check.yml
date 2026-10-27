@@ -35,7 +35,7 @@ jobs:
         env:
           VITE_TEST_MODE: '1'
 
-      - name: Check test bundle (marker expected, warn-only until t_50a711f3 is merged)
+      - name: Check test bundle (marker required)
         run: bash scripts/check-prod-bundle.sh --test dist-test
 
       - name: Docker test image build (not pushed)
