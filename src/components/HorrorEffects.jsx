@@ -1,7 +1,6 @@
 import { EffectComposer, Bloom, ChromaticAberration, HueSaturation, Noise, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, ToneMappingMode } from 'postprocessing'
 import { Vector2 } from 'three'
-import { CANVAS_FRAMELOOP } from '../testMode'
 
 // All tweakable post-processing parameters live here.
 export const HORROR_FX = {
@@ -36,14 +35,19 @@ export const HORROR_FX = {
   noise: { opacity: 0.25, blendFunction: BlendFunction.SOFT_LIGHT },
 }
 
-// With ?freeze=1 in the test build (frameloop 'never') the grain is dropped
-// entirely so screenshots are stable regardless of the noise shader's clock.
-const GRAIN_ENABLED = CANVAS_FRAMELOOP !== 'never'
-
 const CA_OFFSET = new Vector2(...HORROR_FX.chromaticAberration.offset)
 
-/** Shared by every <Canvas> in Game.jsx. Render as the last child of the Canvas. */
+/**
+ * Shared by every <Canvas> in Game.jsx. Render as the last child of the Canvas.
+ *
+ * Post-FX is bypassed in the test build (VITE_TEST_MODE=1, decided at build
+ * time): the EffectComposer chain is ~10x slower under SwiftShader, which breaks
+ * frame-time budgets and screenshot timeouts. E2E screenshots and perf numbers
+ * therefore show the scene WITHOUT post-FX. Prod always renders the composer.
+ */
 export default function HorrorEffects() {
+  if (import.meta.env.VITE_TEST_MODE === '1') return null
+
   const { bloom, chromaticAberration, hueSaturation, toneMapping, vignette, noise } = HORROR_FX
 
   return (
@@ -57,7 +61,7 @@ export default function HorrorEffects() {
       <HueSaturation {...hueSaturation} />
       <ToneMapping {...toneMapping} />
       <Vignette {...vignette} />
-      {GRAIN_ENABLED && <Noise {...noise} />}
+      <Noise {...noise} />
     </EffectComposer>
   )
 }

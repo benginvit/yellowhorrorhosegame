@@ -18,8 +18,10 @@
 //   seed, freeze  parsed params
 //   rand()        the seeded PRNG
 //   gl            WebGLRenderer of the current Canvas. gl.info.render/memory =
-//                 the whole frame incl. post-FX passes (autoReset is off and
-//                 info is reset once before each frame, see onCanvasCreated)
+//                 the whole frame (autoReset is off and info is reset once
+//                 before each frame, see onCanvasCreated). Post-FX
+//                 (HorrorEffects) is bypassed in test builds, so this is the
+//                 scene without post-FX.
 //   ready         true once the scene has mounted and a frame has been rendered
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
 //                 advancing clock.elapsedTime by dt and passing dt to useFrame
@@ -98,8 +100,15 @@ export function rand() {
 /** Canvas dpr: [1, 2] in prod, fixed 1 in test mode (stable pixel output). */
 export const CANVAS_DPR = import.meta.env.VITE_TEST_MODE === '1' ? 1 : [1, 2]
 
-/** Shared renderer settings for every <Canvas>. */
-export const CANVAS_GL = { antialias: false, powerPreference: 'high-performance' }
+/**
+ * Shared renderer settings for every <Canvas>. Test build: post-FX is bypassed
+ * (see HorrorEffects), so the canvas' own MSAA is used and e2e screenshots/perf
+ * show the plain scene. Prod: antialias off, MSAA comes from the EffectComposer.
+ */
+export const CANVAS_GL = {
+  antialias: import.meta.env.VITE_TEST_MODE === '1',
+  powerPreference: 'high-performance',
+}
 
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
@@ -111,8 +120,9 @@ export function onCanvasCreated(state) {
     api.gl = state.gl
     api.ready = false
 
-    // EffectComposer does several gl.render() calls per frame; with the default
-    // autoReset only the last pass would be visible. Reset once per frame instead.
+    // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep
+    // the per-frame reset: with the default autoReset only the last gl.render()
+    // call would count if a frame ever has several. Reset once per frame instead.
     state.gl.info.autoReset = false
     addEffect(() => state.gl.info.reset())
 
