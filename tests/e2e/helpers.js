@@ -111,18 +111,38 @@ export async function replayCdnFonts(page) {
 }
 
 /**
- * Waits until every troika <Text> has synced its glyph geometry (an unsynced
- * Text has no position attribute, which also makes renderer.info.render.triangles
- * Infinity). Without this, screenshots differ depending on font load timing.
+ * Waits until every troika <Text> has synced its glyph geometry. Until the first
+ * sync, troika's GlyphsGeometry has no position attribute (set on sync, not in the
+ * constructor) and an instanceCount of Infinity (inherited from
+ * InstancedBufferGeometry). The Infinity instanceCount makes
+ * renderer.info.render.triangles Infinity for any frame drawn before the sync.
+ * Both conditions are checked; without this, screenshots and renderer.info depend
+ * on font load timing.
  */
 export async function waitTextSynced(page) {
   await page.waitForFunction(() => {
     let pending = 0
     window.__YHH_TEST_MODE__.scene.traverse((o) => {
-      if (o.geometry && !o.geometry.attributes.position) pending++
+      const g = o.geometry
+      if (!g) return
+      if (!g.attributes.position) pending++
+      else if (g.isInstancedBufferGeometry && !Number.isFinite(g.instanceCount)) pending++
     })
     return pending === 0
   }, null, { timeout: 30_000 })
+}
+
+/**
+ * Waits for two requestAnimationFrame callbacks, so at least one full frame has
+ * been rendered after the current JS task. Use before reading renderer.info, which
+ * only reflects the last rendered frame.
+ */
+export async function waitFrames(page, n = 2) {
+  await page.evaluate((count) => new Promise((resolve) => {
+    let left = count
+    const step = () => (--left <= 0 ? resolve() : requestAnimationFrame(step))
+    requestAnimationFrame(step)
+  }), n)
 }
 
 /** Hide the HTML HUD so screenshots only contain the 3D scene. */

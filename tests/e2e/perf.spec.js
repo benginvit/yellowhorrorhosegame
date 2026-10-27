@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test, expect } from '@playwright/test'
-import { startGame, waitReady, waitTextSynced, replayCdnFonts } from './helpers.js'
+import { startGame, waitReady, waitTextSynced, waitFrames, replayCdnFonts } from './helpers.js'
 
 // Test build only. Frame time = requestAnimationFrame interval over a fixed
 // window (not frozen: ?seed=1 only). renderer.info is read from
@@ -46,7 +46,9 @@ for (const scenario of SCENARIOS) {
     await waitTextSynced(page)
 
     // renderer.info of the last rendered frame, read before the measurement so the
-    // classroom is still in its (deterministic) 'seated' intro phase.
+    // classroom is still in its (deterministic) 'seated' intro phase. The 2 rAFs make
+    // sure that frame was drawn after the text was synced (not a frame from before).
+    await waitFrames(page, 2)
     await page.waitForFunction(() => window.__YHH_TEST_MODE__.gl.info.render.calls > 0)
     const info = await page.evaluate(() => {
       const r = window.__YHH_TEST_MODE__.gl.info.render
