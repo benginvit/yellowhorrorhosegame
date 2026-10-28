@@ -11,6 +11,7 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
+import Lighting from './Lighting'
 import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated } from '../testMode'
@@ -97,14 +98,7 @@ function Game({
         onCreated={onCanvasCreated}
         camera={{ fov: 75, position: CLASSROOM_START }}
       >
-        <ambientLight intensity={0.5} />
-        <directionalLight
-          position={[5, 8, 5]}
-          intensity={0.6}
-          castShadow
-          shadow-mapSize={[1024, 1024]}
-        />
-        <fog attach="fog" args={['#ffe8d6', 15, 40]} />
+        <Lighting variant="classroom" />
 
         <Suspense fallback={null}>
           <Classroom />
@@ -158,18 +152,7 @@ function Game({
       camera={{ fov: 75, position: [0, 1.6, 15] }}
     >
       <Sky sunPosition={[100, -10, 100]} turbidity={10} rayleigh={0.5} />
-      <ambientLight intensity={gameState.isInsideHouse ? 0.2 : 0.25} />
-      <directionalLight
-        position={[50, 50, 50]}
-        intensity={gameState.isInsideHouse ? 0.3 : 0.35}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
-      />
-      <fog attach="fog" args={['#1a1a2e', 20, 80]} />
+      <Lighting variant={gameState.isInsideHouse && isAstridLevel ? 'houseInterior' : 'outdoor'} />
 
       <Suspense fallback={null}>
         <Ground />

@@ -129,12 +129,9 @@ function Classroom() {
             <boxGeometry args={[0.2, 0.05, 3]} />
             <meshStandardMaterial color="#fffde0" emissive="#fffde0" emissiveIntensity={0.8} />
           </mesh>
-          <pointLight intensity={0.6} distance={10} color="#fffde0" position={[0, -0.1, 0]} />
+          <pointLight intensity={0.3} distance={9} color="#fffde0" position={[0, -0.1, 0]} />
         </group>
       ))}
-
-      {/* Ambient classroom light */}
-      <pointLight position={[0, 3.5, -1]} intensity={0.5} distance={20} color="#fff8e0" />
 
       {/* Teacher's desk at front */}
       <group position={[0, 0, -6.5]}>
