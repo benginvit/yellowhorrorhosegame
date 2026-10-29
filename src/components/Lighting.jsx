@@ -21,7 +21,7 @@ export const CLASSROOM_LIGHTING = {
 }
 
 export const OUTDOOR_LIGHTING = {
-  ambient: { color: '#8fa0c8', intensity: 0.1 },
+  ambient: { color: '#8fa0c8', intensity: 0.16 },
   // Cold moonlight.
   directional: {
     color: '#9db4e0',
@@ -34,7 +34,7 @@ export const OUTDOOR_LIGHTING = {
   // fogExp2 instead of a tighter near/far: density grows smoothly with
   // distance (no visible fog "wall" at the near plane) and swallows everything
   // beyond ~60 m, which hides the ground edge and keeps the dark mood.
-  fog: { color: '#0a0f1a', density: 0.03 },
+  fog: { color: '#0a0f1a', density: 0.025 },
   flashlight: {
     color: '#fff1d0',
     intensity: 60,
