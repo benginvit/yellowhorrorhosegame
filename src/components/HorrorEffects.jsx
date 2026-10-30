@@ -1,4 +1,4 @@
-import { EffectComposer, Bloom, ChromaticAberration, HueSaturation, Noise, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, BrightnessContrast, ChromaticAberration, HueSaturation, Noise, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { BlendFunction, ToneMappingMode } from 'postprocessing'
 import { Vector2 } from 'three'
 
@@ -9,9 +9,9 @@ export const HORROR_FX = {
   multisampling: 4,
 
   bloom: {
-    // Only fairly bright pixels bloom (yellow/emissive light sources); the
-    // dim, foggy scenes stay clean.
-    luminanceThreshold: 0.75,
+    // Only the brightest pixels bloom (yellow/emissive light sources); white
+    // ceiling lamps and lit walls stay clean. Raised from 0.75.
+    luminanceThreshold: 0.9,
     luminanceSmoothing: 0.2,
     intensity: 0.9,
     mipmapBlur: true,
@@ -25,7 +25,7 @@ export const HORROR_FX = {
   },
 
   // saturation: -1..1, negative = desaturated. hue in radians.
-  hueSaturation: { hue: 0, saturation: -0.3 },
+  hueSaturation: { hue: 0, saturation: -0.5 },
 
   toneMapping: { mode: ToneMappingMode.ACES_FILMIC },
 
@@ -33,6 +33,10 @@ export const HORROR_FX = {
 
   // Film grain. Low opacity; soft-light so it does not lift the blacks.
   noise: { opacity: 0.25, blendFunction: BlendFunction.SOFT_LIGHT },
+
+  // Last in the chain: lifts the shadows a little and restores the contrast
+  // that the stronger desaturation takes away.
+  brightnessContrast: { brightness: 0.04, contrast: 0.05 },
 }
 
 const CA_OFFSET = new Vector2(...HORROR_FX.chromaticAberration.offset)
@@ -48,7 +52,7 @@ const CA_OFFSET = new Vector2(...HORROR_FX.chromaticAberration.offset)
 export default function HorrorEffects() {
   if (import.meta.env.VITE_TEST_MODE === '1') return null
 
-  const { bloom, chromaticAberration, hueSaturation, toneMapping, vignette, noise } = HORROR_FX
+  const { bloom, chromaticAberration, hueSaturation, toneMapping, vignette, noise, brightnessContrast } = HORROR_FX
 
   return (
     <EffectComposer multisampling={HORROR_FX.multisampling}>
@@ -62,6 +66,7 @@ export default function HorrorEffects() {
       <ToneMapping {...toneMapping} />
       <Vignette {...vignette} />
       <Noise {...noise} />
+      <BrightnessContrast {...brightnessContrast} />
     </EffectComposer>
   )
 }

@@ -27,9 +27,10 @@ export const LIGHT_LIMITS = {
   // classroom and house interior drop to mean 23 / black ~50 %.
   brightness: { meanMin: 40, meanMax: 110, p50Min: 30, p95Min: 60, p95Max: 220, blackShareMax: 0.1, whiteShareMax: 0.02 },
   // Region around the object (luma): contrast = p95 - p5. Measured key 59 / p95 73,
-  // door 53 / p95 58 (ambient = 0: door 44 / 48).
+  // door 53 / p95 58 (ambient = 0: door 44 / 48). Door black share was 42.5 %
+  // before the fill light at the door (BENG-13), 0.0 % after; limit 5 %.
   readability: {
     key: { contrastMin: 50, p95Min: 65 },
-    door: { contrastMin: 48, p95Min: 52 },
+    door: { contrastMin: 48, p95Min: 52, blackShareMax: 0.05 },
   },
 }

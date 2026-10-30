@@ -58,6 +58,10 @@ function House({ onEnter, hasKey, isAstridLevel = false }) {
         <meshStandardMaterial color="#654321" />
       </mesh>
 
+      {/* Weak warm fill in front of the door so it reads outdoors. No shadow
+          (shadow budget: max 2 casters per scene). */}
+      <pointLight color="#ffc86b" intensity={6} distance={10} decay={2} position={[0, 3.5, 10]} />
+
       {/* Windows - light blue */}
       <mesh position={[-4.5, 4, 7.6]}>
         <boxGeometry args={[2, 2, 0.2]} />
