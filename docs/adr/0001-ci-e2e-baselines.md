@@ -4,7 +4,7 @@
 e2e-sviten (`npm run test:e2e`) körs i `pr-check.yml`-jobbet `e2e` för PR:er mot `main` och `staging`. Baslinjerna (`tests/e2e/__baselines__/`, `perf-baseline.json`) är per miljö (SwiftShader-output skiljer sig mellan maskiner) och committas inte. Med `CI` satt fallerar en saknad baslinje.
 
 ## Beslut: (b) baslinjer genereras från PR:ens basbranch
-Jobbet checkar ut basbranchens commit och PR:ens head, kör `visual` och `lighting-baseline` på basen i samma pinnade container (`CI` osatt, så baslinjer skrivs), kopierar baslinjerna till head och kör hela sviten där med `CI=true` (saknad baslinje = fel).
+Jobbet checkar ut basbranchens commit och PR:ens head, kör `visual` och `lighting-baseline` på basen i samma pinnade container (`CI` avsatt med `env -u CI`, eftersom GitHub sätter `CI=true`, så baslinjer skrivs), kopierar baslinjerna till head och kör hela sviten där med `CI=true` (saknad baslinje = fel).
 
 - Inga committade binärer, ingen separat baslinjejobb, följer basbranchen automatiskt.
 - Kostnad: extra bygge + en kort körning på basen (ca 1,5 min lokalt).

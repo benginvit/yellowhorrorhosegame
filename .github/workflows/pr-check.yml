@@ -82,17 +82,17 @@ jobs:
 
       # Baselines (screenshots, perf) are per environment and not committed. Record
       # them from the base branch here, in the same container, then compare the PR
-      # head against them. CI is deliberately unset for this step so that a missing
+      # head against them. GitHub sets CI=true by default, so it is unset (env -u CI) here so that a missing
       # baseline is written instead of failing.
       - name: Record baselines from base branch
         working-directory: base
         run: |
           npm ci
           if [ "$PERF_OPT_IN" = "true" ]; then
-            npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
+            env -u CI npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
             test -f tests/e2e/perf-baseline.json
           else
-            npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js
+            env -u CI npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js
           fi
           test -d tests/e2e/__baselines__
 
