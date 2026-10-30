@@ -2,7 +2,7 @@
 # Checks the test-mode marker in a Vite build output directory.
 #
 #   scripts/check-prod-bundle.sh [dist-dir]        prod (default): FAIL (exit 1) if the marker is present
-#   scripts/check-prod-bundle.sh --test [dist-dir] test build: expects the marker; WARN (exit 0) if missing
+#   scripts/check-prod-bundle.sh --test [dist-dir] test build: FAIL (exit 1) if the marker is missing
 #
 # The marker must never leak into prod bundles. Grepping for 'VITE_TEST_MODE'
 # is intentionally NOT used: Vite inlines env values, so that check is unreliable.
@@ -28,7 +28,20 @@ if [ ! -d "$DIST" ]; then
   exit 1
 fi
 
-HITS=$(grep -rlF -- "$MARKER" "$DIST" || true)
+# Guard against a vacuous pass: an empty or nginx-only dir (no app JS) must fail.
+if ! compgen -G "$DIST/assets/*.js" >/dev/null; then
+  echo "FAIL: no JS bundle found in '$DIST/assets' (nothing to check)." >&2
+  exit 1
+fi
+
+# grep exit: 0 = hit, 1 = no hit, 2+ = read error. Only 1 means "clean";
+# an unreadable file must fail the check, not silently pass it.
+RC=0
+HITS=$(grep -rlF -- "$MARKER" "$DIST") || RC=$?
+if [ "$RC" -gt 1 ]; then
+  echo "ERROR: grep failed (exit $RC) while scanning '$DIST'." >&2
+  exit 1
+fi
 
 if [ "$MODE" = "prod" ]; then
   if [ -n "$HITS" ]; then
@@ -45,5 +58,5 @@ if [ -n "$HITS" ]; then
   echo "OK: marker '$MARKER' present in test build '$DIST'."
   exit 0
 fi
-echo "WARN: marker '$MARKER' missing in test build '$DIST'. Skipping test-direction check (pending t_50a711f3 merge)." >&2
-exit 0
+echo "FAIL: test-mode marker '$MARKER' missing in test build '$DIST'." >&2
+exit 1
