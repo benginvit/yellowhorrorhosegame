@@ -9,7 +9,34 @@ env:
   IMAGE_NAME: ghcr.io/benginvit/yellowhorrorhose
 
 jobs:
+  verify-bundle:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build prod bundle
+        run: npm run build
+
+      - name: Verify prod bundle has no test-mode marker
+        run: bash scripts/check-prod-bundle.sh
+
   build-and-deploy:
+    # Prod deploy is restricted to main, also when started via workflow_dispatch.
+    if: github.ref == 'refs/heads/main'
+    needs: verify-bundle
     runs-on: ubuntu-latest
 
     permissions:
@@ -32,6 +59,23 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build amd64 image locally for bundle check
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: yhh-bundle-check:local
+
+      - name: Verify bundle inside the image that will be deployed
+        run: |
+          set -euo pipefail
+          cid=$(docker create yhh-bundle-check:local)
+          rm -rf image-html && mkdir image-html
+          docker cp "$cid:/usr/share/nginx/html/." image-html/
+          docker rm "$cid" >/dev/null
+          bash scripts/check-prod-bundle.sh image-html
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
+import { getStartOverrides } from './testMode'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
 import MobileControls from './components/MobileControls'
-import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playMachineGunSound, playScreamSound } from './utils/sounds'
+import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playMachineGunSound, playScreamSound, emitSoundEvent } from './utils/sounds'
 
 const INITIAL_STATE = {
   isPlaying: false,
@@ -118,6 +119,7 @@ function App() {
 
     setGameState({
       ...INITIAL_STATE,
+      ...getStartOverrides(),
       isPlaying: true,
     })
   }
@@ -162,6 +164,7 @@ function App() {
   }, [])
 
   const takeDamage = useCallback((amount) => {
+    emitSoundEvent('hit') // light flicker; does not play any sound
     setShowBloodSplatter(true)
     setTimeout(() => setShowBloodSplatter(false), 2000)
 

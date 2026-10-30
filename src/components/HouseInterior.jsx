@@ -1,4 +1,7 @@
+import { useLightFlicker } from '../utils/flicker'
+
 function HouseInterior() {
+  const lampRef = useLightFlicker(0.4)
   return (
     <group position={[0, 0, -25]}>
       {/* Floor */}
@@ -33,9 +36,7 @@ function HouseInterior() {
       </mesh>
 
       {/* Lights */}
-      <pointLight position={[0, 6, 0]} intensity={1} distance={20} color="#FFE4B5" />
-      <pointLight position={[-4, 6, -4]} intensity={0.5} distance={15} color="#FFE4B5" />
-      <pointLight position={[4, 6, -4]} intensity={0.5} distance={15} color="#FFE4B5" />
+      <pointLight ref={lampRef} position={[0, 6, 0]} intensity={0.4} distance={16} color="#FFE4B5" />
 
       {/* Ceiling lamp */}
       <mesh position={[0, 7, 0]} castShadow>

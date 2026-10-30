@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { DOOR_FILL_LIGHT } from './Lighting'
 
 function House({ onEnter, hasKey, isAstridLevel = false }) {
   const doorRef = useRef()
@@ -57,6 +58,15 @@ function House({ onEnter, hasKey, isAstridLevel = false }) {
         <boxGeometry args={[3, 5, 0.2]} />
         <meshStandardMaterial color="#654321" />
       </mesh>
+
+      {/* Weak warm fill in front of the door, no shadow (see DOOR_FILL_LIGHT). */}
+      <pointLight
+        color={DOOR_FILL_LIGHT.color}
+        intensity={DOOR_FILL_LIGHT.intensity}
+        distance={DOOR_FILL_LIGHT.distance}
+        decay={DOOR_FILL_LIGHT.decay}
+        position={DOOR_FILL_LIGHT.position}
+      />
 
       {/* Windows - light blue */}
       <mesh position={[-4.5, 4, 7.6]}>

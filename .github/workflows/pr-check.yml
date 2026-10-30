@@ -1,0 +1,49 @@
+name: PR check
+
+# Verification only: no secrets, no push, no deploy.
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build prod bundle
+        run: npm run build
+
+      - name: Verify prod bundle has no test-mode marker
+        run: bash scripts/check-prod-bundle.sh
+
+      - name: Build test bundle (VITE_TEST_MODE=1)
+        run: npm run build -- --outDir dist-test --emptyOutDir
+        env:
+          VITE_TEST_MODE: '1'
+
+      # Test mode lands in PR #2 (src/testMode.js). Until it exists, the marker
+      # cannot be present, so skip the check instead of failing PR #1.
+      - name: Check test bundle (marker required)
+        run: |
+          if [ -f src/testMode.js ]; then
+            bash scripts/check-prod-bundle.sh --test dist-test
+          else
+            echo "SKIP: src/testMode.js not found; test-mode marker check skipped."
+          fi
+
+      - name: Docker test image build (not pushed)
+        run: docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .

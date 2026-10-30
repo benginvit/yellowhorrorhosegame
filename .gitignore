@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Build output
 dist/
@@ -35,3 +34,10 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+
+# Playwright e2e (build output, per-environment baselines, reports)
+dist-e2e/
+test-results/
+playwright-report/
+tests/e2e/__baselines__/
+tests/e2e/perf-baseline.json
