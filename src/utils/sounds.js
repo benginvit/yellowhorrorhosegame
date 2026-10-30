@@ -12,6 +12,19 @@ const getAudioContext = () => {
   return audioContext
 }
 
+// Minimal sound-event bus. Visuals (light flicker) subscribe to it; it does not
+// touch the audio graph, so playback is unchanged. Events: 'hit', 'jumpscare'.
+const soundListeners = new Set()
+
+export const onSoundEvent = (listener) => {
+  soundListeners.add(listener)
+  return () => soundListeners.delete(listener)
+}
+
+const emitSoundEvent = (type) => {
+  soundListeners.forEach((listener) => listener(type))
+}
+
 // Track all active voice recording audio elements
 let activeVoiceAudios = []
 
@@ -215,6 +228,7 @@ function playFallbackSound(action) {
 
 // Scary hit sound effect
 export const playHitSound = () => {
+  emitSoundEvent('hit')
   const ctx = getAudioContext()
   const now = ctx.currentTime
 
@@ -247,6 +261,7 @@ export const playHitSound = () => {
 
 // Jumpscare sound - loud and sudden
 export const playJumpscareSound = () => {
+  emitSoundEvent('jumpscare')
   const ctx = getAudioContext()
   const now = ctx.currentTime
 

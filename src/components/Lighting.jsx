@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { createPortal, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { useLightFlicker } from '../utils/flicker'
 
 // All lighting/fog parameters live here, one named constant per variant.
 // Shadow budget: at most 2 shadow-casting lights per scene (sun/ceiling
@@ -103,9 +104,12 @@ function Flashlight({ params }) {
     return () => scene.remove(camera)
   }, [scene, camera])
 
+  const lightRef = useLightFlicker(params.intensity)
+
   return createPortal(
     <>
       <spotLight
+        ref={lightRef}
         target={target}
         color={params.color}
         intensity={params.intensity}

@@ -43,6 +43,7 @@ function mulberry32(seed) {
 
 let source = Math.random
 let frameloop = 'always'
+let frozen = false
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
 
@@ -54,6 +55,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
 
   source = mulberry32(seed)
   if (freeze) frameloop = 'never'
+  frozen = freeze
 
   window.__YHH_TEST_MODE__ = {
     seed,
@@ -109,6 +111,9 @@ export const CANVAS_GL = {
   antialias: import.meta.env.VITE_TEST_MODE === '1',
   powerPreference: 'high-performance',
 }
+
+/** True only in a test build with ?freeze=1 (always false in prod). */
+export const IS_FROZEN = frozen
 
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
