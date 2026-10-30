@@ -43,22 +43,51 @@ jobs:
       - name: Docker test image build (not pushed)
         run: docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
 
-  # e2e suite (npm run test:e2e) in the pinned Playwright image. See
-  # docs/adr/0001-ci-e2e-baselines.md for the baseline strategy.
+  # e2e suite (npm run test:e2e) in the pinned Playwright image, split into
+  # parallel shards so each stays well under the 10 minute budget (the frozen-clock
+  # determinism tests render hundreds of software-GL frames and take ~8 min alone).
+  # Every shard runs the same `npm run test:e2e` command with a file/-g filter; the
+  # `e2e` job at the bottom is the single aggregate result to look at / require.
+  # See docs/adr/0001-ci-e2e-baselines.md for the baseline strategy.
   #
   # The image tag MUST equal the exact @playwright/test version in package.json
   # (browser builds are tied to it). To bump: change @playwright/test in
   # package.json (+ lockfile), then set the tag below to the same version.
   # The "Check image matches package.json" step fails the job if they drift.
-  e2e:
+  e2e-shard:
+    name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
       image: mcr.microsoft.com/playwright:v1.64.1
       options: --ipc=host
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # baselines: true -> baselines are recorded from the base branch first
+          - name: visual
+            baselines: true
+            args: --project=test visual.spec.js lighting.spec.js lighting-baseline.spec.js smoke.spec.js
+          - name: prod
+            baselines: false
+            args: --project=prod
+          - name: determinism-hash
+            baselines: false
+            args: --project=test determinism.spec.js -g "frozen canvas hash|key rotation"
+          - name: determinism-astrid
+            baselines: false
+            args: --project=test determinism.spec.js -g "Astrid in the house"
+          - name: determinism-timers
+            baselines: false
+            args: --project=test determinism.spec.js -g "classroom intro|snore bubbles|candy spawns"
+          - name: determinism-remount
+            baselines: false
+            args: --project=test determinism.spec.js -g "Canvas remount"
     env:
       PLAYWRIGHT_IMAGE_VERSION: 1.64.1
-      # perf.spec.js is opt-in: add the PR label "e2e-perf" to include it.
+      # perf.spec.js is opt-in (shared software-GL runners are too noisy for a
+      # mandatory p95 gate): add the PR label "e2e-perf" to include it in the visual shard.
       PERF_OPT_IN: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-perf') }}
 
     steps:
@@ -67,12 +96,6 @@ jobs:
         with:
           path: head
 
-      - name: Checkout base branch (${{ github.base_ref }})
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: base
-
       - name: Check image matches package.json
         working-directory: head
         run: |
@@ -80,11 +103,23 @@ jobs:
           echo "lockfile @playwright/test=$installed image=$PLAYWRIGHT_IMAGE_VERSION"
           test "$installed" = "$PLAYWRIGHT_IMAGE_VERSION"
 
+      - name: Install dependencies
+        working-directory: head
+        run: npm ci
+
       # Baselines (screenshots, perf) are per environment and not committed. Record
       # them from the base branch here, in the same container, then compare the PR
-      # head against them. GitHub sets CI=true by default, so it is unset (env -u CI) here so that a missing
-      # baseline is written instead of failing.
+      # head against them. GitHub sets CI=true by default, so it is unset (env -u CI)
+      # here: a missing baseline is then written instead of failing.
+      - name: Checkout base branch (${{ github.base_ref }})
+        if: matrix.baselines
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
       - name: Record baselines from base branch
+        if: matrix.baselines
         working-directory: base
         run: |
           npm ci
@@ -95,34 +130,34 @@ jobs:
             env -u CI npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js
           fi
           test -d tests/e2e/__baselines__
-
-      - name: Install PR head dependencies
-        working-directory: head
-        run: npm ci
-
-      - name: Copy baselines into PR head
-        run: |
-          cp -r base/tests/e2e/__baselines__ head/tests/e2e/__baselines__
-          if [ -f base/tests/e2e/perf-baseline.json ]; then cp base/tests/e2e/perf-baseline.json head/tests/e2e/; fi
+          cp -r tests/e2e/__baselines__ ../head/tests/e2e/__baselines__
+          if [ -f tests/e2e/perf-baseline.json ]; then cp tests/e2e/perf-baseline.json ../head/tests/e2e/; fi
 
       # CI=true: a missing baseline fails (fail-closed) instead of passing vacuously.
-      - name: Run e2e suite against PR head
+      - name: Run e2e (${{ matrix.name }}) against PR head
         working-directory: head
         env:
           CI: 'true'
         run: |
-          if [ "$PERF_OPT_IN" = "true" ]; then
-            npm run test:e2e
-          else
-            npm run test:e2e -- --grep-invert "frame time"
-          fi
+          extra=""
+          if [ "${{ matrix.name }}" = "visual" ] && [ "$PERF_OPT_IN" = "true" ]; then extra="perf.spec.js"; fi
+          npm run test:e2e -- ${{ matrix.args }} $extra
 
       - name: Upload e2e report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-report
+          name: e2e-report-${{ matrix.name }}
           path: |
             head/playwright-report/
             head/test-results/
           retention-days: 7
+
+  # Aggregate result of all shards.
+  e2e:
+    needs: e2e-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: All e2e shards passed
+        run: test "${{ needs.e2e-shard.result }}" = "success"
