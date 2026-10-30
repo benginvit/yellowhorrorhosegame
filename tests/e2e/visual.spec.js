@@ -5,21 +5,13 @@ import { VIEWS } from './views.js'
 // Test build only (project "test"). Baselines are generated in the environment
 // that runs the tests: the first run writes tests/e2e/__baselines__/ and passes,
 // later runs compare against it (see README).
-//
-// The classroom intro starts timers at game start (shots at 7 s), which cannot
-// be frozen from outside, so every view must be captured well before that.
-const INTRO_BUDGET_MS = 6000
-
 async function capture(page, view) {
-  const t0 = Date.now()
   await replayCdnFonts(page)
   await openFrozen(page, { level: view.level })
   await setView(page, view)
   await waitTextSynced(page)
   await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 1 / 60)) // render with text
   await hideHud(page)
-  const elapsed = Date.now() - t0
-  expect(elapsed, `capture took ${elapsed} ms; the 7 s classroom intro timer may have changed the scene`).toBeLessThan(INTRO_BUDGET_MS)
 }
 
 test.describe('screenshot diff (?seed=1&freeze=1)', () => {

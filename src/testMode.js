@@ -12,7 +12,9 @@
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
 //               (delta 0, clock.elapsedTime 0); further frames only happen
-//               when a test calls advance().
+//               when a test calls advance(). The start-pose timers (classroom
+//               intro, Astrid's wake-up, snore bubbles, candy spawn) run on that
+//               clock too; see "Timers" below for what still uses the wall clock.
 //
 // Test API (test builds only): window.__YHH_TEST_MODE__ (alias window.__YHH_TEST__)
 //   seed, freeze  parsed params
@@ -28,6 +30,16 @@
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
 //                 advancing clock.elapsedTime by dt and passing dt to useFrame
 //   setTime(t)    freeze only: set clock.elapsedTime without rendering
+//
+// Timers: game code that must follow the test clock uses setTimer / clearTimer /
+// setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
+// without ?freeze=1 they are the plain browser timers. With ?freeze=1 they run on
+// the frozen clock: a timer fires inside advance()/setTime() once the accumulated
+// test time (sum of dt, monotone across Canvas remounts) has passed its due time,
+// never from the wall clock. Still on the wall clock (event-driven or audio only,
+// not in any start pose): blood splatter (App.jsx, BloodSplatter.jsx), the success
+// voice line (App.jsx), Jumpscare.jsx, cat meows (Character.jsx, Math.random).
+// IS_FROZEN is true only with ?freeze=1 (test builds).
 
 import { useEffect } from 'react'
 import { addAfterEffect, addEffect, useThree } from '@react-three/fiber'
@@ -46,6 +58,8 @@ function mulberry32(seed) {
 let source = Math.random
 let frameloop = 'always'
 let frozen = false
+// Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
+let virtualTimers = null
 // Test-only start overrides merged into the game state when "Start" is pressed
 // (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
 let startOverrides = null
@@ -68,8 +82,45 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     if (level === 3) startOverrides.classroomIntroPhase = 'seated'
     if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
   }
-  if (freeze) frameloop = 'never'
-  frozen = freeze
+  if (freeze) {
+    frameloop = 'never'
+    frozen = true
+
+    // Timers on the frozen clock. `now` is accumulated test time in ms (sum of the forward
+    // steps: dt of advance(), forward movement of setTime()). It only ever grows, also when a Canvas remounts and its
+    // R3F clock restarts at 0 (level change).
+    let now = 0
+    let nextId = 1
+    const timers = new Map() // id -> { fn, due, every }
+    virtualTimers = {
+      set(fn, ms, every = null) {
+        const id = nextId++
+        timers.set(id, { fn, due: now + Math.max(0, ms || 0), every })
+        return id
+      },
+      clear(id) {
+        timers.delete(id)
+      },
+      tick(dtMs) {
+        const target = now + dtMs
+        for (;;) {
+          let nextTimerId = null
+          for (const [id, t] of timers) {
+            if (t.due <= target && (nextTimerId === null || t.due < timers.get(nextTimerId).due)) nextTimerId = id
+          }
+          if (nextTimerId === null) break
+          const t = timers.get(nextTimerId)
+          // The callback sees its own due time, so timers it creates are relative to that
+          // and the result does not depend on the step size.
+          now = Math.max(now, t.due)
+          if (t.every === null) timers.delete(nextTimerId)
+          else t.due += Math.max(1, t.every)
+          t.fn()
+        }
+        now = target
+      },
+    }
+  }
   makeRand = (streamId) => mulberry32((seed ^ streamId) >>> 0)
 
   window.__YHH_TEST_MODE__ = {
@@ -148,6 +199,28 @@ export const IS_FROZEN = frozen
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
 
+/** setTimeout that follows the frozen test clock with ?freeze=1. */
+export function setTimer(fn, ms) {
+  return virtualTimers ? virtualTimers.set(fn, ms) : setTimeout(fn, ms)
+}
+
+/** clearTimeout counterpart of setTimer. */
+export function clearTimer(id) {
+  if (virtualTimers) virtualTimers.clear(id)
+  else clearTimeout(id)
+}
+
+/** setInterval that follows the frozen test clock with ?freeze=1. Clear with clearTimerInterval. */
+export function setTimerInterval(fn, ms) {
+  return virtualTimers ? virtualTimers.set(fn, ms, ms) : setInterval(fn, ms)
+}
+
+/** clearInterval counterpart of setTimerInterval. */
+export function clearTimerInterval(id) {
+  if (virtualTimers) virtualTimers.clear(id)
+  else clearInterval(id)
+}
+
 /** Pass to <Canvas onCreated>. No-op in prod builds. */
 export function onCanvasCreated(state) {
   if (import.meta.env.VITE_TEST_MODE === '1') {
@@ -167,9 +240,11 @@ export function onCanvasCreated(state) {
       api.advance = (frames = 1, dt = 1 / 60) => {
         for (let i = 0; i < frames; i++) {
           state.advance(state.clock.elapsedTime + dt)
+          virtualTimers.tick(dt * 1000)
         }
       }
       api.setTime = (t) => {
+        virtualTimers.tick(Math.max(0, t - state.clock.elapsedTime) * 1000)
         state.clock.elapsedTime = t
       }
     }

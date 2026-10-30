@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
-import { getStartOverrides } from './testMode'
+import { getStartOverrides, setTimer, clearTimer } from './testMode'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
@@ -78,29 +78,31 @@ function App() {
     if (introStartedRef.current) return
     introStartedRef.current = true
 
-    introTimersRef.current.forEach(t => clearTimeout(t))
+    introTimersRef.current.forEach(t => clearTimer(t))
     introTimersRef.current = []
 
-    const t1 = setTimeout(() => {
+    const t1 = setTimer(() => {
       playGunshotSound()
       setShowGunshotFlash(true)
       setShowGunshotShake(true)
-      setTimeout(() => setShowGunshotFlash(false), 300)
-      setTimeout(() => setShowGunshotShake(false), 1800)
+      introTimersRef.current.push(
+        setTimer(() => setShowGunshotFlash(false), 300),
+        setTimer(() => setShowGunshotShake(false), 1800),
+      )
       setGameState(prev => ({ ...prev, classroomIntroPhase: 'shots' }))
     }, 7000)
 
-    const t2 = setTimeout(() => {
+    const t2 = setTimer(() => {
       playMachineGunSound()
       playScreamSound()
     }, 8500)
 
-    const t3 = setTimeout(() => {
+    const t3 = setTimer(() => {
       setGameState(prev => ({ ...prev, classroomIntroPhase: 'panic' }))
       setShowGomEr(true)
     }, 9000)
 
-    const t4 = setTimeout(() => {
+    const t4 = setTimer(() => {
       setShowGomEr(false)
       setGameState(prev => ({ ...prev, classroomIntroPhase: 'active' }))
     }, 12500)
@@ -108,7 +110,9 @@ function App() {
     introTimersRef.current = [t1, t2, t3, t4]
 
     return () => {
-      introTimersRef.current.forEach(t => clearTimeout(t))
+      introTimersRef.current.forEach(t => clearTimer(t))
+      setShowGunshotFlash(false)
+      setShowGunshotShake(false)
       introStartedRef.current = false
     }
   }, [gameState.isPlaying, gameState.currentLevel])
@@ -126,8 +130,10 @@ function App() {
 
   const restartGame = () => {
     stopAllSounds()
-    introTimersRef.current.forEach(t => clearTimeout(t))
+    introTimersRef.current.forEach(t => clearTimer(t))
     setShowGomEr(false)
+    setShowGunshotFlash(false)
+    setShowGunshotShake(false)
     setGameState(INITIAL_STATE)
   }
 
@@ -191,9 +197,9 @@ function App() {
 
     setShowAstridJumpscare(true)
     playJumpscareSound()
-    setTimeout(() => setShowAstridJumpscare(false), 1500)
+    setTimer(() => setShowAstridJumpscare(false), 1500)
 
-    setTimeout(() => {
+    setTimer(() => {
       playVoiceRecording('Astrid', 'wake', language)
     }, 400)
 
@@ -222,8 +228,10 @@ function App() {
 
   const continueToNextLevel = () => {
     stopAllSounds()
-    introTimersRef.current.forEach(t => clearTimeout(t))
+    introTimersRef.current.forEach(t => clearTimer(t))
     setShowGomEr(false)
+    setShowGunshotFlash(false)
+    setShowGunshotShake(false)
 
     if (gameState.currentLevel < levels.length) {
       setGameState(prev => getNextLevelState(prev))
