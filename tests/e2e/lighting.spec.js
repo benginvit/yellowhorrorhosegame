@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openFrozen, setView, replayCdnFonts, waitTextSynced, trackErrors, expectNoErrors, lumaStats, projectToScreen, stableCanvasShot, assertIntroBudget, waitSceneContent, countDifferingPixels } from './helpers.js'
+import { openFrozen, setView, replayCdnFonts, waitTextSynced, trackErrors, expectNoErrors, lumaStats, projectToScreen, stableCanvasShot, waitSceneContent, waitFrames, countDifferingPixels } from './helpers.js'
 import { LIGHT_LIMITS, LIGHT_VIEWS } from './views.js'
 
 // Lighting checks (test build, ?seed=1&freeze=1). The screenshot diff does not
@@ -16,10 +16,13 @@ async function open(page, view) {
   // A few frames so the scene settles (the house interior still changes
   // for ~2 frames after the first render); time and lights stay fixed.
   await page.evaluate(() => window.__YHH_TEST_MODE__.advance(4, 1 / 60))
-  await page.evaluate(() => window.__YHH_TEST_MODE__.advance(3, 0)) // delta-driven animations (snoring bubbles) catch up
+  // Delta-driven animations (snoring bubbles) keep their state in React: it is committed
+  // after the frame that updated it, so let React commit, then render again.
+  await page.evaluate(() => window.__YHH_TEST_MODE__.advance(3, 0))
+  await waitFrames(page)
+  await page.evaluate(() => window.__YHH_TEST_MODE__.advance(3, 0))
   // Only the 3D scene is measured: hide every HTML overlay on top of the canvas.
   await page.addStyleTag({ content: '.ui-overlay, .mobile-controls { visibility: hidden !important; }' })
-  assertIntroBudget(page, 'scene ready for measurement')
 }
 
 const fmt = (s) => `mean ${s.mean.toFixed(1)}, p5 ${s.p5}, p50 ${s.p50}, p95 ${s.p95}, black ${(s.blackShare * 100).toFixed(1)} %, white ${(s.whiteShare * 100).toFixed(2)} %`
@@ -91,8 +94,8 @@ test.describe('lighting: shadow casters', () => {
 
 test.describe('lighting: no flicker when frozen', () => {
   // The frame is compared pixel for pixel, so poses must not contain anything
-  // animated per frame: the key spins +0.02 rad per frame (Key.jsx), so it must
-  // be out of view. outdoor-door looks at the house, away from the key.
+  // animated per frame. With advance(n, 0) the key does not turn and the start-pose
+  // timers (intro, Astrid, bubbles, candy) run on the frozen clock, so nothing moves between frames.
   for (const view of LIGHT_VIEWS.filter((v) => v.flicker)) {
     test(`light state and frame are identical across frames: ${view.name}`, async ({ page }) => {
       await open(page, view)
@@ -109,9 +112,7 @@ test.describe('lighting: no flicker when frozen', () => {
       const lightsB = await lightState()
       const b = await stableCanvasShot(page)
       expect(lightsB, `${view.name}: a light changed (intensity/colour/position) between frozen frames`).toEqual(lightsA)
-      // The interior has wall-clock timers (snoring Z bubbles, Character.jsx) that add
-      // and remove meshes while frozen, so only its light state is compared.
-      if (view.lightsOnly || a.equals(b)) return
+      if (a.equals(b)) return
       const differing = await countDifferingPixels(page, a, b)
       expect(differing, `${view.name}: ${differing} px changed between frames of a frozen scene (flicker)`).toBe(0)
     })

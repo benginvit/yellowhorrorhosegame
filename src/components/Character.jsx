@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Text } from '@react-three/drei'
+import { rand, setTimer, clearTimer, setTimerInterval, clearTimerInterval } from '../testMode'
 import { playHitSound, playJumpscareSound, playTickSound, playCatMeow, startSnoring, stopSnoring, playVoiceRecording } from '../utils/sounds'
 
 function Character({
@@ -48,13 +49,13 @@ function Character({
     // Wake Astrid after 4 seconds when player enters house
     let wakeTimer
     if (isAstridLevel && !astridAwake && !isSleeping && onWakeAstrid) {
-      wakeTimer = setTimeout(() => {
+      wakeTimer = setTimer(() => {
         // Just call the callback - jumpscare and sound are handled in App.jsx
         onWakeAstrid()
       }, 4000)
     }
     return () => {
-      if (wakeTimer) clearTimeout(wakeTimer)
+      if (wakeTimer) clearTimer(wakeTimer)
     }
   }, [isAstridLevel, astridAwake, isSleeping, onWakeAstrid])
 
@@ -96,25 +97,25 @@ function Character({
       // Create new "Z" bubble every 1.5 seconds
       const createBubble = () => {
         const newBubble = {
-          id: Math.random(),
+          id: rand(),
           opacity: 1,
           yOffset: 0
         }
         setSnoringBubbles(prev => [...prev, newBubble])
 
         // Remove bubble after 2 seconds
-        setTimeout(() => {
+        setTimer(() => {
           setSnoringBubbles(prev => prev.filter(b => b.id !== newBubble.id))
         }, 2000)
       }
 
       // Create bubbles at regular intervals
       createBubble()
-      snoringTimerRef.current = setInterval(createBubble, 1500)
+      snoringTimerRef.current = setTimerInterval(createBubble, 1500)
 
       return () => {
         if (snoringTimerRef.current) {
-          clearInterval(snoringTimerRef.current)
+          clearTimerInterval(snoringTimerRef.current)
         }
         setSnoringBubbles([])
       }
