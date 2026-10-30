@@ -3,13 +3,15 @@ name: PR check
 # Verification only: no secrets, no push, no deploy.
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, staging ]
 
 permissions:
   contents: read
 
 jobs:
   verify:
+    # Prod-bundle check. Only runs for PRs against main, as before.
+    if: github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -40,3 +42,87 @@ jobs:
 
       - name: Docker test image build (not pushed)
         run: docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
+
+  # e2e suite (npm run test:e2e) in the pinned Playwright image. See
+  # docs/adr/0001-ci-e2e-baselines.md for the baseline strategy.
+  #
+  # The image tag MUST equal the exact @playwright/test version in package.json
+  # (browser builds are tied to it). To bump: change @playwright/test in
+  # package.json (+ lockfile), then set the tag below to the same version.
+  # The "Check image matches package.json" step fails the job if they drift.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1
+      options: --ipc=host
+    env:
+      PLAYWRIGHT_IMAGE_VERSION: 1.64.1
+      # perf.spec.js is opt-in: add the PR label "e2e-perf" to include it.
+      PERF_OPT_IN: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-perf') }}
+
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          path: head
+
+      - name: Checkout base branch (${{ github.base_ref }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Check image matches package.json
+        working-directory: head
+        run: |
+          installed=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
+          echo "lockfile @playwright/test=$installed image=$PLAYWRIGHT_IMAGE_VERSION"
+          test "$installed" = "$PLAYWRIGHT_IMAGE_VERSION"
+
+      # Baselines (screenshots, perf) are per environment and not committed. Record
+      # them from the base branch here, in the same container, then compare the PR
+      # head against them. CI is deliberately unset for this step so that a missing
+      # baseline is written instead of failing.
+      - name: Record baselines from base branch
+        working-directory: base
+        run: |
+          npm ci
+          if [ "$PERF_OPT_IN" = "true" ]; then
+            npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
+            test -f tests/e2e/perf-baseline.json
+          else
+            npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js
+          fi
+          test -d tests/e2e/__baselines__
+
+      - name: Install PR head dependencies
+        working-directory: head
+        run: npm ci
+
+      - name: Copy baselines into PR head
+        run: |
+          cp -r base/tests/e2e/__baselines__ head/tests/e2e/__baselines__
+          if [ -f base/tests/e2e/perf-baseline.json ]; then cp base/tests/e2e/perf-baseline.json head/tests/e2e/; fi
+
+      # CI=true: a missing baseline fails (fail-closed) instead of passing vacuously.
+      - name: Run e2e suite against PR head
+        working-directory: head
+        env:
+          CI: 'true'
+        run: |
+          if [ "$PERF_OPT_IN" = "true" ]; then
+            npm run test:e2e
+          else
+            npm run test:e2e -- --grep-invert "frame time"
+          fi
+
+      - name: Upload e2e report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            head/playwright-report/
+            head/test-results/
+          retention-days: 7
