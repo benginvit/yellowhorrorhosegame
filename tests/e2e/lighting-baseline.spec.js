@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import crypto from 'node:crypto'
-import { openFrozen, replayCdnFonts, waitTextSynced, waitSceneContent, stableCanvasShot } from './helpers.js'
+import { openFrozen, replayCdnFonts, waitTextSynced, waitSceneContent, stableCanvasShot, assertIntroBudget } from './helpers.js'
 
 // The frozen classroom (?level=3&seed=1&freeze=1) must be byte-identical to a
 // build without the flicker code (e.g. feat/lighting). Runs only when such a
@@ -17,6 +17,7 @@ async function classroomMd5(browser, baseURL) {
   await waitTextSynced(page)
   await waitSceneContent(page)
   await page.addStyleTag({ content: '.ui-overlay, .mobile-controls { visibility: hidden !important; }' })
+  assertIntroBudget(page, 'baseline capture') // same intro-timer guard as visual.spec.js (classroom shoots at 7 s)
   const hash = md5(await stableCanvasShot(page))
   await ctx.close()
   return hash

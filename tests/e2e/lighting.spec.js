@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { openFrozen, setView, replayCdnFonts, waitTextSynced, trackErrors, expectNoErrors, lumaStats, projectToScreen, stableCanvasShot, waitSceneContent, countDifferingPixels } from './helpers.js'
+import { openFrozen, setView, replayCdnFonts, waitTextSynced, trackErrors, expectNoErrors, lumaStats, projectToScreen, stableCanvasShot, assertIntroBudget, waitSceneContent, countDifferingPixels } from './helpers.js'
 import { LIGHT_LIMITS, LIGHT_VIEWS } from './views.js'
 
 // Lighting checks (test build, ?seed=1&freeze=1). The screenshot diff does not
@@ -19,6 +19,7 @@ async function open(page, view) {
   await page.evaluate(() => window.__YHH_TEST_MODE__.advance(3, 0)) // delta-driven animations (snoring bubbles) catch up
   // Only the 3D scene is measured: hide every HTML overlay on top of the canvas.
   await page.addStyleTag({ content: '.ui-overlay, .mobile-controls { visibility: hidden !important; }' })
+  assertIntroBudget(page, 'scene ready for measurement')
 }
 
 const fmt = (s) => `mean ${s.mean.toFixed(1)}, p5 ${s.p5}, p50 ${s.p50}, p95 ${s.p95}, black ${(s.blackShare * 100).toFixed(1)} %, white ${(s.whiteShare * 100).toFixed(2)} %`

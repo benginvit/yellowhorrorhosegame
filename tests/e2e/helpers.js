@@ -54,8 +54,31 @@ export function expectNoErrors(errors) {
   expect(errors, `unexpected console/page errors:\n${errors.join('\n')}`).toEqual([])
 }
 
+// Wall-clock timers in the game that ?freeze=1 cannot stop: the classroom intro
+// shoots at 7 s, Astrid wakes after 4 s. Measurements must finish well before.
+const INTRO_BUDGET_MS = { classroom: 6000, astridHouse: 3000 }
+const introClock = new WeakMap()
+
+/**
+ * Fails with a clear message when the time since openFrozen() approaches a
+ * wall-clock timer of the level (classroom 7 s, Astrid 4 s), instead of
+ * measuring a scene that may already have changed. No-op for other levels.
+ */
+export function assertIntroBudget(page, what = 'measurement') {
+  const c = introClock.get(page)
+  if (!c) return
+  const [name, limit] = c.level === 3 ? ['7 s classroom intro timer', INTRO_BUDGET_MS.classroom]
+    : c.level === 2 && c.inside ? ['4 s Astrid wake timer', INTRO_BUDGET_MS.astridHouse]
+      : [null, Infinity]
+  const elapsed = Date.now() - c.t0
+  if (elapsed > limit) {
+    throw new Error(`${what} came ${elapsed} ms after start (budget ${limit} ms): the ${name} is not frozen by ?freeze=1 and may have changed the scene. Machine too slow or the test too long; do not trust the values.`)
+  }
+}
+
 /** Opens the test build frozen/seeded, starts the game at `level` and waits for the first frame. */
 export async function openFrozen(page, { level = 1, inside = false } = {}) {
+  introClock.set(page, { t0: Date.now(), level, inside })
   const q = new URLSearchParams({ seed: '1', freeze: '1', level: String(level) })
   if (inside) q.set('inside', '1')
   await page.goto(`/?${q}`)
@@ -235,9 +258,13 @@ export async function stableCanvasShot(page, attempts = 5) {
   let prev = await canvas.screenshot()
   for (let i = 0; i < attempts; i++) {
     const next = await canvas.screenshot()
-    if (next.equals(prev)) return next
+    if (next.equals(prev)) {
+      assertIntroBudget(page, 'canvas screenshot')
+      return next
+    }
     prev = next
   }
+  assertIntroBudget(page, 'unstable canvas screenshot') // explains slow-machine failures before the generic error
   throw new Error(`canvas screenshots of a frozen scene never stabilised in ${attempts} attempts`)
 }
 
