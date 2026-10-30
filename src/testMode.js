@@ -86,8 +86,8 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     frameloop = 'never'
     frozen = true
 
-    // Timers on the frozen clock. `now` is accumulated test time in ms (sum of the dt
-    // passed to advance()). It only ever grows, also when a Canvas remounts and its
+    // Timers on the frozen clock. `now` is accumulated test time in ms (sum of the forward
+    // steps: dt of advance(), forward movement of setTime()). It only ever grows, also when a Canvas remounts and its
     // R3F clock restarts at 0 (level change).
     let now = 0
     let nextId = 1
@@ -102,18 +102,22 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
         timers.delete(id)
       },
       tick(dtMs) {
-        now += dtMs
+        const target = now + dtMs
         for (;;) {
           let nextTimerId = null
           for (const [id, t] of timers) {
-            if (t.due <= now && (nextTimerId === null || t.due < timers.get(nextTimerId).due)) nextTimerId = id
+            if (t.due <= target && (nextTimerId === null || t.due < timers.get(nextTimerId).due)) nextTimerId = id
           }
-          if (nextTimerId === null) return
+          if (nextTimerId === null) break
           const t = timers.get(nextTimerId)
+          // The callback sees its own due time, so timers it creates are relative to that
+          // and the result does not depend on the step size.
+          now = Math.max(now, t.due)
           if (t.every === null) timers.delete(nextTimerId)
           else t.due += Math.max(1, t.every)
           t.fn()
         }
+        now = target
       },
     }
   }

@@ -104,6 +104,8 @@ test.describe('game timers follow the frozen clock', () => {
     await advance(page, 7.02)
     await waitFrames(page)
     await advance(page, 2.88) // 9.9 s
+    // Longer than the 3 s candy delay in wall-clock time: a real setTimeout would have fired by now.
+    await sleep(3500)
     await waitFrames(page)
     await advance(page, 0)
     expect(await candy()).toBe(0)
@@ -114,6 +116,7 @@ test.describe('game timers follow the frozen clock', () => {
   })
 
   test('timers survive a Canvas remount (clock back to 0): Astrid wakes 4 s after the new start', async ({ page }) => {
+    test.setTimeout(150_000) // 20 s of advance() at 60 fps is slow on software rendering
     const errors = trackErrors(page)
     await openFrozen(page, { level: 2, inside: true })
     await advance(page, 4.2) // first wake-up
