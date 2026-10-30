@@ -58,7 +58,7 @@ npm run build
 3. Benjamin godkänner och öppnar PR `staging` → `main`.
 4. Push till `main` deployar till prod (https://yellowhorrorhouse.benom.nu) via `deploy.yml`.
 
-Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Förslag: lägg Cloudflare Access framför staging.
+Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Tunneln är user-tjänsten `cloudflare-mcp` (`~/.cloudflared/config.yml`) och startas om med `systemctl --user restart cloudflare-mcp`. Det är inte systemtjänsten `cloudflared` / `/etc/cloudflared`. Förslag: lägg Cloudflare Access framför staging.
 
 ## 🛠️ Teknologier
 
