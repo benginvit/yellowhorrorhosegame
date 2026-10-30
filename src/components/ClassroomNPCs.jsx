@@ -1,10 +1,19 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { rand } from '../testMode'
+
+// Lazily initialised ref: the initialiser runs once per mount, so the seeded
+// PRNG is not consumed again on every re-render.
+function useLazyRef(init) {
+  const ref = useRef(undefined)
+  if (ref.current === undefined) ref.current = init()
+  return ref
+}
 
 function SeatedStudent({ deskPosition, hairColor, panicPhase }) {
   const groupRef = useRef()
-  const offset = useRef(Math.random() * Math.PI * 2)
+  const offset = useLazyRef(() => rand() * Math.PI * 2)
 
   useFrame((state) => {
     if (!groupRef.current) return
@@ -50,15 +59,15 @@ function RunningStudent({ startX, startZ, hairColor, candyPieces, onCandyEaten, 
   const pos = useRef(new THREE.Vector3(startX, 0, startZ))
   const target = useRef(null)
   const targetCandyId = useRef(null)
-  const yaw = useRef(Math.random() * Math.PI * 2)
-  const offset = useRef(Math.random() * Math.PI * 2)
+  const yaw = useLazyRef(() => rand() * Math.PI * 2)
+  const offset = useLazyRef(() => rand() * Math.PI * 2)
   // Not all students go for candy — alternating pattern
   const goesForCandy = useRef(studentIndex % 3 !== 2)
   const hasEaten = useRef(false)
-  const speed = useRef(2.2 + Math.random() * 1.8)
+  const speed = useLazyRef(() => 2.2 + rand() * 1.8)
 
   function getRandomWanderTarget() {
-    return new THREE.Vector3(-7 + Math.random() * 14, 0, -6 + Math.random() * 11)
+    return new THREE.Vector3(-7 + rand() * 14, 0, -6 + rand() * 11)
   }
 
   useFrame((state, delta) => {

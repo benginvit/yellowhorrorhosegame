@@ -51,6 +51,32 @@ npm run dev
 npm run build
 ```
 
+## 🚦 Testmiljö och releaseflöde
+
+1. Feature-PR mergas till `staging` (push deployar automatiskt via `.github/workflows/deploy-staging.yml`).
+2. Testa på https://staging-yellowhorrorhouse.benom.nu (bygget är `noindex`).
+3. Benjamin godkänner och öppnar PR `staging` → `main`.
+4. Push till `main` deployar till prod (https://yellowhorrorhouse.benom.nu) via `deploy.yml`.
+
+Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Tunneln är user-tjänsten `cloudflare-mcp` (`~/.cloudflared/config.yml`) och startas om med `systemctl --user restart cloudflare-mcp`. Det är inte systemtjänsten `cloudflared` / `/etc/cloudflared`. Förslag: lägg Cloudflare Access framför staging.
+
+Kontrollera att testläge-markören inte läckt in i prod-bygget (exit 1 om den finns):
+
+```bash
+bash scripts/check-prod-bundle.sh
+```
+
+### Testimage (lokalt)
+
+Test-imagen byggs med build-arg `VITE_TEST_MODE=1` (default är `0` = prod). Den taggas `yellowhorrorhose:test`, pushas **inte** till ghcr och körs lokalt på port 3003, skilt från prod på 3002:
+
+```bash
+docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
+docker run -d -p 127.0.0.1:3003:80 yellowhorrorhose:test
+```
+
+Prod-imagen bygger du som vanligt med `docker build -t yellowhorrorhose .`.
+
 ## 🛠️ Teknologier
 
 - **React** - UI-ramverk
