@@ -53,6 +53,16 @@ export const OUTDOOR_LIGHTING = {
   },
 }
 
+// Weak warm fill in front of the outdoor house door (House.jsx) so the door
+// reads (BENG-13). Never a shadow caster: the budget is max 2 per scene.
+export const DOOR_FILL_LIGHT = {
+  color: '#ffc86b',
+  intensity: 6,
+  distance: 10,
+  decay: 2,
+  position: [0, 3.5, 10], // house-local, in front of the door
+}
+
 export const HOUSE_INTERIOR_LIGHTING = {
   // Furniture and doors must read without the flashlight; the mood comes from
   // the contrast against the flashlight cone, not from black surroundings.

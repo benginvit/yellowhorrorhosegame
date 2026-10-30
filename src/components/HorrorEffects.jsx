@@ -9,8 +9,10 @@ export const HORROR_FX = {
   multisampling: 4,
 
   bloom: {
-    // Only the brightest pixels bloom (yellow/emissive light sources); white
-    // ceiling lamps and lit walls stay clean. Raised from 0.75.
+    // Luminance threshold on the linear HDR frame, so it cannot tell yellow
+    // from white: anything brighter than this blooms. White fluorescent tubes
+    // (L ~ 9-10) still bloom fully; the dim yellow ceiling lamp (L ~ 0.5) does
+    // not bloom at all. Only mid-bright surfaces stopped blooming vs 0.75.
     luminanceThreshold: 0.9,
     luminanceSmoothing: 0.2,
     intensity: 0.9,
@@ -34,8 +36,9 @@ export const HORROR_FX = {
   // Film grain. Low opacity; soft-light so it does not lift the blacks.
   noise: { opacity: 0.25, blendFunction: BlendFunction.SOFT_LIGHT },
 
-  // Last in the chain: lifts the shadows a little and restores the contrast
-  // that the stronger desaturation takes away.
+  // Last in the chain. Net effect: black is lifted by ~+4/255, highlights are
+  // lifted the most, and everything above ~239/255 is clipped to white. Moving
+  // it earlier in the chain changes the look.
   brightnessContrast: { brightness: 0.04, contrast: 0.05 },
 }
 
