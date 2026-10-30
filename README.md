@@ -51,6 +51,15 @@ npm run dev
 npm run build
 ```
 
+## 🚦 Testmiljö och releaseflöde
+
+1. Feature-PR mergas till `staging` (push deployar automatiskt via `.github/workflows/deploy-staging.yml`).
+2. Testa på https://staging-yellowhorrorhouse.benom.nu (bygget är `noindex`).
+3. Benjamin godkänner och öppnar PR `staging` → `main`.
+4. Push till `main` deployar till prod (https://yellowhorrorhouse.benom.nu) via `deploy.yml`.
+
+Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Förslag: lägg Cloudflare Access framför staging.
+
 ## 🛠️ Teknologier
 
 - **React** - UI-ramverk

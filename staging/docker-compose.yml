@@ -1,0 +1,9 @@
+# Copy to ~/yellowhorrorhosegame-staging/docker-compose.yml on the server
+name: yellowhorrorhose-staging
+
+services:
+  web:
+    image: ghcr.io/benginvit/yellowhorrorhose:staging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3004:80"

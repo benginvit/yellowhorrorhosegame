@@ -15,6 +15,13 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Staging builds (--build-arg STAGING=true) are marked noindex; default is off
+ARG STAGING=false
+RUN if [ "$STAGING" = "true" ]; then \
+      sed -i 's#<head>#<head><meta name="robots" content="noindex">#' dist/index.html && \
+      grep -q 'name="robots"' dist/index.html; \
+    fi
+
 # Production stage
 FROM nginx:alpine
 
