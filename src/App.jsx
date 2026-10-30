@@ -85,8 +85,10 @@ function App() {
       playGunshotSound()
       setShowGunshotFlash(true)
       setShowGunshotShake(true)
-      setTimer(() => setShowGunshotFlash(false), 300)
-      setTimer(() => setShowGunshotShake(false), 1800)
+      introTimersRef.current.push(
+        setTimer(() => setShowGunshotFlash(false), 300),
+        setTimer(() => setShowGunshotShake(false), 1800),
+      )
       setGameState(prev => ({ ...prev, classroomIntroPhase: 'shots' }))
     }, 7000)
 

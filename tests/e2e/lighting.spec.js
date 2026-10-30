@@ -94,8 +94,8 @@ test.describe('lighting: shadow casters', () => {
 
 test.describe('lighting: no flicker when frozen', () => {
   // The frame is compared pixel for pixel, so poses must not contain anything
-  // animated per frame. Under ?freeze=1 the key stands at a fixed angle and all
-  // game timers run on the frozen clock, so nothing moves between frames.
+  // animated per frame. With advance(n, 0) the key does not turn and the start-pose
+  // timers (intro, Astrid, bubbles, candy) run on the frozen clock, so nothing moves between frames.
   for (const view of LIGHT_VIEWS.filter((v) => v.flicker)) {
     test(`light state and frame are identical across frames: ${view.name}`, async ({ page }) => {
       await open(page, view)
