@@ -22,6 +22,8 @@
 //                 before each frame, see onCanvasCreated). Post-FX
 //                 (HorrorEffects) is bypassed in test builds, so this is the
 //                 scene without post-FX.
+//   camera        the Canvas' camera (tests set position/rotation, then advance())
+//   scene         the Canvas' THREE.Scene
 //   ready         true once the scene has mounted and a frame has been rendered
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
 //                 advancing clock.elapsedTime by dt and passing dt to useFrame
@@ -43,6 +45,9 @@ function mulberry32(seed) {
 
 let source = Math.random
 let frameloop = 'always'
+// Test-only start overrides merged into the game state when "Start" is pressed
+// (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
+let startOverrides = null
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
 
@@ -53,6 +58,14 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const freeze = params.get('freeze') === '1'
 
   source = mulberry32(seed)
+
+  const level = parseInt(params.get('level') ?? '', 10)
+  if (level >= 1 && level <= 6) {
+    startOverrides = { currentLevel: level }
+    // Level 3 is the classroom; its intro starts in the 'seated' phase.
+    if (level === 3) startOverrides.classroomIntroPhase = 'seated'
+    if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
+  }
   if (freeze) frameloop = 'never'
 
   window.__YHH_TEST_MODE__ = {
@@ -60,6 +73,8 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     freeze,
     rand: () => source(),
     gl: null,
+    camera: null,
+    scene: null,
     ready: false,
     advance: () => {},
     setTime: () => {},
@@ -92,6 +107,11 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
 
 export { TestModeProbe }
 
+/** Extra game state applied on Start (test builds only, else {}). */
+export function getStartOverrides() {
+  return startOverrides ?? {}
+}
+
 /** Drop-in replacement for Math.random() where it affects visuals/animation. */
 export function rand() {
   return source()
@@ -118,6 +138,8 @@ export function onCanvasCreated(state) {
   if (import.meta.env.VITE_TEST_MODE === '1') {
     const api = window.__YHH_TEST_MODE__
     api.gl = state.gl
+    api.camera = state.camera
+    api.scene = state.scene
     api.ready = false
 
     // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep

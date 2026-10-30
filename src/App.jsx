@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
+import { getStartOverrides } from './testMode'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
@@ -118,6 +119,7 @@ function App() {
 
     setGameState({
       ...INITIAL_STATE,
+      ...getStartOverrides(),
       isPlaying: true,
     })
   }

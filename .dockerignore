@@ -7,3 +7,10 @@ README.md
 .env
 npm-debug.log
 .DS_Store
+
+# Playwright e2e outputs
+dist-e2e/
+test-results/
+playwright-report/
+tests/e2e/__baselines__/
+tests/e2e/perf-baseline.json
