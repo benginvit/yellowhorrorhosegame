@@ -173,3 +173,84 @@ export async function countDifferingPixels(page, pngA, pngB) {
     return n
   }, [pngA.toString('base64'), pngB.toString('base64')])
 }
+
+/**
+ * Luminance statistics of the game canvas (Rec. 709 luma, 0-255) from a
+ * screenshot of the real frame. `region` is an optional pixel box
+ * {x, y, w, h} in canvas coordinates. Returns mean, p5/p50/p95 and the share of
+ * pixels that are (nearly) black (luma < 8) and (nearly) white (luma > 247).
+ */
+export async function lumaStats(page, region = null) {
+  const png = await stableCanvasShot(page)
+  return page.evaluate(async ([b64, box]) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const c = new OffscreenCanvas(bmp.width, bmp.height)
+    const ctx = c.getContext('2d')
+    ctx.drawImage(bmp, 0, 0)
+    const r = box ?? { x: 0, y: 0, w: bmp.width, h: bmp.height }
+    const x0 = Math.max(0, Math.round(r.x)), y0 = Math.max(0, Math.round(r.y))
+    const w = Math.min(bmp.width - x0, Math.round(r.w)), h = Math.min(bmp.height - y0, Math.round(r.h))
+    const px = ctx.getImageData(x0, y0, w, h).data
+    const hist = new Uint32Array(256)
+    let sum = 0
+    for (let i = 0; i < px.length; i += 4) {
+      const l = Math.round(0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2])
+      hist[l]++
+      sum += l
+    }
+    const n = px.length / 4
+    const pct = (p) => {
+      let acc = 0
+      for (let l = 0; l < 256; l++) { acc += hist[l]; if (acc >= p * n) return l }
+      return 255
+    }
+    let dark = 0, bright = 0
+    for (let l = 0; l < 8; l++) dark += hist[l]
+    for (let l = 248; l < 256; l++) bright += hist[l]
+    return { mean: sum / n, p5: pct(0.05), p50: pct(0.5), p95: pct(0.95), blackShare: dark / n, whiteShare: bright / n, pixels: n }
+  }, [png.toString('base64'), region])
+}
+
+/** Screen position (canvas pixels) of a world point, or null if behind the camera. */
+export async function projectToScreen(page, [x, y, z]) {
+  return page.evaluate(([px, py, pz]) => {
+    const api = window.__YHH_TEST_MODE__
+    const cam = api.camera
+    cam.updateMatrixWorld()
+    const v = cam.position.clone().set(px, py, pz).project(cam)
+    if (v.z > 1) return null
+    const { width, height } = api.gl.domElement
+    return { x: (v.x * 0.5 + 0.5) * width, y: (1 - (v.y * 0.5 + 0.5)) * height }
+  }, [x, y, z])
+}
+
+/**
+ * Screenshot of the game canvas. A frozen scene must give the same bytes every
+ * time, but in the house interior an occasional capture shows a different
+ * (uniform grey) frame; capture until two consecutive shots are identical.
+ */
+export async function stableCanvasShot(page, attempts = 5) {
+  const canvas = page.locator(GAME_CANVAS)
+  let prev = await canvas.screenshot()
+  for (let i = 0; i < attempts; i++) {
+    const next = await canvas.screenshot()
+    if (next.equals(prev)) return next
+    prev = next
+  }
+  throw new Error(`canvas screenshots of a frozen scene never stabilised in ${attempts} attempts`)
+}
+
+/**
+ * Test build: renders frames (time unchanged) until the frame has at least
+ * `minCalls` draw calls. The scene content sits in <Suspense>, so right after
+ * `ready` a frame can contain only the lights, sky colour and fog (1 draw call);
+ * measuring such a frame says nothing about the lighting.
+ */
+export async function waitSceneContent(page, minCalls = 20) {
+  await page.waitForFunction((min) => {
+    const api = window.__YHH_TEST_MODE__
+    api.advance(1, 0)
+    return api.gl.info.render.calls >= min
+  }, minCalls, { timeout: 20_000, polling: 100 })
+}
