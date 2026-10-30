@@ -17,7 +17,7 @@ export const LIGHT_VIEWS = [
   { name: 'outdoor-door', level: 1, x: 0, z: -6, yaw: 0, flicker: true },
   { name: 'outdoor-key', level: 1, x: 2, z: 0, yaw: -0.45 },
   { name: 'classroom-start', level: 3, x: 0, z: 2, yaw: 0, shadowScene: 'classroom', flicker: true },
-  { name: 'house-interior', level: 2, inside: true, x: 0, z: -14, yaw: 0, shadowScene: 'house interior', flicker: true, lightsOnly: true },
+  { name: 'house-interior', level: 2, inside: true, x: 0, z: -14, yaw: 0, shadowScene: 'house interior', flicker: true },
 ]
 
 export const LIGHT_LIMITS = {

@@ -14,7 +14,7 @@ import ClassroomExit from './ClassroomExit'
 import Lighting from './Lighting'
 import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
-import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated } from '../testMode'
+import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
 const CLASSROOM_START_YAW = 0
@@ -46,13 +46,13 @@ function Game({
   // Timer stored in ref so phase changes don't cancel it
   useEffect(() => {
     if (isKerstinLevel && classroomIntroPhase === 'shots' && candyPieces.length === 0 && !candyTimerRef.current) {
-      candyTimerRef.current = setTimeout(() => {
+      candyTimerRef.current = setTimer(() => {
         candyTimerRef.current = null
         setCandyPieces(CANDY_POSITIONS.map(p => ({ ...p, eaten: false, collectedByPlayer: false })))
       }, 3000)
     }
     if (!isKerstinLevel || classroomIntroPhase === null || classroomIntroPhase === 'seated') {
-      clearTimeout(candyTimerRef.current)
+      clearTimer(candyTimerRef.current)
       candyTimerRef.current = null
       setCandyPieces([])
     }

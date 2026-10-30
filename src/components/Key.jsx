@@ -2,14 +2,18 @@ import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
+// Spin speed in rad/s (was 0.02 rad per frame = 1.2 rad/s at 60 Hz). Under ?freeze=1 delta is
+// exactly the dt given to advance(), so the angle depends only on the stepped test time.
+export const KEY_SPIN_SPEED = 1.2
+
 function Key({ onCollect, position = [8, 1, -10] }) {
   const keyRef = useRef()
   const { camera } = useThree()
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (keyRef.current) {
-      // Rotate the key
-      keyRef.current.rotation.y += 0.02
+      // Rotate the key with delta so the speed does not depend on the frame rate
+      keyRef.current.rotation.y += KEY_SPIN_SPEED * delta
 
       // Hover up and down
       keyRef.current.position.y = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.3
