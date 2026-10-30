@@ -111,6 +111,8 @@ function App() {
 
     return () => {
       introTimersRef.current.forEach(t => clearTimer(t))
+      setShowGunshotFlash(false)
+      setShowGunshotShake(false)
       introStartedRef.current = false
     }
   }, [gameState.isPlaying, gameState.currentLevel])
@@ -130,6 +132,8 @@ function App() {
     stopAllSounds()
     introTimersRef.current.forEach(t => clearTimer(t))
     setShowGomEr(false)
+    setShowGunshotFlash(false)
+    setShowGunshotShake(false)
     setGameState(INITIAL_STATE)
   }
 
@@ -226,6 +230,8 @@ function App() {
     stopAllSounds()
     introTimersRef.current.forEach(t => clearTimer(t))
     setShowGomEr(false)
+    setShowGunshotFlash(false)
+    setShowGunshotShake(false)
 
     if (gameState.currentLevel < levels.length) {
       setGameState(prev => getNextLevelState(prev))
