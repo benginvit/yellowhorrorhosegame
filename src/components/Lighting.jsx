@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useEffect, useMemo } from 'react'
+import { createPortal, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
 // All lighting/fog parameters live here, one named constant per variant.
@@ -35,6 +35,9 @@ export const OUTDOOR_LIGHTING = {
   // distance (no visible fog "wall" at the near plane) and swallows everything
   // beyond ~60 m, which hides the ground edge and keeps the dark mood.
   fog: { color: '#0a0f1a', density: 0.025 },
+  // Weak cold fill from behind the player so characters read against the
+  // dark ground without lifting the whole scene. No shadow.
+  fill: { color: '#6f86c0', intensity: 0.9, position: [-30, 12, 40] },
   flashlight: {
     color: '#fff1d0',
     intensity: 60,
@@ -44,20 +47,22 @@ export const OUTDOOR_LIGHTING = {
     decay: 1.6,
     castShadow: true,
     shadowMapSize: 512,
+    shadowBias: -0.0005,
+    shadowNormalBias: 0.02,
   },
 }
 
 export const HOUSE_INTERIOR_LIGHTING = {
-  ambient: { color: '#6a6078', intensity: 0.08 },
+  // Furniture and doors must read without the flashlight; the mood comes from
+  // the contrast against the flashlight cone, not from black surroundings.
+  ambient: { color: '#9a92b4', intensity: 0.75 },
   directional: {
     color: '#9db4e0',
-    intensity: 0.1,
+    intensity: 0.2,
     position: [50, 50, 50],
     castShadow: false,
-    shadowMapSize: [1024, 1024],
-    shadowCamera: 50,
   },
-  fog: { color: '#05060a', density: 0.05 },
+  fog: { color: '#0b0c14', density: 0.008 },
   flashlight: {
     color: '#fff1d0',
     intensity: 45,
@@ -67,6 +72,8 @@ export const HOUSE_INTERIOR_LIGHTING = {
     decay: 1.6,
     castShadow: true,
     shadowMapSize: 512,
+    shadowBias: -0.0005,
+    shadowNormalBias: 0.02,
   },
 }
 
@@ -76,41 +83,49 @@ const VARIANTS = {
   houseInterior: HOUSE_INTERIOR_LIGHTING,
 }
 
-const FORWARD = new THREE.Vector3()
-
-/** Spotlight attached to the player's camera ("flashlight"). */
+/**
+ * Spotlight parented to the camera ("flashlight"). Light and target are
+ * children of the camera, so they follow it without a per-frame copy (no
+ * one-frame lag). The camera has to be in the scene graph for its children
+ * to be rendered.
+ */
 function Flashlight({ params }) {
   const camera = useThree((s) => s.camera)
-  const light = useRef()
+  const scene = useThree((s) => s.scene)
+  const target = useMemo(() => {
+    const t = new THREE.Object3D()
+    t.position.set(0, 0, -1)
+    return t
+  }, [])
 
-  useFrame(() => {
-    const l = light.current
-    if (!l) return
-    camera.getWorldDirection(FORWARD)
-    l.position.copy(camera.position)
-    // The default target is not in the scene graph: update its matrix by hand.
-    l.target.position.copy(camera.position).add(FORWARD)
-    l.target.updateMatrixWorld()
-  })
+  useEffect(() => {
+    scene.add(camera)
+    return () => scene.remove(camera)
+  }, [scene, camera])
 
-  return (
-    <spotLight
-      ref={light}
-      color={params.color}
-      intensity={params.intensity}
-      distance={params.distance}
-      angle={params.angle}
-      penumbra={params.penumbra}
-      decay={params.decay}
-      castShadow={params.castShadow}
-      shadow-mapSize={[params.shadowMapSize, params.shadowMapSize]}
-      shadow-bias={-0.0005}
-    />
+  return createPortal(
+    <>
+      <spotLight
+        target={target}
+        color={params.color}
+        intensity={params.intensity}
+        distance={params.distance}
+        angle={params.angle}
+        penumbra={params.penumbra}
+        decay={params.decay}
+        castShadow={params.castShadow}
+        shadow-mapSize={[params.shadowMapSize, params.shadowMapSize]}
+        shadow-bias={params.shadowBias}
+        shadow-normalBias={params.shadowNormalBias}
+      />
+      <primitive object={target} />
+    </>,
+    camera,
   )
 }
 
 function Lighting({ variant }) {
-  const p = VARIANTS[variant]
+  const p = VARIANTS[variant] ?? OUTDOOR_LIGHTING
   const d = p.directional
   const s = d.shadowCamera
 
@@ -130,6 +145,9 @@ function Lighting({ variant }) {
           'shadow-camera-bottom': -s,
         })}
       />
+      {p.fill && (
+        <directionalLight color={p.fill.color} intensity={p.fill.intensity} position={p.fill.position} />
+      )}
       {p.fog.density !== undefined ? (
         <fogExp2 attach="fog" args={[p.fog.color, p.fog.density]} />
       ) : (
