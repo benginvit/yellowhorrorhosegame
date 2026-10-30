@@ -65,6 +65,9 @@ test.describe('lighting: readability of key and door', () => {
       const L = LIGHT_LIMITS.readability[t.name]
       expect(contrast, `${t.name}: contrast p95-p5 ${contrast} < ${L.contrastMin}`).toBeGreaterThanOrEqual(L.contrastMin)
       expect(s.p95, `${t.name}: brightest 5 % of the region only ${s.p95}`).toBeGreaterThanOrEqual(L.p95Min)
+      if (L.blackShareMax !== undefined) {
+        expect(s.blackShare, `${t.name}: ${(s.blackShare * 100).toFixed(1)} % of the region is black`).toBeLessThanOrEqual(L.blackShareMax)
+      }
     })
   }
 })
