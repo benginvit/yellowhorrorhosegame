@@ -1,0 +1,42 @@
+name: PR check
+
+# Verification only: no secrets, no push, no deploy.
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build prod bundle
+        run: npm run build
+
+      - name: Verify prod bundle has no test-mode marker
+        run: bash scripts/check-prod-bundle.sh
+
+      - name: Build test bundle (VITE_TEST_MODE=1)
+        run: npm run build -- --outDir dist-test --emptyOutDir
+        env:
+          VITE_TEST_MODE: '1'
+
+      - name: Check test bundle (marker expected, warn-only until t_50a711f3 is merged)
+        run: bash scripts/check-prod-bundle.sh --test dist-test
+
+      - name: Docker test image build (not pushed)
+        run: docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
