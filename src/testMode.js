@@ -49,6 +49,7 @@ let frozen = false
 // Test-only start overrides merged into the game state when "Start" is pressed
 // (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
 let startOverrides = null
+let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
 
@@ -69,6 +70,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   }
   if (freeze) frameloop = 'never'
   frozen = freeze
+  makeRand = (streamId) => mulberry32((seed ^ streamId) >>> 0)
 
   window.__YHH_TEST_MODE__ = {
     seed,
@@ -117,6 +119,14 @@ export function getStartOverrides() {
 /** Drop-in replacement for Math.random() where it affects visuals/animation. */
 export function rand() {
   return source()
+}
+
+/**
+ * Independent PRNG stream (seeded from ?seed in test builds, Math.random in
+ * prod) for visuals that must not shift the game's rand() sequence.
+ */
+export function createRand(streamId) {
+  return makeRand(streamId)
 }
 
 /** Canvas dpr: [1, 2] in prod, fixed 1 in test mode (stable pixel output). */
