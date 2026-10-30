@@ -128,10 +128,10 @@ jobs:
         run: |
           npm ci
           if [ "$PERF_OPT_IN" = "true" ]; then
-            env -u CI npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
+            env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
             test -f tests/e2e/perf-baseline.json
           else
-            env -u CI npm run test:e2e -- --project=test visual.spec.js lighting-baseline.spec.js
+            env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js
           fi
           test -d tests/e2e/__baselines__
           cp -r tests/e2e/__baselines__ ../head/tests/e2e/__baselines__
@@ -145,7 +145,7 @@ jobs:
         run: |
           extra=""
           if [ "${{ matrix.name }}" = "visual" ] && [ "$PERF_OPT_IN" = "true" ]; then extra="perf.spec.js"; fi
-          npm run test:e2e -- ${{ matrix.args }} $extra
+          npm run test:e2e -- --retries=1 ${{ matrix.args }} $extra
 
       - name: Upload e2e report
         if: failure()

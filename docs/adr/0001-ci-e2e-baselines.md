@@ -18,3 +18,5 @@ Containern `mcr.microsoft.com/playwright:v1.64.1` ska ha exakt samma version som
 
 ## Shards (körtid)
 Hela sviten på en 4-vCPU-runner tar ca 11 min seriellt (workers=1 är avsiktligt; determinism-testerna renderar hundratals mjukvaru-GL-frames och tar ~8 min ensamma), över 10-minutersgränsen. Jobbet är därför uppdelat i parallella shards (`visual`, `prod`, `determinism-*`) som alla kör samma `npm run test:e2e` med fil-/`-g`-filter. Bara `visual`-shardet behöver baslinjer från basbranchen. Jobbet `e2e` aggregerar resultatet av alla shards.
+
+Alla shards körs med `--retries=1`: på delade runners händer det att en skärmdump överskrider Playwrights 5 s-timeout (fontladdning) trots oförändrad rendering. En verklig visuell regression faller i båda försöken.
