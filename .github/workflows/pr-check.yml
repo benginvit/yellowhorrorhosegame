@@ -77,13 +77,17 @@ jobs:
             args: --project=test determinism.spec.js -g "frozen canvas hash|key rotation"
           - name: determinism-astrid
             baselines: false
-            args: --project=test determinism.spec.js -g "Astrid in the house"
+            args: --project=test determinism.spec.js --timeout=240000 -g "Astrid in the house"
           - name: determinism-timers
             baselines: false
-            args: --project=test determinism.spec.js -g "classroom intro|snore bubbles|candy spawns"
+            args: --project=test determinism.spec.js -g "classroom intro|snore bubbles"
+          # The 10 s frozen-clock tests need more than the 90 s default on a CI runner.
+          - name: determinism-candy
+            baselines: false
+            args: --project=test determinism.spec.js --timeout=240000 -g "candy spawns"
           - name: determinism-remount
             baselines: false
-            args: --project=test determinism.spec.js -g "Canvas remount"
+            args: --project=test determinism.spec.js --timeout=240000 -g "Canvas remount"
     env:
       PLAYWRIGHT_IMAGE_VERSION: 1.64.1
       # perf.spec.js is opt-in (shared software-GL runners are too noisy for a
