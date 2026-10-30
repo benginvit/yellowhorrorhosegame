@@ -44,6 +44,7 @@ function mulberry32(seed) {
 let source = Math.random
 let frameloop = 'always'
 let frozen = false
+let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
 
@@ -56,6 +57,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   source = mulberry32(seed)
   if (freeze) frameloop = 'never'
   frozen = freeze
+  makeRand = (streamId) => mulberry32((seed ^ streamId) >>> 0)
 
   window.__YHH_TEST_MODE__ = {
     seed,
@@ -97,6 +99,14 @@ export { TestModeProbe }
 /** Drop-in replacement for Math.random() where it affects visuals/animation. */
 export function rand() {
   return source()
+}
+
+/**
+ * Independent PRNG stream (seeded from ?seed in test builds, Math.random in
+ * prod) for visuals that must not shift the game's rand() sequence.
+ */
+export function createRand(streamId) {
+  return makeRand(streamId)
 }
 
 /** Canvas dpr: [1, 2] in prod, fixed 1 in test mode (stable pixel output). */
