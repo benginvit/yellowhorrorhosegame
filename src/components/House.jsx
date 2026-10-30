@@ -38,7 +38,7 @@ function House({ onEnter, hasKey, isAstridLevel = false }) {
       {/* Main walls - yellow brick */}
       <mesh position={[0, 4, 0]} castShadow receiveShadow>
         <boxGeometry args={[15, 8, 15]} />
-        <meshStandardMaterial color="#ffeb3b" />
+        <meshStandardMaterial color="#2244ff" />
       </mesh>
 
       {/* Orange roof */}
