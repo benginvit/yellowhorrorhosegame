@@ -6,7 +6,8 @@ import { IS_FROZEN, createRand } from '../../testMode'
 // Dust.jsx (BENG-27) only uses particleCount().
 
 // Master switch for every particle system (BENG-26). false = callers do not mount any system.
-export const PARTICLES_ENABLED = true
+// Test builds only: ?particles=0 turns it off, so the real mount path can be tested.
+export const PARTICLES_ENABLED = !(import.meta.env.VITE_TEST_MODE === '1' && new URLSearchParams(window.location.search).get('particles') === '0')
 
 // Budget: ~1 500 particles per scene on desktop, half of that on mobile.
 // Each system takes its share of PARTICLE_BUDGET via particleCount().

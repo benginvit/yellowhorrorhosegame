@@ -14,6 +14,7 @@ import ClassroomExit from './ClassroomExit'
 import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
 import Dust from './particles/Dust'
 import Ash from './particles/Ash'
+import Bursts from './particles/Bursts'
 import { PARTICLES_ENABLED } from './particles/common'
 import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
@@ -103,6 +104,7 @@ function Game({
       >
         <Lighting variant="classroom" />
         {PARTICLES_ENABLED && <Dust flashlight={CLASSROOM_LIGHTING.flashlight} base={0.1} />}
+        {PARTICLES_ENABLED && <Bursts />}
 
         <Suspense fallback={null}>
           <Classroom />
@@ -158,6 +160,7 @@ function Game({
       <Sky sunPosition={[100, -10, 100]} turbidity={10} rayleigh={0.5} />
       <Lighting variant={gameState.isInsideHouse && isAstridLevel ? 'houseInterior' : 'outdoor'} />
       {PARTICLES_ENABLED && gameState.isInsideHouse && isAstridLevel && <Dust />}
+      {PARTICLES_ENABLED && <Bursts />}
 
       <Suspense fallback={null}>
         <Ground />

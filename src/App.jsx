@@ -197,6 +197,7 @@ function App() {
 
     setShowAstridJumpscare(true)
     playJumpscareSound()
+    emitSoundEvent('astrid') // particle puff; does not play any sound
     setTimer(() => setShowAstridJumpscare(false), 1500)
 
     setTimer(() => {
