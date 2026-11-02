@@ -9,7 +9,7 @@ on:
 
 # A new push or label change cancels the run on the outdated commit.
 concurrency:
-  group: pr-check-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -163,8 +163,10 @@ jobs:
       # them from the base branch here, in the same container, then compare the PR
       # head against them. GitHub sets CI=true by default, so it is unset (env -u CI)
       # here: a missing baseline is then written instead of failing.
+      # With visual-change-approved the base is still needed for the perf baseline
+      # (perf must stay a gate against the base); only screenshots come from the head.
       - name: Checkout base branch (${{ github.base_ref }})
-        if: matrix.baselines && env.VISUAL_APPROVED != 'true'
+        if: matrix.baselines && (env.VISUAL_APPROVED != 'true' || env.PERF_OPT_IN == 'true')
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
@@ -172,10 +174,17 @@ jobs:
           persist-credentials: false
 
       - name: Record baselines from base branch
-        if: matrix.baselines && env.VISUAL_APPROVED != 'true'
+        if: matrix.baselines && (env.VISUAL_APPROVED != 'true' || env.PERF_OPT_IN == 'true')
         working-directory: base
         run: |
           npm ci
+          if [ "$VISUAL_APPROVED" = "true" ]; then
+            # Perf baseline only; screenshot baselines are recorded from the head below.
+            env -u CI npm run test:e2e -- --retries=1 --project=test perf.spec.js
+            test -f tests/e2e/perf-baseline.json
+            cp tests/e2e/perf-baseline.json ../head/tests/e2e/
+            exit 0
+          fi
           if [ "$PERF_OPT_IN" = "true" ]; then
             env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
             test -f tests/e2e/perf-baseline.json
@@ -186,17 +195,17 @@ jobs:
           cp -r tests/e2e/__baselines__ ../head/tests/e2e/__baselines__
           if [ -f tests/e2e/perf-baseline.json ]; then cp tests/e2e/perf-baseline.json ../head/tests/e2e/; fi
 
-      # visual-change-approved: baselines come from the PR head itself (no base).
-      - name: Record baselines from PR head (visual-change-approved)
+      # visual-change-approved: SCREENSHOT baselines come from the PR merge commit
+      # itself (no base). The perf baseline is never recorded here, see above.
+      - name: Record screenshot baselines from PR merge commit (visual-change-approved)
         if: matrix.baselines && env.VISUAL_APPROVED == 'true'
         working-directory: head
         run: |
-          echo "::notice::Label visual-change-approved: screenshot baselines are recorded from the PR head, the visual diff is not a gate."
-          if [ "$PERF_OPT_IN" = "true" ]; then
-            env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js perf.spec.js
-          else
-            env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js
+          echo "::notice::Label visual-change-approved: screenshot baselines are recorded from the PR merge commit, the visual diff is not a gate. The label must be set by a human or the reviewer, never the PR author, and re-assessed after new commits."
+          if [ "${{ github.event.action }}" = "synchronize" ]; then
+            echo "::warning::visual-change-approved was set before this push: the approval does not cover the new commits until they have been re-assessed."
           fi
+          env -u CI npm run test:e2e -- --retries=1 --project=test visual.spec.js lighting-baseline.spec.js
 
       # CI=true: a missing baseline fails (fail-closed) instead of passing vacuously.
       - name: Run e2e (${{ matrix.name }}) against PR head

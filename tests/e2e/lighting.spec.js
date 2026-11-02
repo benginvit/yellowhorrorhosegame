@@ -93,6 +93,8 @@ test.describe('lighting: shadow casters', () => {
 })
 
 test.describe('lighting: no flicker when frozen', () => {
+  // Pass-on-retry would be a hidden flake (shard runs with --retries=1): no retries here.
+  test.describe.configure({ retries: 0 })
   // The frame is compared pixel for pixel, so poses must not contain anything
   // animated per frame. With advance(n, 0) the key does not turn and the start-pose
   // timers (intro, Astrid, bubbles, candy) run on the frozen clock, so nothing moves between frames.

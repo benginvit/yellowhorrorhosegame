@@ -32,6 +32,8 @@ export default defineConfig({
   snapshotPathTemplate: '{testDir}/__baselines__/{projectName}/{testFilePath}/{arg}{ext}',
   workers: 1, // software rendering is CPU bound; parallel runs distort frame times
   fullyParallel: false,
+  // A committed test.only would silently shrink a shard (and --list ignores it): fail.
+  forbidOnly: !!process.env.CI,
   retries: 0,
   timeout: 90_000,
   reporter: [['list'], ['html', { open: 'never', outputFolder: '../../playwright-report' }]],

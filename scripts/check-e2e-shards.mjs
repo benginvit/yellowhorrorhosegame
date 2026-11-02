@@ -16,11 +16,14 @@ const list = (extra) => {
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   )
   const ids = new Set()
-  const walk = (suite) => {
+  // The id includes the whole describe path: -g matches describe titles too, and
+  // the same test title in two describes must not collapse into one id.
+  const walk = (suite, path = []) => {
+    const p = [...path, suite.title]
     for (const spec of suite.specs ?? []) {
-      for (const t of spec.tests) ids.add(`${t.projectName} | ${spec.file} | ${spec.title}`)
+      for (const t of spec.tests) ids.add(`${t.projectName} | ${spec.file} | ${[...p, spec.title].join(' › ')}`)
     }
-    for (const s of suite.suites ?? []) walk(s)
+    for (const s of suite.suites ?? []) walk(s, p)
   }
   for (const s of JSON.parse(out).suites) walk(s)
   return ids

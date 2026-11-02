@@ -34,6 +34,9 @@ test.describe('screenshot diff (?seed=1&freeze=1)', () => {
   // pixels in the classroom), so the limit is a tiny pixel ratio, far below the
   // screenshot-diff tolerance (1 %). Identical bytes pass immediately.
   const MAX_DIFF_PIXEL_RATIO = 0.001
+  // Determinism tests: a pass-on-retry is non-determinism and must be red, so this
+  // block overrides the CLI --retries (the visual shard runs with --retries=1).
+  test.describe.configure({ retries: 0 })
   for (const view of [VIEWS[0], VIEWS[3]]) {
     test(`frozen render is deterministic across two page loads: ${view.name}`, async ({ browser, baseURL }, testInfo) => {
       const shots = []
