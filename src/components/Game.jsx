@@ -11,7 +11,9 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
-import Lighting from './Lighting'
+import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
+import Dust from './particles/Dust'
+import { PARTICLES_ENABLED } from './particles/common'
 import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
@@ -99,6 +101,7 @@ function Game({
         camera={{ fov: 75, position: CLASSROOM_START }}
       >
         <Lighting variant="classroom" />
+        {PARTICLES_ENABLED && <Dust flashlight={CLASSROOM_LIGHTING.flashlight} base={0.1} />}
 
         <Suspense fallback={null}>
           <Classroom />
@@ -153,6 +156,7 @@ function Game({
     >
       <Sky sunPosition={[100, -10, 100]} turbidity={10} rayleigh={0.5} />
       <Lighting variant={gameState.isInsideHouse && isAstridLevel ? 'houseInterior' : 'outdoor'} />
+      {PARTICLES_ENABLED && gameState.isInsideHouse && isAstridLevel && <Dust />}
 
       <Suspense fallback={null}>
         <Ground />
