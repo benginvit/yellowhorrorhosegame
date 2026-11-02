@@ -56,7 +56,7 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: 'test', use: { baseURL: TEST_URL }, testMatch: ['smoke.spec.js', 'visual.spec.js', 'perf.spec.js', 'lighting.spec.js', 'lighting-baseline.spec.js', 'determinism.spec.js'] },
+    { name: 'test', use: { baseURL: TEST_URL }, testMatch: ['smoke.spec.js', 'visual.spec.js', 'perf.spec.js', 'lighting.spec.js', 'lighting-baseline.spec.js', 'determinism.spec.js', 'dust.spec.js', 'ash.spec.js'] },
     { name: 'prod', use: { baseURL: PROD_URL }, testMatch: ['smoke.spec.js', 'prod-check.spec.js'] },
   ],
   webServer: [

@@ -104,7 +104,7 @@ jobs:
           - name: visual
             baselines: true
             retries: 1
-            args: --project=test visual.spec.js lighting.spec.js lighting-baseline.spec.js smoke.spec.js
+            args: --project=test visual.spec.js lighting.spec.js lighting-baseline.spec.js smoke.spec.js dust.spec.js ash.spec.js
           - name: prod
             baselines: false
             retries: 1

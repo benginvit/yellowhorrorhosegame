@@ -4,12 +4,12 @@ import { openFrozen, replayCdnFonts, trackErrors, expectNoErrors } from './helpe
 // Dust (BENG-27) must drift, not race: the grain speed must not grow with the
 // game clock. The frozen clock is deterministic (setTime/advance only).
 test.describe('dust: grains float slowly at any game time', () => {
-  test.skip(({}, testInfo) => testInfo.project.name !== 'test', 'needs the test build clock')
+  test.skip(() => test.info().project.name !== 'test', 'needs the test build clock')
 
   test('uTime follows the clock and the grain speed stays at a few cm per frame at t = 600 s', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
-    await openFrozen(page, { level: 1, inside: true })
+    await openFrozen(page, { level: 2, inside: true }) // ?inside=1 only applies to level 2 (testMode.js)
     await page.evaluate(() => window.__YHH_TEST_MODE__.setTime(600))
     const res = await page.evaluate(() => {
       const api = window.__YHH_TEST_MODE__
