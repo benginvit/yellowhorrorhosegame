@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { createRand, IS_FROZEN } from '../../testMode'
+import { createRand } from '../../testMode'
 import { HOUSE_INTERIOR_LIGHTING } from '../Lighting'
-import { PARTICLES_ENABLED, particleCount } from './common'
+import { particleCount } from './common'
 
 // Floating dust (BENG-27). One THREE.Points / one draw call. The grains live in
 // a box around the camera: positions are wrapped around the camera in the
@@ -15,8 +15,6 @@ const DUST_COUNT = 600
 const BOX = 14 // edge length of the dust volume (m)
 const BOX_HEIGHT = 4
 const STREAM_ID = 0x64757374 // 'dust'
-// Frozen test build: fixed time, so two frames are identical.
-const FROZEN_TIME = 0
 
 const vertexShader = /* glsl */ `
   uniform float uTime;
@@ -25,22 +23,23 @@ const vertexShader = /* glsl */ `
   uniform vec3 uBox;
   uniform float uCosOuter;
   uniform float uCosInner;
-  uniform float uDistance;
   uniform float uBase;
   uniform float uCone;
   attribute vec4 aSeed; // xyz start offset in [0,1), w size/phase
   varying float vAlpha;
 
   void main() {
-    vec3 drift = vec3(sin(uTime * 0.17 + aSeed.w * 40.0) * 0.5, -0.04 - aSeed.w * 0.05, cos(uTime * 0.13 + aSeed.w * 25.0) * 0.5);
-    vec3 rel = aSeed.xyz * uBox + drift * (uTime * 0.6) - cameraPosition;
+    // Constant fall (cm/s) plus a bounded sway: speed never grows with uTime.
+    vec3 vel = vec3(0.0, -0.024 - aSeed.w * 0.03, 0.0);
+    vec3 sway = vec3(sin(uTime * 0.17 + aSeed.w * 40.0), 0.0, cos(uTime * 0.13 + aSeed.w * 25.0)) * 0.15;
+    vec3 rel = aSeed.xyz * uBox + vel * uTime + sway - cameraPosition;
     rel = mod(rel + uBox * 0.5, uBox) - uBox * 0.5;
     vec3 wp = cameraPosition + rel;
 
     float d = length(rel);
     float cosA = dot(rel / max(d, 0.001), uForward);
-    float cone = smoothstep(uCosOuter, uCosInner, cosA) * (1.0 - smoothstep(0.55 * uDistance, uDistance, d));
-    float edge = 1.0 - smoothstep(0.35, 0.5, d / uBox.x);
+    float cone = smoothstep(uCosOuter, uCosInner, cosA) ;
+    float edge = (1.0 - smoothstep(0.35, 0.5, d / uBox.x)) * (1.0 - smoothstep(0.35, 0.5, abs(rel.y) / uBox.y));
     vAlpha = (uBase + uCone * cone) * edge * smoothstep(0.4, 1.2, d);
 
     vec4 mv = viewMatrix * vec4(wp, 1.0);
@@ -60,6 +59,7 @@ const fragmentShader = /* glsl */ `
   }
 `
 
+// Mount only when PARTICLES_ENABLED (see Game.jsx): nothing is created when off.
 function Dust({ flashlight = HOUSE_INTERIOR_LIGHTING.flashlight, base = 0.015 }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
@@ -76,6 +76,7 @@ function Dust({ flashlight = HOUSE_INTERIOR_LIGHTING.flashlight, base = 0.015 })
     g.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 4))
     return g
   }, [count])
+  useEffect(() => () => geometry.dispose(), [geometry])
 
   const uniforms = useMemo(() => {
     // No flashlight in the variant (classroom): no cone, only a faint ambient glimmer.
@@ -86,8 +87,8 @@ function Dust({ flashlight = HOUSE_INTERIOR_LIGHTING.flashlight, base = 0.015 })
       uForward: { value: new THREE.Vector3(0, 0, -1) },
       uBox: { value: new THREE.Vector3(BOX, BOX_HEIGHT, BOX) },
       uCosOuter: { value: Math.cos(angle) },
-      uCosInner: { value: Math.cos(angle * 0.4) },
-      uDistance: { value: flashlight?.distance ?? 20 },
+      // Same inner cone as three.js' SpotLight: cos(angle * (1 - penumbra)).
+      uCosInner: { value: Math.cos(angle * (1 - (flashlight?.penumbra ?? 0.6))) },
       uBase: { value: base },
       uCone: { value: flashlight ? 1.0 : 0 },
       uColor: { value: new THREE.Color(flashlight?.color ?? '#ffe8d6') },
@@ -96,12 +97,11 @@ function Dust({ flashlight = HOUSE_INTERIOR_LIGHTING.flashlight, base = 0.015 })
 
   useFrame((state) => {
     const u = uniforms
-    u.uTime.value = IS_FROZEN ? FROZEN_TIME : state.clock.elapsedTime
+    u.uTime.value = state.clock.elapsedTime
     camera.getWorldDirection(u.uForward.value)
     u.uPxScale.value = (size.height * gl.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2))
   })
 
-  if (!PARTICLES_ENABLED) return null
   return (
     <points geometry={geometry} frustumCulled={false} renderOrder={5}>
       <shaderMaterial
