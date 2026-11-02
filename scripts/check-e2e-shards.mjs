@@ -10,11 +10,18 @@ const CONFIG = 'tests/e2e/playwright.config.js'
 const OPT_IN = new Set(['perf.spec.js'])
 
 const list = (extra) => {
-  const out = execFileSync(
-    'npx',
-    ['playwright', 'test', '-c', CONFIG, '--list', '--reporter=json', ...extra],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
-  )
+  let out
+  try {
+    out = execFileSync(
+      'npx',
+      ['playwright', 'test', '-c', CONFIG, '--list', '--reporter=json', ...extra],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+  } catch (e) {
+    const detail = `${e.stderr ?? ''}${e.stdout ?? ''}`.match(/(?:Error|error):[^\n]*(?:\n[^\n]*){0,1}/)?.[0] ?? e.message
+    console.error(`::error::playwright --list failed for [${extra.join(' ')}] (a committed test.only with CI set? a broken spec?): ${detail.split('\n')[0]}`)
+    process.exit(1)
+  }
   const ids = new Set()
   // The id includes the whole describe path: -g matches describe titles too, and
   // the same test title in two describes must not collapse into one id.
