@@ -13,6 +13,7 @@ import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
 import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
 import Dust from './particles/Dust'
+import Ash from './particles/Ash'
 import { PARTICLES_ENABLED } from './particles/common'
 import HorrorEffects from './HorrorEffects'
 import Candy, { CANDY_POSITIONS } from './Candy'
@@ -187,6 +188,7 @@ function Game({
               hasKey={gameState.hasKey}
               isAstridLevel={isAstridLevel}
             />
+            {PARTICLES_ENABLED && <Ash />}
             {!gameState.hasKey && !isAstridLevel && <Key onCollect={onCollectKey} />}
             {!isAstridLevel && <Character level={level} onCatchPlayer={onTakeDamage} language={language} />}
             {isAstridLevel && (
