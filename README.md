@@ -105,7 +105,12 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 - **Klassrumsintrot** har timers (skott efter 7 s) som inte kan frysas utifrån; visual-testerna avbryts om en capture tar > 6 s.
 - Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-6` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget.
 - Rapport: `playwright-report/` (öppna med `npx playwright show-report playwright-report`).
-- CI-integration av e2e ingår inte (separat uppgift).
+- **CI (`.github/workflows/pr-check.yml`, ADR `docs/adr/0001-ci-e2e-baselines.md`):** e2e körs på PR:er mot `main` och `staging`, uppdelat i shards. Baslinjer tas från PR:ens basbranch. Tre PR-etiketter styr körningen (en ny körning startar när etiketten läggs till eller tas bort):
+  - **`visual-change-approved`** – avsiktlig visuell ändring (och release-PR:er `staging` → `main` med visuell ändring). Screenshot-baslinjerna spelas in från PR:ens merge-commit, så screenshot-diffen är inte en grind; övriga e2e-kontroller körs som vanligt, och perf-baslinjen tas fortfarande alltid från basen. Granska diffen först. **Etiketten sätts av en människa eller reviewern, aldrig av PR:ens författare (gäller även agenter), och måste bedömas på nytt efter nya commits** (en push med etiketten satt ger `::warning::`).
+  - **`e2e-perf`** – tar med `perf.spec.js` (p95 frametid, draw calls, trianglar). Använd på PR:er som ändrar renderingskostnaden, t.ex. partikel-PR:erna (BENG-27, BENG-28, BENG-29), nya ljus/skuggor/postprocessing. Av som standard eftersom p95 är brusig på delade runners.
+  - Inga etiketter – standardkörning.
+- **Retries:** `determinism-*`-shardsen har inga retries (ett test som bara går igenom efter omkörning är icke-determinism och ska vara rött); `visual` och `prod` har `--retries=1` mot skärmdumpstimeout.
+- **Shard-vakt:** `node scripts/check-e2e-shards.mjs` (jobbet `e2e-shard-guard`) failar om ett test eller en ny `tests/e2e/*.spec.js` inte körs av något shard. Lägg nya specfiler i ett projekts `testMatch` och i ett shards `args`.
 
 #### Ljuskontroller (`lighting.spec.js`)
 
