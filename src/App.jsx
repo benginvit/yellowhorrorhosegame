@@ -198,6 +198,7 @@ function App() {
     setShowAstridJumpscare(true)
     playJumpscareSound()
     setTimer(() => setShowAstridJumpscare(false), 1500)
+    setTimer(() => emitSoundEvent('astrid'), 1100) // particle puff once the overlay is nearly gone; no sound
 
     setTimer(() => {
       playVoiceRecording('Astrid', 'wake', language)

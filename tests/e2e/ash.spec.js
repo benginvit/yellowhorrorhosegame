@@ -11,7 +11,7 @@ const ASH_BOX = { hx: 18, hz: 18, floor: 0.1, height: 9 } // ASH.box / 2, ASH.fl
 const pointSystems = (page) => page.evaluate(() => {
   const out = []
   window.__YHH_TEST_MODE__.scene.traverse((o) => {
-    if (!o.isPoints) return
+    if (!o.isPoints || o.name.startsWith('burst')) return // event bursts: particles.spec.js
     const m = o.material
     // ash = SoftPointsMaterial (uGroundFade); the indoor dust (Dust.jsx) has none.
     out.push({ name: o.name, ash: !!m.uniforms?.uGroundFade, count: o.geometry.attributes.position.count, depthWrite: m.depthWrite, transparent: m.transparent, castShadow: o.castShadow, positions: Array.from(o.geometry.attributes.position.array) })

@@ -30,6 +30,7 @@
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
 //                 advancing clock.elapsedTime by dt and passing dt to useFrame
 //   setTime(t)    freeze only: set clock.elapsedTime without rendering
+//   emit(type)    fire a sound event ('hit', 'jumpscare', 'astrid'): light dip, particle burst
 //
 // Timers: game code that must follow the test clock uses setTimer / clearTimer /
 // setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
@@ -42,6 +43,7 @@
 // IS_FROZEN is true only with ?freeze=1 (test builds).
 
 import { useEffect } from 'react'
+import { emitSoundEvent } from './utils/sounds'
 import { addAfterEffect, addEffect, useThree } from '@react-three/fiber'
 
 function mulberry32(seed) {
@@ -133,6 +135,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     ready: false,
     advance: () => {},
     setTime: () => {},
+    emit: emitSoundEvent, // fire a sound event ('hit', 'jumpscare', 'astrid') without playing the game
   }
   window.__YHH_TEST__ = window.__YHH_TEST_MODE__
 

@@ -6,7 +6,8 @@ import { IS_FROZEN, createRand } from '../../testMode'
 // Dust.jsx (BENG-27) only uses particleCount().
 
 // Master switch for every particle system (BENG-26). false = callers do not mount any system.
-export const PARTICLES_ENABLED = true
+// Test builds only: ?particles=0 turns it off, so the real mount path can be tested.
+export const PARTICLES_ENABLED = !(import.meta.env.VITE_TEST_MODE === '1' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('particles') === '0')
 
 // Budget: ~1 500 particles per scene on desktop, half of that on mobile.
 // Each system takes its share of PARTICLE_BUDGET via particleCount().
@@ -21,8 +22,8 @@ export function particleCount(desktopCount) {
   return isMobile ? Math.floor(desktopCount / 2) : desktopCount
 }
 
-/** False in a frozen test build: particles keep their seeded start layout, two frames are identical. */
-export const PARTICLES_ANIMATE = !IS_FROZEN
+/** False in a frozen test build: particles keep their seeded start layout, two frames are identical. Test builds: ?freeze=1&animate=1 moves them with the test clock (advance()). */
+export const PARTICLES_ANIMATE = !IS_FROZEN || (import.meta.env.VITE_TEST_MODE === '1' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('animate') === '1')
 
 export { createRand }
 
