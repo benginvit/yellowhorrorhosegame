@@ -201,3 +201,8 @@ test.describe('key rotation does not depend on the frame rate', () => {
     expect(Math.abs(slow.rate - KEY_SPIN) / KEY_SPIN).toBeLessThan(0.15)
   })
 })
+
+// DEMO (BENG-31): fails on first attempt, passes on retry => flaky. Must be red.
+test('frozen canvas hash demo flaky', async ({}, testInfo) => {
+  expect(testInfo.retry).toBeGreaterThan(0)
+})
