@@ -10,7 +10,8 @@ import { onSoundEvent } from '../../utils/sounds'
 // on every event; nothing is created at runtime. A burst is spawned in world space a
 // short way in front of the camera, flies outwards with drag and fades out within
 // `duration` seconds, then the Points is hidden (no draw call). No full-screen flashes:
-// small, low-alpha sprites in a ~1 m cloud. All randomness comes from createRand, motion
+// small, low-alpha sprites in a ~1 m cloud. A burst can start `delay` seconds after its
+// event, when the full-screen overlay of the same event (Jumpscare, Astrid wakes) is gone. All randomness comes from createRand, motion
 // is a function of the clock, so a frozen test clock gives identical frames.
 
 export const BURSTS = {
@@ -35,6 +36,7 @@ export const BURSTS = {
     opacity: 0.5,
     size: [0.04, 0.09],
     duration: 0.6,
+    delay: 0.8, // the full-screen Jumpscare overlay (0.8 s) covers the scene until then
     distance: 1.4,
     spread: 0.5,
     speed: [0.8, 2.2],
@@ -89,7 +91,7 @@ function Burst({ type }) {
     [cfg],
   )
   const points = useRef()
-  const state = useRef({ pending: false, age: Infinity })
+  const state = useRef({ pending: false, wait: Infinity, age: Infinity })
 
   useEffect(() => {
     const unsubscribe = onSoundEvent((t) => {
@@ -106,8 +108,14 @@ function Burst({ type }) {
     const st = state.current
     const obj = points.current
     if (!obj) return
+    const dt = Math.min(delta, MAX_DELTA)
     if (st.pending) {
       st.pending = false
+      st.wait = cfg.delay ?? 0
+      st.age = Infinity
+    }
+    if (st.wait !== Infinity && st.wait <= 0) {
+      st.wait = Infinity
       st.age = 0
       camera.getWorldDirection(fwd)
       const { rand, origin, vel, positions, count } = pool
@@ -130,10 +138,11 @@ function Burst({ type }) {
         vel[i * 3] = dx * sp
         vel[i * 3 + 1] = dy * sp
         vel[i * 3 + 2] = dz * sp
-        positions.set(origin.subarray(i * 3, i * 3 + 3), i * 3)
       }
+    } else if (st.wait !== Infinity) {
+      st.wait -= dt
     } else if (st.age !== Infinity) {
-      st.age += Math.min(delta, MAX_DELTA)
+      st.age += dt
     }
     const age = st.age
     const active = age < cfg.duration
