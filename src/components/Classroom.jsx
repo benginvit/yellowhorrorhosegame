@@ -9,7 +9,7 @@ function CeilingPointLight({ intensity, ...props }) {
 function Classroom() {
   // Room: x: -9 to 9, z: -8 to 6, y: 0 to 4
   const floorColor = '#b8b0c8'
-  const wallColor = '#f0ede8'
+  const wallColor = '#d04080'
   const ceilingColor = '#ffffff'
 
   const deskPositionsX = [-6, -3, 0, 3, 6]
