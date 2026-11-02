@@ -6,7 +6,7 @@ import { openFrozen, setView, waitSceneContent, replayCdnFonts, waitTextSynced, 
 // these checks can move there.
 const PARTICLE_BUDGET = 1500 // particles/common.js; a fine pointer (headless desktop) is the desktop tier
 const ASH_COUNT = 600 // ASH.count in Ash.jsx; mobile (pointer: coarse) gets half
-const ASH_BOX = { hx: 18, hz: 18 } // ASH.box / 2
+const ASH_BOX = { hx: 18, hz: 18, floor: 0.1, height: 9 } // ASH.box / 2, ASH.floor, ASH.box[1]
 
 const pointSystems = (page) => page.evaluate(() => {
   const out = []
@@ -14,7 +14,7 @@ const pointSystems = (page) => page.evaluate(() => {
     if (!o.isPoints) return
     const m = o.material
     // ash = SoftPointsMaterial (uGroundFade); the indoor dust (Dust.jsx) has none.
-    out.push({ ash: !!m.uniforms?.uGroundFade, count: o.geometry.attributes.position.count, depthWrite: m.depthWrite, transparent: m.transparent, castShadow: o.castShadow, positions: Array.from(o.geometry.attributes.position.array) })
+    out.push({ name: o.name, ash: !!m.uniforms?.uGroundFade, count: o.geometry.attributes.position.count, depthWrite: m.depthWrite, transparent: m.transparent, castShadow: o.castShadow, positions: Array.from(o.geometry.attributes.position.array) })
   })
   return out
 })
@@ -35,7 +35,8 @@ test('outdoor: two Points systems at the desktop count, within budget, no depth 
   expect(systems.every((s) => s.ash), 'no indoor dust outdoors').toBe(true)
   const total = systems.reduce((n, s) => n + s.count, 0)
   console.log(`[ash] particles per system: ${systems.map((s) => s.count).join(' + ')} = ${total}`)
-  expect(systems[0].count, 'ash at the desktop count (CI perf measures the desktop budget)').toBe(ASH_COUNT)
+  expect(systems.find((s) => s.name === 'ash')?.count, 'ash at the desktop count (CI perf measures the desktop budget)').toBe(ASH_COUNT)
+  expect(systems.find((s) => s.name === 'groundFog')?.count, 'ground fog').toBe(24)
   expect(total).toBeLessThanOrEqual(PARTICLE_BUDGET)
   for (const s of systems) {
     expect(s.depthWrite).toBe(false)
@@ -51,7 +52,7 @@ test.describe('mobile tier', () => {
   test('a coarse pointer halves the particle count', async ({ page }) => {
     await openOutdoor(page)
     const systems = await pointSystems(page)
-    expect(systems.map((s) => s.count)).toEqual([ASH_COUNT / 2, 12])
+    expect(Object.fromEntries(systems.map((s) => [s.name, s.count]))).toEqual({ ash: ASH_COUNT / 2, groundFog: 12 })
   })
 })
 
@@ -68,14 +69,16 @@ test('frozen: particle positions do not change between frames, with or without d
 
 test('the ash volume follows the camera', async ({ page }) => {
   await openOutdoor(page, { x: -22, z: -2, yaw: -0.8 })
-  const [ash] = await pointSystems(page)
+  const ash = (await pointSystems(page)).find((s) => s.name === 'ash')
   let outside = 0
   for (let i = 0; i < ash.count; i++) {
     const dx = ash.positions[i * 3] - -22
+    const y = ash.positions[i * 3 + 1]
     const dz = ash.positions[i * 3 + 2] - -2
     if (Math.abs(dx) > ASH_BOX.hx + 1e-6 || Math.abs(dz) > ASH_BOX.hz + 1e-6) outside++
+    if (y < ASH_BOX.floor || y >= ASH_BOX.floor + ASH_BOX.height) outside++
   }
-  expect(outside, 'ash particles outside the box around the camera').toBe(0)
+  expect(outside, 'ash particles outside the box around the camera / outside [floor, floor + height)').toBe(0)
 })
 
 test('indoors (classroom, house interior): dust only, no ash or ground fog', async ({ page }) => {

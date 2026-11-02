@@ -34,22 +34,33 @@ export function wrap(v, half) {
 
 // One soft, round, unlit sprite per vertex. Size attribute `aSize` is the sprite
 // diameter in world metres (perspective-scaled via uScale, see updatePointScale),
-// `aSeed` (0..1) varies the alpha per particle. Takes the scene fog, so distant
-// sprites dissolve into fogExp2 instead of floating in front of it.
+// `aSeed` (0..1) varies the alpha per particle. Takes the scene fog colour, so distant
+// sprites take on the fogExp2 tint (fog_fragment changes colour, not alpha; alpha is
+// the near fade, the ground fade and the edge fade at the wrap boundary below).
 const VERT = /* glsl */ `
 attribute float aSize;
 attribute float aSeed;
 uniform float uScale;
 uniform vec2 uNearFade;
+uniform vec3 uHalf; // half extents of the wrap box around the camera (y = 0: no vertical fade)
+uniform float uCenterY; // world y of the box centre (the y wrap is not camera-relative)
 varying float vFade;
 varying vec2 vHeight; // world y of the sprite centre, sprite diameter in metres
 #include <fog_pars_vertex>
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz;
   float dist = max(-mvPosition.z, 0.1);
   gl_PointSize = clamp(aSize * uScale / dist, 1.0, 512.0);
-  vFade = smoothstep(uNearFade.x, uNearFade.y, dist) * (0.55 + 0.45 * aSeed);
-  vHeight = vec2((modelMatrix * vec4(position, 1.0)).y, aSize);
+  // Edge fade over the outer 30 % of the box (as edge in Dust.jsx), so a sprite that
+  // wraps to the opposite side is invisible when it jumps instead of popping.
+  vec3 rel = abs(vec3(wp.x - cameraPosition.x, wp.y - uCenterY, wp.z - cameraPosition.z));
+  float edge = (1.0 - smoothstep(0.7, 1.0, rel.x / uHalf.x)) * (1.0 - smoothstep(0.7, 1.0, rel.z / uHalf.z));
+  // Vertical: only the outer 10 % (0.45 m of the 9 m ash box), so the ash at ground level in
+  // the flashlight cone stays; the bottom is also covered by the ground fade.
+  if (uHalf.y > 0.0) edge *= 1.0 - smoothstep(0.9, 1.0, rel.y / uHalf.y);
+  vFade = smoothstep(uNearFade.x, uNearFade.y, dist) * edge * (0.55 + 0.45 * aSeed);
+  vHeight = vec2(wp.y, aSize);
   // A fully faded sprite is culled here (centre outside clip space) instead of rasterising
   // and discarding every one of its fragments.
   gl_Position = vFade > 0.0 ? projectionMatrix * mvPosition : vec4(2.0, 2.0, 2.0, 1.0);
@@ -81,8 +92,9 @@ export class SoftPointsMaterial extends THREE.ShaderMaterial {
   /**
    * nearFade: [from, to] metres, sprites closer than `from` are invisible (no giant clipped
    * points). groundFade: [y0, y1] world metres, alpha goes from 0 at y0 to full at y1.
+   * half: [hx, hy, hz] half extents of the wrap box for the edge fade (hy 0 = none), centerY: its y centre.
    */
-  constructor({ color, opacity, blending = THREE.NormalBlending, nearFade = [0.5, 2], groundFade = [-1, 0] }) {
+  constructor({ color, opacity, blending = THREE.NormalBlending, nearFade = [0.5, 2], groundFade = [-1, 0], half = [1e9, 0, 1e9], centerY = 0 }) {
     super({
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib.fog,
@@ -92,6 +104,8 @@ export class SoftPointsMaterial extends THREE.ShaderMaterial {
           uScale: { value: 1 },
           uNearFade: { value: new THREE.Vector2(nearFade[0], nearFade[1]) },
           uGroundFade: { value: new THREE.Vector2(groundFade[0], groundFade[1]) },
+          uHalf: { value: new THREE.Vector3(half[0], half[1], half[2]) },
+          uCenterY: { value: centerY },
         },
       ]),
       vertexShader: VERT,

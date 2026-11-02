@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { PARTICLES_ANIMATE, SoftPointsMaterial, createRand, particleCount, updatePointScale, wrap } from './common'
@@ -12,6 +12,7 @@ import { PARTICLES_ANIMATE, SoftPointsMaterial, createRand, particleCount, updat
 // stay well under the bloom threshold (sRGB luma ~0.5 at full alpha).
 
 export const ASH = {
+  name: 'ash',
   count: 600, // desktop; mobile (pointer: coarse) gets half, see particleCount()
   box: [36, 9, 36], // metres around the camera (x, y, z)
   floor: 0.1, // bottom of the volume (y)
@@ -24,10 +25,13 @@ export const ASH = {
   opacity: 0.6,
   nearFade: [0.4, 1.5],
   groundFade: [0, 0.1],
+  fadeY: true, // the ash wraps vertically too, so fade at the top and bottom as well
+  renderOrder: 6,
   stream: 0x61736820, // 'ash '
 }
 
 export const GROUND_FOG = {
+  name: 'groundFog',
   count: 24,
   box: [50, 0.8, 50],
   floor: 0.2,
@@ -40,6 +44,8 @@ export const GROUND_FOG = {
   opacity: 0.28,
   nearFade: [3, 10],
   groundFade: [0, 1.2],
+  fadeY: false, // no fall, so nothing ever wraps vertically
+  renderOrder: 5, // under the ash, same slot as Dust.jsx (never in the same scene)
   stream: 0x666f6720, // 'fog '
 }
 
@@ -76,16 +82,27 @@ function makeParticles(cfg) {
 function ParticleField({ cfg }) {
   const { camera, gl } = useThree()
   const data = useMemo(() => makeParticles(cfg), [cfg])
+  const hx = cfg.box[0] / 2
+  const height = cfg.box[1]
+  const hz = cfg.box[2] / 2
   const material = useMemo(
-    () => new SoftPointsMaterial({ color: cfg.color, opacity: cfg.opacity, nearFade: cfg.nearFade, groundFade: cfg.groundFade }),
-    [cfg],
+    () =>
+      new SoftPointsMaterial({
+        color: cfg.color,
+        opacity: cfg.opacity,
+        nearFade: cfg.nearFade,
+        groundFade: cfg.groundFade,
+        half: [hx, cfg.fadeY ? height / 2 : 0, hz],
+        centerY: cfg.floor + height / 2,
+      }),
+    [cfg, hx, height, hz],
   )
+  useEffect(() => () => { data.geometry.dispose(); material.dispose() }, [data, material])
 
   useFrame((state, delta) => {
     const { count, positions, fall, freq, phase } = data
     const dt = PARTICLES_ANIMATE ? Math.min(delta, MAX_DELTA) : 0
     const t = state.clock.elapsedTime
-    const [hx, height, hz] = [cfg.box[0] / 2, cfg.box[1], cfg.box[2] / 2]
     const cx = camera.position.x
     const cz = camera.position.z
     for (let i = 0; i < count; i++) {
@@ -108,7 +125,7 @@ function ParticleField({ cfg }) {
     updatePointScale(material, gl, camera)
   })
 
-  return <points geometry={data.geometry} material={material} frustumCulled={false} />
+  return <points name={cfg.name} geometry={data.geometry} material={material} frustumCulled={false} renderOrder={cfg.renderOrder} />
 }
 
 /** Outdoor exterior only (Ground/House). Mount only when PARTICLES_ENABLED (see Game.jsx). */
