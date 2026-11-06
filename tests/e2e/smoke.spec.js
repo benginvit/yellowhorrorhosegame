@@ -15,9 +15,10 @@ async function orderMeatballs(page, { sausage = false } = {}) {
     const familyNo = page.getByTestId('ikea-family-no')
     const loading = page.getByTestId('ikea-loading')
     await expect(sausageNo.or(familyNo).or(loading)).toBeVisible()
-    if (await loading.isVisible()) await page.evaluate(() => window.__YHH_TEST_MODE__.advance(100, 1 / 60))
-    else if (await sausageNo.isVisible()) await sausageNo.click()
-    else await familyNo.click()
+    // Wait until the clicked step is gone: the kiosk needs a frame to draw the next one.
+    if (await loading.isVisible()) { await page.evaluate(() => window.__YHH_TEST_MODE__.advance(100, 1 / 60)); await expect(loading).toHaveCount(0) }
+    else if (await sausageNo.isVisible()) { await sausageNo.click(); await expect(sausageNo).toHaveCount(0) }
+    else { await familyNo.click(); await expect(familyNo).toHaveCount(0) }
   }
   await expect(page.getByTestId('ikea-cart')).toBeVisible()
 }
@@ -111,11 +112,12 @@ test.describe('smoke', () => {
   })
 
   test('IKEA kiosk: quantity must be exactly 16, wrong choices give a back button, the sausage blocks payment', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // the IKEA scene renders slowly on software GL
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4 })
-    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 60, 1 / 60))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 20, 1 / 20))
 
     await page.getByTestId('ikea-start').click()
     await page.getByTestId('ikea-category-drinks').click() // wrong
@@ -144,9 +146,9 @@ test.describe('smoke', () => {
       const familyNo = page.getByTestId('ikea-family-no')
       const loading = page.getByTestId('ikea-loading')
       await expect(yes.or(familyNo).or(loading)).toBeVisible()
-      if (await loading.isVisible()) await page.evaluate(() => window.__YHH_TEST_MODE__.advance(100, 1 / 60))
-      else if (await yes.isVisible()) await yes.click()
-      else await familyNo.click()
+      if (await loading.isVisible()) { await page.evaluate(() => window.__YHH_TEST_MODE__.advance(100, 1 / 60)); await expect(loading).toHaveCount(0) }
+      else if (await yes.isVisible()) { await yes.click(); await expect(yes).toHaveCount(0) }
+      else { await familyNo.click(); await expect(familyNo).toHaveCount(0) }
     }
     await expect(page.getByTestId('ikea-pay')).toBeDisabled()
     await page.getByTestId('ikea-cart-remove-sausage').click()
@@ -155,11 +157,13 @@ test.describe('smoke', () => {
   })
 
   test('IKEA kiosk: Space looks back while held and the kiosk is hidden', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // the IKEA scene renders slowly on software GL
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4 })
-    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 60, 1 / 60))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 20, 1 / 20))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(3, 1 / 60)) // let React commit the phase change, then render the overlay
     await expect(page.getByTestId('ikea-start')).toBeVisible()
     await page.keyboard.down('Space')
     await expect(page.getByTestId('ikea-start')).toHaveCount(0)
@@ -173,11 +177,12 @@ test.describe('smoke (touch)', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 740 } })
 
   test('IKEA kiosk is usable with touch in a mobile viewport', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // the IKEA scene renders slowly on software GL
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4 })
-    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 60, 1 / 60))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(8.5 * 20, 1 / 20))
     await page.getByTestId('ikea-start').tap()
     await page.getByTestId('ikea-category-main').tap()
     await expect(page.getByTestId('ikea-dish-meatballs')).toBeInViewport()
