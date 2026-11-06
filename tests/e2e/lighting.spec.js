@@ -9,7 +9,7 @@ import { LIGHT_LIMITS, LIGHT_VIEWS } from './views.js'
 
 async function open(page, view) {
   await replayCdnFonts(page)
-  await openFrozen(page, { level: view.level, inside: view.inside })
+  await openFrozen(page, { level: view.level, inside: view.inside, phase: view.phase })
   await setView(page, view)
   await waitTextSynced(page)
   await waitSceneContent(page)

@@ -5,7 +5,7 @@ import { useLightFlicker } from '../utils/flicker'
 
 // All lighting/fog parameters live here, one named constant per variant.
 // Shadow budget: at most 2 shadow-casting lights per scene (sun/ceiling
-// directional + flashlight). Every pointLight elsewhere has castShadow off.
+// directional + flashlight; IKEA: directional only). Every pointLight elsewhere has castShadow off.
 
 export const CLASSROOM_LIGHTING = {
   ambient: { color: '#ffe8d6', intensity: 0.22 },
@@ -88,8 +88,27 @@ export const HOUSE_INTERIOR_LIGHTING = {
   },
 }
 
+// IKEA restaurant: bright cold fluorescent look. The only shadow caster is the directional
+// (the player has no flashlight here). The kitchen light is a shadowless point light that
+// flickers lightly (useLightFlicker; off in the frozen test build).
+export const IKEA_LIGHTING = {
+  ambient: { color: '#dfe8f5', intensity: 0.55 },
+  directional: {
+    color: '#e6f0ff',
+    intensity: 0.5,
+    position: [10, 20, 8],
+    castShadow: true,
+    shadowMapSize: [2048, 2048],
+    shadowCamera: 32,
+  },
+  fog: { color: '#b9c4d2', near: 30, far: 80 },
+  flashlight: null,
+  kitchenLight: { color: '#cfe6ff', intensity: 60, distance: 22, decay: 2, position: [-16, 3.8, -11] },
+}
+
 const VARIANTS = {
   classroom: CLASSROOM_LIGHTING,
+  ikea: IKEA_LIGHTING,
   outdoor: OUTDOOR_LIGHTING,
   houseInterior: HOUSE_INTERIOR_LIGHTING,
 }
@@ -138,6 +157,20 @@ function Flashlight({ params }) {
   )
 }
 
+function KitchenLight({ params }) {
+  const ref = useLightFlicker(params.intensity)
+  return (
+    <pointLight
+      ref={ref}
+      color={params.color}
+      intensity={params.intensity}
+      distance={params.distance}
+      decay={params.decay}
+      position={params.position}
+    />
+  )
+}
+
 function Lighting({ variant }) {
   const p = VARIANTS[variant] ?? OUTDOOR_LIGHTING
   const d = p.directional
@@ -167,6 +200,7 @@ function Lighting({ variant }) {
       ) : (
         <fog attach="fog" args={[p.fog.color, p.fog.near, p.fog.far]} />
       )}
+      {p.kitchenLight && <KitchenLight params={p.kitchenLight} />}
       {p.flashlight && <Flashlight key={variant} params={p.flashlight} />}
     </>
   )

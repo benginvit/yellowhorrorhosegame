@@ -55,9 +55,10 @@ export function expectNoErrors(errors) {
 }
 
 /** Opens the test build frozen/seeded, starts the game at `level` and waits for the first frame. */
-export async function openFrozen(page, { level = 1, inside = false } = {}) {
+export async function openFrozen(page, { level = 1, inside = false, phase } = {}) {
   const q = new URLSearchParams({ seed: '1', freeze: '1', level: String(level) })
   if (inside) q.set('inside', '1')
+  if (phase) q.set('phase', phase)
   await page.goto(`/?${q}`)
   await startGame(page)
   await waitReady(page)

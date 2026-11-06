@@ -12,6 +12,7 @@
 //
 // Query params (only read in test builds):
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
+//   ?phase=ordering  start the IKEA level in 'ordering' instead of 'intro'
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -79,6 +80,8 @@ let virtualTimers = null
 // level-select builds. null in prod builds and when ?level is absent/invalid; the
 // range check against the level list happens in getStartOverrides().
 let levelRequest = null
+// ?phase=ordering (IKEA): skip the intro camera shot so e2e views can use fixed poses. Test builds only.
+let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
@@ -88,6 +91,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const parsed = parseInt(params.get('seed') ?? '1', 10)
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
+  if (params.get('phase') === 'ordering') ikeaStartPhase = 'ordering'
 
   source = mulberry32(seed)
 
@@ -199,7 +203,7 @@ export function getStartOverrides(levels, level = levelRequest?.level) {
   const overrides = { currentLevel: level }
   const name = levels[level - 1]?.name
   if (name === 'Kerstin') overrides.classroomIntroPhase = 'seated'
-  if (name === 'Rasmus') overrides.ikeaPhase = 'intro'
+  if (name === 'Rasmus') overrides.ikeaPhase = ikeaStartPhase
   if (name === 'Astrid' && levelRequest?.inside && level === levelRequest.level) overrides.isInsideHouse = true
   return overrides
 }

@@ -108,7 +108,7 @@ function Game({
     setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
   }
 
-  // IKEA level (placeholder until the stage 2 environment, Rasmus and kiosk land)
+  // IKEA level (Rasmus and the kiosk UI are still stubs)
   if (isIkeaLevel) {
     const ikeaPhase = gameState.ikeaPhase
     return (
@@ -121,7 +121,7 @@ function Game({
           onCreated={onCanvasCreated}
           camera={{ fov: 75, position: PLAYER_START }}
         >
-          <Lighting variant="classroom" />
+          <Lighting variant="ikea" />
           <Suspense fallback={null}>
             <IkeaStore />
             <Rasmus ikeaPhase={ikeaPhase} progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS} />
