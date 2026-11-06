@@ -31,11 +31,44 @@
 //                 scene without post-FX.
 //   camera        the Canvas' camera (tests set position/rotation, then advance())
 //   scene         the Canvas' THREE.Scene
-//   ready         true once the scene has mounted and a frame has been rendered
+//   ready         true once the scene has mounted and a frame has been rendered;
+//                 false again from the moment that Canvas unmounts (game over,
+//                 restart, level change) until the next Canvas is ready
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
-//                 advancing clock.elapsedTime by dt and passing dt to useFrame
-//   setTime(t)    freeze only: set clock.elapsedTime without rendering
+//                 advancing clock.elapsedTime by dt and passing dt to useFrame,
+//                 and move the frozen test clock (timers fire) by frames * dt.
+//                 Returns true. While no Canvas is live (ready false) it only
+//                 moves the test clock, renders nothing and returns false.
+//   setTime(t)    freeze only: set clock.elapsedTime without rendering (moves the
+//                 test clock forward by the difference); false and no effect
+//                 while no Canvas is live
 //   emit(type)    fire a sound event ('hit', 'jumpscare', 'astrid'): light dip, particle burst
+//
+// Software GL and the frozen clock (BENG-91): the e2e suite renders on
+// SwiftShader, which executes GPU work asynchronously and far slower than
+// advance() can issue frames (~40 ms per house-interior frame on a 16-core box,
+// ~100 ms on the CI runner, against ~1 ms of JS). Without a sync point the queued
+// GPU work piles up - 1452 frames leave tens of seconds of it - and every later
+// wait on the GPU stalls until the pile drains: R3F's forced context loss 500 ms
+// after a Canvas unmounts (a synchronous call: the page's main thread blocked for
+// the whole remaining backlog, 13-23 s here, >= 52 s on the CI runner where the
+// test timed out, ~4 s on a faster box), the compositor's next frame (no
+// requestAnimationFrame), the page close (so the NEXT test in the worker started
+// 5-10 s late). advance() therefore reads one pixel back every SYNC_EVERY_FRAMES
+// frames, which waits for the frames so far: the backlog is bounded (~0.3 s here,
+// a few seconds on CI) and the GPU time is paid inside advance() instead of as a
+// stall somewhere else - the total does not grow. Test builds additionally skip
+// the forced context loss, so the main thread never waits on the old context at
+// all; garbage collection releases it asynchronously. Prod builds are unchanged.
+//
+// Canvas remount (game over -> restart, classroom -> IKEA, IKEA -> Selma): gl,
+// camera and scene always belong to the live Canvas, which the probe's cleanup
+// retires. The frozen test clock is global: advance() keeps moving it (so the
+// next level's start-pose timers fire) even in the moment between the old Canvas
+// retiring and the next one's onCreated, which a test stepping through a level
+// change relies on. setTime(t) is absolute on the live Canvas' R3F clock, and
+// between Canvases there is no such clock, so it does nothing then; advance()
+// is a relative step and can move the global clock on its own.
 //
 // Timers: game code that must follow the test clock uses setTimer / clearTimer /
 // setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
@@ -85,6 +118,14 @@ let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
+// Test builds only (see "Software GL and the frozen clock" above): unsubscribe of
+// the current Canvas' per-frame gl.info reset.
+let unsubscribeInfoReset = null
+// R3F state of the live Canvas (test builds, ?freeze=1): what advance()/setTime() drive.
+let liveState = null
+// GPU sync interval of advance() in frames (see above). 16 frames keep the backlog
+// at ~0.3 s here / a few seconds on CI; syncing every frame costs ~15 % more.
+const SYNC_EVERY_FRAMES = 16
 
 if (import.meta.env.VITE_TEST_MODE === '1') {
   const params = new URLSearchParams(window.location.search)
@@ -92,7 +133,6 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
   if (params.get('phase') === 'ordering') ikeaStartPhase = 'ordering'
-
   source = mulberry32(seed)
 
   if (freeze) {
@@ -149,17 +189,59 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     emit: emitSoundEvent, // fire a sound event ('hit', 'jumpscare', 'astrid') without playing the game
   }
   window.__YHH_TEST__ = window.__YHH_TEST_MODE__
+  if (freeze) {
+    // Render on the live Canvas (if any) and always move the frozen test clock: on a level
+    // change the next Canvas' onCreated can land a moment after the old one retired, and a
+    // test that steps the clock right through the change (ikea.spec.js level chain) needs
+    // the new level's start-pose timers to keep counting in that window.
+    const syncPixel = new Uint8Array(4)
+    let framesSinceSync = 0
+    // Waits for the frames issued so far (a readback is the only blocking GPU wait
+    // WebGL offers; finish() does not block in Chrome).
+    const syncGpu = (gl) => {
+      const ctx = gl.getContext()
+      ctx.readPixels(0, 0, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, syncPixel)
+    }
+    window.__YHH_TEST_MODE__.advance = (frames = 1, dt = 1 / 60) => {
+      for (let i = 0; i < frames; i++) {
+        if (liveState) {
+          liveState.advance(liveState.clock.elapsedTime + dt)
+          if (++framesSinceSync >= SYNC_EVERY_FRAMES) {
+            framesSinceSync = 0
+            syncGpu(liveState.gl)
+          }
+        }
+        virtualTimers.tick(dt * 1000)
+      }
+      return liveState !== null
+    }
+    window.__YHH_TEST_MODE__.setTime = (t) => {
+      if (!liveState) return false
+      virtualTimers.tick(Math.max(0, t - liveState.clock.elapsedTime) * 1000)
+      liveState.clock.elapsedTime = t
+      return true
+    }
+  }
 
   // Rendered inside <Canvas> after the scene content, so its effect runs once
-  // the content has been committed.
+  // the content has been committed. Its cleanup retires the Canvas from the API.
   TestModeProbe = function TestModeProbe() {
     const get = useThree((s) => s.get)
     useEffect(() => {
       const api = window.__YHH_TEST_MODE__
+      const gl = get().gl
+      // This Canvas is unmounting (game over, restart, level change). Guarded by
+      // renderer identity: on a level change the next Canvas' onCreated can run
+      // before this (passive) cleanup, and must not be undone.
+      const retire = () => {
+        if (api.gl !== gl) return
+        api.ready = false
+        liveState = null
+      }
       if (freeze) {
         get().advance(get().clock.elapsedTime)
         api.ready = true
-        return undefined
+        return retire
       }
       let frames = 0
       const unsubscribe = addAfterEffect(() => {
@@ -168,7 +250,10 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
           unsubscribe()
         }
       })
-      return unsubscribe
+      return () => {
+        unsubscribe()
+        retire()
+      }
     }, [get])
     return null
   }
@@ -271,23 +356,19 @@ export function onCanvasCreated(state) {
     api.scene = state.scene
     api.ready = false
 
+    // See "Software GL and the frozen clock" above: R3F calls this 500 ms after the
+    // Canvas unmounts and it blocks the main thread for as long as the GPU backlog
+    // takes to drain. The old context is left to garbage collection instead.
+    state.gl.forceContextLoss = () => {}
+
     // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep
     // the per-frame reset: with the default autoReset only the last gl.render()
     // call would count if a frame ever has several. Reset once per frame instead.
+    // Only the live Canvas' reset stays subscribed (the effect list is global).
     state.gl.info.autoReset = false
-    addEffect(() => state.gl.info.reset())
+    unsubscribeInfoReset?.()
+    unsubscribeInfoReset = addEffect(() => state.gl.info.reset())
 
-    if (api.freeze) {
-      api.advance = (frames = 1, dt = 1 / 60) => {
-        for (let i = 0; i < frames; i++) {
-          state.advance(state.clock.elapsedTime + dt)
-          virtualTimers.tick(dt * 1000)
-        }
-      }
-      api.setTime = (t) => {
-        virtualTimers.tick(Math.max(0, t - state.clock.elapsedTime) * 1000)
-        state.clock.elapsedTime = t
-      }
-    }
+    if (api.freeze) liveState = state // advance()/setTime() are defined once, see the gate above
   }
 }
