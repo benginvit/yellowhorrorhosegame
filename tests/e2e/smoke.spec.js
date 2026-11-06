@@ -192,11 +192,11 @@ test.describe('smoke (touch)', () => {
 
 test.describe('Rasmus', () => {
   test('IKEA (level 4) Rasmus walks closer to the kiosk while ordering (frozen clock)', async ({ page }, testInfo) => {
+    test.setTimeout(240_000)
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4 })
-    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 60, 1 / 60), s)
     // Distance from Rasmus' group (named "rasmus") to the kiosk at the origin.
     const distance = () =>
       page.evaluate(() => {
@@ -205,19 +205,32 @@ test.describe('Rasmus', () => {
       })
 
     const atStart = await distance() // intro: at the knife shelf
-    // React commits the new ikeaTimeLeft between evaluate() calls, so let it settle (and the visual position ease) with a second advance.
-    const advanceAndSettle = async (s) => {
-      await advanceSeconds(s)
-      await advanceSeconds(1)
+    expect(atStart).toBeGreaterThan(20)
+    // Coarse dt (like the phase flow test) keeps the software-GL run short.
+    const advanceCoarse = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 20, 1 / 20), s)
+    // React commits state between evaluate() calls: after each step wait until the HUD countdown has moved
+    // on, then advance once more so the visual position eases to the committed target before measuring.
+    const hudSeconds = async () => {
+      const text = await page.locator('.hud-item').filter({ hasText: /\d+s/ }).first().textContent()
+      return Number(/(\d+)s/.exec(text)[1])
+    }
+    let lastSeconds = 41
+    const stepAndMeasure = async (seconds) => {
+      await advanceCoarse(seconds)
+      await expect.poll(hudSeconds, { timeout: 20_000 }).toBeLessThan(lastSeconds)
+      await advanceCoarse(1)
+      lastSeconds = await hudSeconds()
+      return distance()
     }
 
-    await advanceAndSettle(8.5) // ordering starts, countdown at 40 s
-    const ordering = await distance()
-    await advanceAndSettle(10)
-    const later = await distance()
+    await advanceCoarse(9) // intro (8 s) -> ordering; the countdown starts once React has committed the phase
+    await expect(page.getByTestId('ikea-pay')).toBeVisible()
+    await advanceCoarse(1)
+    await expect.poll(hudSeconds, { timeout: 20_000 }).toBeLessThan(41)
+    const ordering = await stepAndMeasure(5)
+    const later = await stepAndMeasure(9)
     expect(later).toBeLessThan(ordering - 2)
-    await advanceAndSettle(10)
-    expect(await distance()).toBeLessThan(later - 2)
+    expect(await stepAndMeasure(9)).toBeLessThan(later - 2)
     expectNoErrors(errors)
   })
 })

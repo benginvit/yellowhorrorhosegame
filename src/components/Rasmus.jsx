@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Vector3 } from 'three'
 import { rasmusPositionAt, RASMUS_SEAT_POS, KNIFE_SHELF_POS, KIOSK_POS } from '../levels/ikeaLayout'
 import { playFootstepSound } from '../utils/sounds'
 
@@ -11,6 +12,7 @@ const PICKUP_AT = 1.5 // s into the intro when the knife is taken from the shelf
 const TURN_AT = 2.5 // s into the intro when he turns toward the kiosk
 const TABLE_OFFSET = [-0.9, 0, 0] // table relative to RASMUS_SEAT_POS (he faces it)
 const MEATBALLS = 16
+const _right = new Vector3()
 
 const SKIN = '#fdd8b5'
 const HAIR = '#5c3a21'
@@ -64,7 +66,7 @@ function Rasmus({ ikeaPhase, progress }) {
   const tray = useRef()
   const camera = useThree((s) => s.camera)
 
-  const walkRef = useRef({ dist: 0, sinceStep: 0, phaseStart: 0, phase: null, yaw: 0, sit: 0, lastX: 0, lastZ: 0 })
+  const walkRef = useRef({ dist: 0, sinceStep: 0, phaseStart: 0, phase: null, yaw: 0, sit: 0 })
 
   const target = ikeaPhase === 'won' ? RASMUS_SEAT_POS : rasmusPositionAt(progress)
 
@@ -79,10 +81,8 @@ function Rasmus({ ikeaPhase, progress }) {
     if (w.phase !== ikeaPhase) {
       w.phase = ikeaPhase
       w.phaseStart = t
-      if (w.lastX === 0 && w.lastZ === 0) {
-        w.lastX = g.position.x
-        w.lastZ = g.position.z
-      }
+      // Constant pace to the seat, fast enough to be seated within 2.5 s even from the far end of the path.
+      if (ikeaPhase === 'won') w.sitSpeed = Math.max(SIT_SPEED, Math.hypot(RASMUS_SEAT_POS[0] - g.position.x, RASMUS_SEAT_POS[2] - g.position.z) / 2.5)
     }
     const inPhase = t - w.phaseStart
 
@@ -93,7 +93,7 @@ function Rasmus({ ikeaPhase, progress }) {
       const dx = target[0] - prevX
       const dz = target[2] - prevZ
       const d = Math.hypot(dx, dz)
-      const step = Math.min(d, SIT_SPEED * delta)
+      const step = Math.min(d, w.sitSpeed * delta)
       if (d > 1e-4) {
         g.position.x += (dx / d) * step
         g.position.z += (dz / d) * step
@@ -150,7 +150,9 @@ function Rasmus({ ikeaPhase, progress }) {
         w.sinceStep = 0
         const lx = g.position.x - camera.position.x
         const lz = g.position.z - camera.position.z
-        const right = lx * Math.cos(camera.rotation.y) - lz * Math.sin(camera.rotation.y)
+        // The camera's right vector from its quaternion (rotation.y is not yaw: the Euler order is 'YXZ' and the camera looks back)
+        _right.set(1, 0, 0).applyQuaternion(camera.quaternion)
+        const right = lx * _right.x + lz * _right.z
         const dist = Math.max(1, Math.hypot(lx, lz))
         try {
           playFootstepSound(0.04 + 0.5 * progress, right / dist)
