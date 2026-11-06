@@ -18,6 +18,8 @@ export const KIOSK_FACING = [0, 0, 1]
 export const TRAY_POS = [0, 1, 0.9]
 // Where Rasmus sits down and eats when the order is complete.
 export const RASMUS_SEAT_POS = [3.4, 0, 1.2]
+// His table is this far to the right (+x) of the seat; he sits facing it.
+export const RASMUS_TABLE_OFFSET_X = 0.85
 export const ASTRID_POS = [1.4, 0, 3]
 
 // The knife shelf in the kitchen department, far from the kiosk.

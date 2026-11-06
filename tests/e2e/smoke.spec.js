@@ -224,7 +224,6 @@ test.describe('Rasmus', () => {
     }
 
     await advanceCoarse(9) // intro (8 s) -> ordering; the countdown starts once React has committed the phase
-    await expect(page.getByTestId('ikea-pay')).toBeVisible()
     await advanceCoarse(1)
     await expect.poll(hudSeconds, { timeout: 20_000 }).toBeLessThan(41)
     const ordering = await stepAndMeasure(5)

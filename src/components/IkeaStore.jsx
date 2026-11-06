@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Text } from '@react-three/drei'
-import { KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, RASMUS_SEAT_POS, KNIFE_SHELF_POS } from '../levels/ikeaLayout'
+import { KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_POS } from '../levels/ikeaLayout'
 
 // Room bounds (world units). Floor y = 0. The player starts at z = 3 and the kitchen
 // department is at the far (-x, -z) end. RASMUS_PATH and the intro camera line of
@@ -64,9 +64,9 @@ const TABLE_LENGTH = 2.4
 // Long tables in rows on the restaurant side (x > 2), each with chairs on both long sides.
 const TABLE_SPOTS = []
 for (const x of [5, 9]) for (const z of [-13, -9, -5, -1, 6]) if (!(x === 5 && z === -1)) TABLE_SPOTS.push([x, z]) // (5, -1) would touch Rasmus' table
-// Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is 0.85 to the right of the seat,
+// Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is RASMUS_TABLE_OFFSET_X to the right of the seat,
 // so the chair filter below removes the chair at the seat itself.
-TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + 0.85, RASMUS_SEAT_POS[2]])
+TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + RASMUS_TABLE_OFFSET_X, RASMUS_SEAT_POS[2]])
 // Tables run along z; chairs sit on both sides in x.
 const TABLES = TABLE_SPOTS.map(([x, z]) => [x, z, Math.PI / 2])
 const CHAIRS = TABLE_SPOTS.flatMap(([x, z]) => {

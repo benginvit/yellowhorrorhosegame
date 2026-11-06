@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
-import { rasmusPositionAt, RASMUS_SEAT_POS, KNIFE_SHELF_POS, KIOSK_POS } from '../levels/ikeaLayout'
+import { rasmusPositionAt, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_POS, KIOSK_POS } from '../levels/ikeaLayout'
 import { playFootstepSound } from '../utils/sounds'
 
 const EASE = 10 // 1/s, exponential smoothing rate
@@ -10,7 +10,8 @@ const STEP_LENGTH = 0.8 // world units between footsteps
 const WALK_CYCLE = 7 // rad per world unit walked (leg swing)
 const PICKUP_AT = 1.5 // s into the intro when the knife is taken from the shelf
 const TURN_AT = 2.5 // s into the intro when he turns toward the kiosk
-const TABLE_OFFSET = [-0.9, 0, 0] // table relative to RASMUS_SEAT_POS (he faces it)
+const TABLE_TOP_Y = 0.78 // top of the restaurant tables in IkeaStore
+const SEAT_YAW = Math.PI / 2 // he sits facing +x, toward the table
 const MEATBALLS = 16
 const _right = new Vector3()
 
@@ -115,7 +116,7 @@ function Rasmus({ ikeaPhase, progress }) {
     } else if (ikeaPhase === 'ordering' || ikeaPhase === 'lost') {
       faceYaw = toward(camera.position.x, camera.position.z)
     } else if (ikeaPhase === 'won') {
-      faceYaw = arrivedAtSeat ? Math.atan2(TABLE_OFFSET[0], TABLE_OFFSET[2]) : walking ? toward(target[0], target[2]) : w.yaw
+      faceYaw = arrivedAtSeat ? SEAT_YAW : walking ? toward(target[0], target[2]) : w.yaw
     }
     let dyaw = faceYaw - w.yaw
     dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw))
@@ -240,8 +241,8 @@ function Rasmus({ ikeaPhase, progress }) {
         </group>
       </group>
 
-      {/* The knife on the shelf until he picks it up (he stands at the shelf during the intro, so this is relative to him) */}
-      <group ref={shelfKnife} position={[0, 1, -1]}>
+      {/* The knife on the shelf row until he picks it up (he stands at KNIFE_SHELF_POS in the intro; the row is 0.6 behind him) */}
+      <group ref={shelfKnife} position={[0.1, 1.25, -0.6]}>
         <Knife />
       </group>
       {/* Dropped knife once he sits down to eat */}
@@ -250,17 +251,9 @@ function Rasmus({ ikeaPhase, progress }) {
         <meshStandardMaterial color="#cfd3d8" />
       </mesh>
 
-      {/* Table with the tray: 16 meatballs and mashed potatoes. Table position is fixed relative to the seat. */}
-      <group ref={tray} position={TABLE_OFFSET} visible={false}>
-        <mesh position={[0, 0.7, 0]}>
-          <boxGeometry args={[1.0, 0.05, 1.0]} />
-          <meshStandardMaterial color="#c9a36b" />
-        </mesh>
-        <mesh position={[0, 0.35, 0]}>
-          <boxGeometry args={[0.08, 0.7, 0.08]} />
-          <meshStandardMaterial color="#8a6a3b" />
-        </mesh>
-        <group position={[0, 0.725, 0]}>
+      {/* Tray with 16 meatballs and mashed potatoes on the restaurant table beside the seat (the table itself is IkeaStore's) */}
+      <group ref={tray} position={[RASMUS_TABLE_OFFSET_X - 0.2, TABLE_TOP_Y, 0]} visible={false}>
+        <group>
           <mesh position={[0, 0.01, 0]}>
             <boxGeometry args={[0.6, 0.02, 0.5]} />
             <meshStandardMaterial color="#e8e8e8" />
