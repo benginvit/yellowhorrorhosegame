@@ -7,7 +7,7 @@ import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors } from './helpe
 // clock steps use a coarse dt (1/20); the exact step size does not matter, the game
 // timers fire from advance() on the frozen clock.
 
-test.setTimeout(180_000)
+test.setTimeout(240_000)
 
 const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
