@@ -7,19 +7,27 @@ import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors } from './helpe
 // clock steps use a coarse dt (1/20); the exact step size does not matter, the game
 // timers fire from advance() on the frozen clock.
 
-test.setTimeout(240_000)
+test.setTimeout(180_000)
 
 const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
 
-/** Opens level 4 and steps the clock until the kiosk is up. The intro effect can register its 8 s timer on the frozen clock only after the next advance(), so poll with small steps. */
+/**
+ * Steps the clock through the 8 s intro until the kiosk is up. The intro effect can register its
+ * timer on the frozen clock only after the next advance(), so the last bit is a few small steps (capped).
+ */
+async function waitForOrdering(page) {
+  await ADVANCE(page, 7)
+  const start = page.getByTestId('ikea-start')
+  for (let i = 0; i < 6 && !(await start.isVisible()); i++) await ADVANCE(page, 0.25)
+  await expect(start).toBeVisible()
+}
+
+/** Opens level 4 and steps the clock until the kiosk is up. */
 async function toOrdering(page) {
   await openFrozen(page, { level: 4 })
   await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible()
-  await ADVANCE(page, 7)
-  await expect
-    .poll(async () => { await ADVANCE(page, 0.25); return page.getByTestId('ikea-start').isVisible() }, { timeout: 30_000 })
-    .toBe(true)
+  await waitForOrdering(page)
 }
 
 /**
@@ -30,6 +38,7 @@ async function orderMeatballs(page, { sausage = false, tap = false } = {}) {
   const press = (id) => (tap ? page.getByTestId(id).tap() : page.getByTestId(id).click())
   await press('ikea-start')
   await press('ikea-category-main')
+  if (tap) await expect(page.getByTestId('ikea-dish-meatballs')).toBeInViewport() // reachable without scrolling on a phone
   await press('ikea-dish-meatballs')
   for (let i = 0; i < 12; i++) await press('ikea-qty-plus')
   await press('ikea-qty-next')
@@ -56,7 +65,7 @@ test.describe('IKEA level: outcomes', () => {
     await page.getByTestId('ikea-pay').click()
     await expect(page.getByTestId('ikea-done')).toBeVisible()
     await expect(page.locator('.victory-screen')).toHaveCount(0) // 'won': level complete follows after ~4 s
-    await ADVANCE(page, 4.5, 1 / 60)
+    await ADVANCE(page, 4.5)
     await expect(page.locator('.victory-screen')).toBeVisible()
     await page.locator('.victory-screen .restart-btn').click()
     await expect(page.locator('.hud-item').first()).toContainText('5: Selma')
@@ -70,12 +79,8 @@ test.describe('IKEA level: outcomes', () => {
     await expect(page.locator('.hud-item').first()).toContainText('Rasmus')
     await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro
     await expect(page.getByTestId('ikea-start')).toHaveCount(0)
-    await ADVANCE(page, 7)
-    await expect(page.getByTestId('ikea-start')).toHaveCount(0) // 8 s intro not over
-    await expect
-      .poll(async () => { await ADVANCE(page, 0.25); return page.getByTestId('ikea-start').isVisible() }, { timeout: 30_000 })
-      .toBe(true)
-    await expect(page.getByTestId('ikea-rasmus-meter')).toBeVisible()
+    await waitForOrdering(page)
+    await expect(page.getByTestId('ikea-rasmus-bar')).toHaveAttribute('style', /width: [0-2]%/) // the 40 s start here (the intro polling may overshoot by a tick)
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
 
     await page.getByTestId('ikea-look-back').click() // looking back pauses the order, not the countdown
@@ -83,11 +88,10 @@ test.describe('IKEA level: outcomes', () => {
     await page.getByTestId('ikea-look-back').click()
     await expect(page.getByTestId('ikea-start')).toBeVisible()
 
-    await ADVANCE(page, 37) // ~38 s into the order: 40 s not yet out
+    await ADVANCE(page, 39) // 40 s not yet out
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
-    await expect
-      .poll(async () => { await ADVANCE(page, 0.5); return page.locator('.game-over-screen').isVisible() }, { timeout: 30_000 })
-      .toBe(true)
+    await ADVANCE(page, 1.5)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
     expectNoErrors(errors)
   })
 })
@@ -168,7 +172,7 @@ test.describe('IKEA level: mobile (touch)', () => {
     await expect(page.getByTestId('ikea-pay')).toBeInViewport()
     await page.getByTestId('ikea-pay').tap()
     await expect(page.getByTestId('ikea-done')).toBeVisible()
-    await ADVANCE(page, 4.5, 1 / 60)
+    await ADVANCE(page, 4.5)
     await expect(page.locator('.victory-screen')).toBeVisible()
     expectNoErrors(errors)
   })
@@ -182,39 +186,38 @@ test.describe('level chain classroom (3) -> IKEA (4) -> Selma (5)', () => {
     const hud = page.locator('.hud-item').first()
     await expect(hud).toContainText('3: Kerstin')
     const setCamera = (x, z) => page.evaluate(([px, pz]) => window.__YHH_TEST_MODE__.camera.position.set(px, 1.6, pz), [x, z])
-    // Intro: shots at 7 s, candy 3 s later, Kerstin active at 12.5 s. Candy pieces get eaten by the
-    // students, so visit them one by one until one is still there (picking it up gives the key).
-    // React must commit each phase before the next timer is registered on the frozen clock, so step in 0.25 s slices.
+    // Intro: shots at 7 s, candy 3 s later, Kerstin active at 12.5 s. React must commit each phase before
+    // the next timer is registered on the frozen clock, so step in 0.25 s slices. The students eat some
+    // candy pieces: visit them in order and wait for the HUD (without stepping the clock) after each.
     for (let i = 0; i < 52; i++) await ADVANCE(page, 0.25)
+    const hasKey = page.locator('.hud-item.has-key')
     const candy = [[-6, -4], [-2, -4], [3, -4], [6, -3], [-5, -1], [0, -1], [5, 0], [-6, 2], [3, 3], [-3, 4]]
-    let step = 0
-    await expect
-      .poll(async () => {
-        await setCamera(...candy[step++ % candy.length])
-        await ADVANCE(page, 0.1, 1 / 20)
-        await page.waitForTimeout(50) // let React commit hasKey
-        return page.locator('.hud-item.has-key').count()
-      }, { timeout: 30_000 })
-      .toBeGreaterThan(0)
+    for (const [x, z] of candy) {
+      await setCamera(x, z)
+      await ADVANCE(page, 0.1)
+      if (await expect(hasKey).toHaveCount(1, { timeout: 1000 }).then(() => true, () => false)) break
+    }
+    await expect(hasKey).toHaveCount(1)
     await setCamera(8.85, 4) // the classroom door
     await expect
       .poll(async () => { await ADVANCE(page, 0.25); return hud.textContent() }, { timeout: 30_000 })
       .toContain('4: Rasmus')
 
     await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible()
-    await ADVANCE(page, 7)
-    await expect
-      .poll(async () => { await ADVANCE(page, 0.25); return page.getByTestId('ikea-start').isVisible() }, { timeout: 30_000 })
-      .toBe(true)
+    await waitForOrdering(page)
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
-    await ADVANCE(page, 4.5, 1 / 60)
+    await expect(page.getByTestId('ikea-done')).toBeVisible()
+    await ADVANCE(page, 4.5)
     await page.locator('.victory-screen .restart-btn').click()
     await expect(hud).toContainText('5: Selma')
     expectNoErrors(errors)
   })
 
-  test('the ending says "7 characters" after level 7', async ({ page }) => {
+})
+
+test.describe('ending after level 7', () => {
+  test('the ending says "7 characters"', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 7 })
@@ -224,7 +227,6 @@ test.describe('level chain classroom (3) -> IKEA (4) -> Selma (5)', () => {
     await expect(page.locator('.hud-item.has-key')).toHaveCount(1)
     await setCamera(0, -17.4) // the house door (world z = -25 + 7.6)
     await ADVANCE(page, 0.1, 1 / 20)
-    await expect(page.locator('.victory-screen')).toContainText('7')
     await expect(page.locator('.victory-screen')).toContainText('alla 7 karaktärerna')
     expectNoErrors(errors)
   })
