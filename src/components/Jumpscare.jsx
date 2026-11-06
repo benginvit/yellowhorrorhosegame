@@ -1,16 +1,17 @@
 import { useEffect } from 'react'
 import { playJumpscareSound } from '../utils/sounds'
+import { setTimer, clearTimer } from '../testMode'
 
 function Jumpscare({ characterName, onComplete }) {
   useEffect(() => {
     playJumpscareSound()
 
     // Auto-complete after animation
-    const timer = setTimeout(() => {
+    const timer = setTimer(() => {
       onComplete()
     }, 800)
 
-    return () => clearTimeout(timer)
+    return () => clearTimer(timer)
   }, [onComplete])
 
   return (

@@ -11,6 +11,13 @@ export const PLAYER_START = [0, 1.6, 3]
 export const PLAYER_START_YAW = 0
 
 export const KIOSK_POS = [0, 0, 0]
+// Kiosk footprint [width, height, depth] and the direction its screen faces (toward the player).
+export const KIOSK_SIZE = [1, 2, 0.6]
+export const KIOSK_FACING = [0, 0, 1]
+// Where the tray with the 16 meatballs appears (on the counter by the kiosk).
+export const TRAY_POS = [0, 1, 0.9]
+// Where Rasmus sits down and eats when the order is complete.
+export const RASMUS_SEAT_POS = [3.4, 0, 1.2]
 export const ASTRID_POS = [1.4, 0, 3]
 
 // The knife shelf in the kitchen department, far from the kiosk.
@@ -24,6 +31,10 @@ export const RASMUS_PATH = [
   [-8, 0, 5],
   [-1.2, 0, 3.4],
 ]
+
+// NOTE: rasmusPositionAt / rasmusDistanceAt give the *logical* position. The visual
+// Rasmus (Rasmus.jsx) eases toward it in useFrame, because ikeaTimeLeft only ticks
+// every 0.25 s. Gameplay (distance meter, footsteps) reads the logical value.
 
 // Intro shot of the kitchen department: camera position and what it looks at.
 export const INTRO_CAMERA = {
@@ -39,6 +50,14 @@ for (let i = 1; i < RASMUS_PATH.length; i++) {
   const [bx, , bz] = RASMUS_PATH[i]
   totalLength += Math.hypot(bx - ax, bz - az)
   SEGMENT_ENDS.push(totalLength)
+}
+
+/** Total length of RASMUS_PATH in world units. */
+export const RASMUS_PATH_LENGTH = totalLength
+
+/** Walked distance in world units at `progress` (0..1, clamped). */
+export function rasmusDistanceAt(progress) {
+  return Math.min(1, Math.max(0, progress)) * totalLength
 }
 
 /** Rasmus' position at `progress` (0 = knife shelf, 1 = at the player), clamped, at constant speed along RASMUS_PATH. */

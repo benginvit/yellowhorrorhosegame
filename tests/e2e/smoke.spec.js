@@ -46,18 +46,40 @@ test.describe('smoke', () => {
 
     await expect(page.locator('.hud-item').first()).toContainText('Rasmus')
     await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro
-    await expect(page.getByRole('button', { name: 'Beställ' })).toHaveCount(0)
+    await expect(page.getByTestId('ikea-pay')).toHaveCount(0)
 
     await advanceSeconds(7)
-    await expect(page.getByRole('button', { name: 'Beställ' })).toHaveCount(0)
+    await expect(page.getByTestId('ikea-pay')).toHaveCount(0)
     await advanceSeconds(1.5) // past 8 s: ordering
-    await expect(page.getByRole('button', { name: 'Beställ' })).toBeVisible()
+    await expect(page.getByTestId('ikea-pay')).toBeVisible()
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
+
+    await page.getByTestId('ikea-look-back').click() // looking back pauses the order, not the countdown
+    await expect(page.getByTestId('ikea-pay')).toHaveCount(0)
+    await page.getByTestId('ikea-look-back').click()
+    await expect(page.getByTestId('ikea-pay')).toBeVisible()
 
     await advanceSeconds(39) // 40 s timer not yet out
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
     await advanceSeconds(2) // lost
     await expect(page.locator('.game-over-screen')).toBeVisible()
+    expectNoErrors(errors)
+  })
+
+  test('IKEA (level 4) win path: order -> level complete -> Selma (level 5)', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4 })
+    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 60, 1 / 60), s)
+
+    await advanceSeconds(8.5) // ordering
+    await page.getByTestId('ikea-pay').click()
+    await expect(page.locator('.victory-screen')).toHaveCount(0) // 'won', level complete follows after ~4 s
+    await advanceSeconds(4.5)
+    await expect(page.locator('.victory-screen')).toBeVisible()
+    await page.locator('.victory-screen .restart-btn').click()
+    await expect(page.locator('.hud-item').first()).toContainText('5: Selma')
     expectNoErrors(errors)
   })
 })

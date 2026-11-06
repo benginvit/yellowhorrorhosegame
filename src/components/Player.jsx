@@ -8,7 +8,8 @@ function Player({
   isLocked = false,
   startPosition = null,
   startYaw = 0, // default: facing -z (toward whiteboard)
-  inClassroom = false
+  inClassroom = false,
+  lookBack = false // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
 }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
@@ -62,7 +63,7 @@ function Player({
       if (startPosition) {
         camera.position.set(startPosition[0], startPosition[1], startPosition[2])
       }
-      const euler = new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ')
+      const euler = new THREE.Euler(rotation.current.pitch, rotation.current.yaw + (lookBack ? Math.PI : 0), 0, 'YXZ')
       camera.quaternion.setFromEuler(euler)
       return
     }
@@ -93,7 +94,7 @@ function Player({
     rotation.current.pitch = THREE.MathUtils.clamp(rotation.current.pitch, -Math.PI / 3, Math.PI / 3)
 
     // Apply rotation to camera
-    const euler = new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ')
+    const euler = new THREE.Euler(rotation.current.pitch, rotation.current.yaw + (lookBack ? Math.PI : 0), 0, 'YXZ')
     camera.quaternion.setFromEuler(euler)
 
     // Reset velocity
