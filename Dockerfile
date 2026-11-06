@@ -16,6 +16,11 @@ COPY . .
 ARG VITE_TEST_MODE=0
 ENV VITE_TEST_MODE=$VITE_TEST_MODE
 
+# Build-time flag for the staging level picker (?level=N + start-screen level
+# buttons). '1' only in deploy-staging.yml; '0' = prod (default). Never set in prod.
+ARG VITE_LEVEL_SELECT=0
+ENV VITE_LEVEL_SELECT=$VITE_LEVEL_SELECT
+
 # Build the application
 RUN npm run build
 

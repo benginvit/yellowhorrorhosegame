@@ -59,9 +59,11 @@ npm run build
 3. Benjamin godkänner och öppnar PR `staging` → `main`.
 4. Push till `main` deployar till prod (https://yellowhorrorhouse.benom.nu) via `deploy.yml`.
 
+**Hoppa direkt till en nivå på staging:** staging byggs med `VITE_LEVEL_SELECT=1` (build-arg i `deploy-staging.yml`), vilket slår på `?level=N` (t.ex. https://staging-yellowhorrorhouse.benom.nu/?level=4 för IKEA-nivån, `&inside=1` för Astrids hus) och en rad nivåknappar "STAGING – hoppa till nivå" på startskärmen. Bara nivåhoppet aktiveras: ingen seed, ingen fryst klocka, inget test-API – staging spelas som prod. Lokalt: `VITE_LEVEL_SELECT=1 npm run build && npx vite preview`. Prod får aldrig flaggan; `scripts/check-prod-bundle.sh` fallerar prodbygget om markören `__YHH_LEVEL_SELECT__` finns (`--level-select` verifierar i stället ett stagingbygge).
+
 Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Tunneln är user-tjänsten `cloudflare-mcp` (`~/.cloudflared/config.yml`) och startas om med `systemctl --user restart cloudflare-mcp`. Det är inte systemtjänsten `cloudflared` / `/etc/cloudflared`. Förslag: lägg Cloudflare Access framför staging.
 
-Kontrollera att testläge-markören inte läckt in i prod-bygget (exit 1 om den finns):
+Kontrollera att varken testläge- eller nivåväljarmarkören läckt in i prod-bygget (exit 1 om någon finns):
 
 ```bash
 bash scripts/check-prod-bundle.sh
@@ -87,14 +89,15 @@ npx playwright install chromium   # en gång
 npm run test:e2e                  # bygger test- och prod-variant, startar vite preview, kör allt
 ```
 
-`npm run test:e2e` bygger lokalt motsvarigheten till de två imagerna (`dist-e2e/prod` och `dist-e2e/test` med `VITE_TEST_MODE=1`) och kör `scripts/check-prod-bundle.sh` mot prod-bygget. För att köra mot redan körande servrar (t.ex. docker-containrar eller live-prod) sätt `E2E_TEST_URL=http://127.0.0.1:3003` och/eller `E2E_PROD_URL=https://…`.
+`npm run test:e2e` bygger lokalt motsvarigheten till de tre imagerna (`dist-e2e/prod`, `dist-e2e/test` med `VITE_TEST_MODE=1` och `dist-e2e/staging` med `VITE_LEVEL_SELECT=1`) och kör `scripts/check-prod-bundle.sh` mot varje bygge. För att köra mot redan körande servrar (t.ex. docker-containrar, live-prod eller staging) sätt `E2E_TEST_URL=http://127.0.0.1:3003`, `E2E_PROD_URL=https://…` och/eller `E2E_STAGING_URL=https://…`.
 
 | Spec | Projekt | Vad |
 |------|---------|-----|
-| `smoke.spec.js` | test + prod | Canvas renderar (inte blank), inga konsolfel/page errors; klassrum (test) |
+| `smoke.spec.js` | test + prod + staging | Canvas renderar (inte blank), inga konsolfel/page errors; klassrum och IKEA (test) |
 | `visual.spec.js` | test | Screenshot-diff med `?seed=1&freeze=1` från 5 fasta kamerapositioner (`views.js`: 3 hus, 2 klassrum) + determinismtest (två laddningar av house-front resp. classroom-start ger samma bild; klassrummet kan avvika några dussin pixlar, gräns 0,1 %) |
 | `perf.spec.js` | test | p95 frametid (rAF) och `renderer.info` (calls/triangles) via `window.__YHH_TEST_MODE__.gl`, loggas per körning |
-| `prod-check.spec.js` | prod | `?seed=1&freeze=1&level=3` mot prod: `window.__YHH_TEST_MODE__` är `undefined`, parametrarna är verkningslösa |
+| `prod-check.spec.js` | prod | `?seed=1&freeze=1&level=3` mot prod: `window.__YHH_TEST_MODE__` är `undefined`, parametrarna är verkningslösa, ingen nivåväljare |
+| `level-select.spec.js` | staging | `?level=N`/`&inside=1` och nivåknapparna hoppar till rätt nivå (startfas efter nivånamn), ogiltiga värden ignoreras, inget test-API, riktig klocka, fungerar i mobilviewport |
 | `lighting.spec.js` | test | Ljuskontroller (se nedan): ljusstyrka per kamerapose, läsbarhet kring nyckel/dörr, max 2 skuggkastare, inget flimmer när scenen är frusen |
 
 - **Baslinjer** för screenshots (`tests/e2e/__baselines__/`) och frametid (`tests/e2e/perf-baseline.json`) genereras i den miljö som kör testerna och checkas **inte** in (SwiftShader ger olika pixlar/tider per maskin). Första körningen skriver baslinjerna och passerar (lokalt, med varning); kör `npm run test:e2e` igen för att faktiskt jämföra. **Med `CI` satt är det fail-closed:** saknad screenshot-baslinje (`updateSnapshots: 'none'`) och saknad frametidsbaslinje får testerna att *fela* i stället för att tyst skriva en ny – en färsk CI-miljö kan alltså inte passera utan jämförelse (frametidsbaslinje kan ändå skrivas med `E2E_SET_BASELINE=1`). Ny baslinje efter medvetna visuella ändringar: `npm run test:e2e:update` (screenshots) resp. `E2E_SET_BASELINE=1 npm run test:e2e` (frametid). När en baslinje skrivs lokalt skrivs en varning i konsolen och en annotation (`baseline-written`) läggs i rapporten.
@@ -104,13 +107,13 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 - **Frametidsbudget:** p95 < 16,7 ms rapporteras alltid. Utan baslinje kan testet inte fela lokalt (men felar med `CI` satt); med baslinje felar det vid regression (p95 > max(1,5x, +40 ms) av baslinjen, calls/triangles > 1,1x). Den absoluta 16,7 ms-gränsen kräver riktig GPU och slås på med `E2E_ENFORCE_BUDGET=1` – på SwiftShader ligger p95 runt 70–130 ms.
 - **Typsnitt:** drei `<Text>` hämtar glyfdata från cdn.jsdelivr.net vid körning. Svaren är incheckade i `tests/e2e/fixtures/jsdelivr-fonts.har.zip` och spelas upp så att testerna är offline-säkra. Spela in på nytt: `E2E_RECORD_FONTS=1 npx playwright test -c tests/e2e/playwright.config.js --project=test -g "classroom \(level 3\)"`.
 - **Klassrumsintrot** har timers (skott efter 7 s) som inte kan frysas utifrån; visual-testerna avbryts om en capture tar > 6 s.
-- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-7` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget.
+- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-N` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget. `?level`/`&inside` finns även i stagingbygget (`VITE_LEVEL_SELECT=1`, se ovan), men inget annat av testläget.
 - Rapport: `playwright-report/` (öppna med `npx playwright show-report playwright-report`).
 - **CI (`.github/workflows/pr-check.yml`, ADR `docs/adr/0001-ci-e2e-baselines.md`):** e2e körs på PR:er mot `main` och `staging`, uppdelat i shards. Baslinjer tas från PR:ens basbranch. Tre PR-etiketter styr körningen (en ny körning startar när etiketten läggs till eller tas bort):
   - **`visual-change-approved`** – avsiktlig visuell ändring (och release-PR:er `staging` → `main` med visuell ändring). Screenshot-baslinjerna spelas in från PR:ens merge-commit, så screenshot-diffen är inte en grind; övriga e2e-kontroller körs som vanligt, och perf-baslinjen tas fortfarande alltid från basen. Granska diffen först. **Etiketten sätts av en människa eller reviewern, aldrig av PR:ens författare (gäller även agenter), och måste bedömas på nytt efter nya commits** (en push med etiketten satt ger `::warning::`).
   - **`e2e-perf`** – tar med `perf.spec.js` (p95 frametid, draw calls, trianglar). Använd på PR:er som ändrar renderingskostnaden, t.ex. partikel-PR:erna (BENG-27, BENG-28, BENG-29), nya ljus/skuggor/postprocessing. Av som standard eftersom p95 är brusig på delade runners.
   - Inga etiketter – standardkörning.
-- **Retries:** `determinism-*`-shardsen har inga retries (ett test som bara går igenom efter omkörning är icke-determinism och ska vara rött); `visual` och `prod` har `--retries=1` mot skärmdumpstimeout.
+- **Retries:** `determinism-*`-shardsen har inga retries (ett test som bara går igenom efter omkörning är icke-determinism och ska vara rött); `visual`, `prod` och `staging` har `--retries=1` mot skärmdumpstimeout.
 - **Shard-vakt:** `node scripts/check-e2e-shards.mjs` (jobbet `e2e-shard-guard`) failar om ett test eller en ny `tests/e2e/*.spec.js` inte körs av något shard. Lägg nya specfiler i ett projekts `testMatch` och i ett shards `args`.
 
 #### Ljuskontroller (`lighting.spec.js`)

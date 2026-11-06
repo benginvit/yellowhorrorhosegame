@@ -46,9 +46,24 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           <h1>{t('gameTitle')}</h1>
           <p>{t('gameDescription1')}</p>
           <p>{t('gameDescription2')}</p>
-          <button className="start-btn" onClick={onStart}>
+          <button className="start-btn" onClick={() => onStart()}>
             {t('startButton')}
           </button>
+          {/* Staging only (VITE_LEVEL_SELECT=1): jump straight to a level. The gate must
+              stay an inline import.meta.env check so prod builds drop this block and
+              its __YHH_LEVEL_SELECT__ marker (scripts/check-prod-bundle.sh). */}
+          {import.meta.env.VITE_LEVEL_SELECT === '1' && (
+            <div className="level-select" data-marker="__YHH_LEVEL_SELECT__">
+              <div className="level-select-label">STAGING – hoppa till nivå:</div>
+              <div className="level-select-buttons">
+                {levels.map((lvl, i) => (
+                  <button key={lvl.name} type="button" className="level-select-btn" onClick={() => onStart(i + 1)}>
+                    {i + 1}. {lvl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

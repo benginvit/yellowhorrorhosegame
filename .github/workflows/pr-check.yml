@@ -49,6 +49,14 @@ jobs:
       - name: Check test bundle (marker expected, warn-only until t_50a711f3 is merged)
         run: bash scripts/check-prod-bundle.sh --test dist-test
 
+      - name: Build staging bundle (VITE_LEVEL_SELECT=1)
+        run: npm run build -- --outDir dist-staging --emptyOutDir
+        env:
+          VITE_LEVEL_SELECT: '1'
+
+      - name: Check staging bundle (level-select marker expected, test marker absent)
+        run: bash scripts/check-prod-bundle.sh --level-select dist-staging
+
       - name: Docker test image build (not pushed)
         run: docker build --build-arg VITE_TEST_MODE=1 -t yellowhorrorhose:test .
 
@@ -98,7 +106,7 @@ jobs:
         include:
           # baselines: true -> baselines are recorded from the base branch first
           # retries: determinism-* shards have 0 (a test that needs a retry is
-          # non-determinism and must be red). visual/prod keep 1 against the
+          # non-determinism and must be red). visual/prod/staging keep 1 against the
           # screenshot-timeout flake on shared runners; --fail-on-flaky-tests is
           # deliberately not used there.
           - name: visual
@@ -109,6 +117,11 @@ jobs:
             baselines: false
             retries: 1
             args: --project=prod
+          # Staging build (VITE_LEVEL_SELECT=1): level picker and ?level=N work, no test API.
+          - name: staging
+            baselines: false
+            retries: 1
+            args: --project=staging
           - name: determinism-hash
             baselines: false
             retries: 0
