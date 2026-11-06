@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { playDeathSound } from '../utils/sounds'
 import { getTranslation } from '../translations'
+import { IKEA_ORDER_SECONDS } from '../levels/ikeaLayout'
 
 function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart, onContinue }) {
   const currentLevel = levels[gameState.currentLevel - 1]
@@ -91,6 +92,17 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
                 {gameState.ikeaPhase === 'ordering' && (
                   <div className={`hud-item ${gameState.ikeaTimeLeft <= 10 ? 'low-health' : ''}`}>
                     {t('ikeaTimer')}: {Math.ceil(gameState.ikeaTimeLeft)}s
+                  </div>
+                )}
+                {gameState.ikeaPhase === 'ordering' && (
+                  <div className="hud-item" data-testid="ikea-rasmus-meter">
+                    {t('ikeaRasmus')}
+                    <div style={{ width: '160px', height: '12px', background: '#333', borderRadius: '6px', overflow: 'hidden', marginTop: '4px' }}>
+                      <div
+                        data-testid="ikea-rasmus-bar"
+                        style={{ width: `${Math.round((1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS) * 100)}%`, height: '100%', background: '#e53935' }}
+                      />
+                    </div>
                   </div>
                 )}
               </>

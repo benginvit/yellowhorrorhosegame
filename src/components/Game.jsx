@@ -128,6 +128,7 @@ function Game({
             <OrderKiosk
               ikeaPhase={ikeaPhase}
               ikeaTimeLeft={gameState.ikeaTimeLeft}
+              language={language}
               lookingBack={gameState.ikeaLookingBack}
               onOrderComplete={onIkeaOrderComplete}
               onLookBack={onIkeaLookBack}
