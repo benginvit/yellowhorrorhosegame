@@ -56,7 +56,7 @@ async function orderMeatballs(page, { sausage = false, tap = false } = {}) {
   await expect(page.getByTestId('ikea-cart')).toBeVisible()
 }
 
-test.describe('IKEA level: outcomes', () => {
+test.describe('ikea-outcomes', () => {
   test('win: order via the kiosk -> won -> level complete -> level 5 Selma', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -96,7 +96,7 @@ test.describe('IKEA level: outcomes', () => {
   })
 })
 
-test.describe('IKEA level: kiosk', () => {
+test.describe('ikea-kiosk', () => {
   test('wrong choices give a back button, the quantity must be exactly 16, the sausage blocks payment until removed', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -161,7 +161,7 @@ test.describe('IKEA level: kiosk', () => {
   })
 })
 
-test.describe('IKEA level: mobile (touch)', () => {
+test.describe('ikea-mobile (touch)', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 740 } })
 
   test('the win flow works with touch in a phone viewport', async ({ page }) => {
