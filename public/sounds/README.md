@@ -20,6 +20,7 @@
 - `astrid-failed.m4a` - "Nu ska du få!" (när timern tar slut)
 - `astrid-success.m4a` - "Vart tog den vägen?" (när du lyckas gömma dig)
 - `molltas-meow.m4a` - Din katts jamande
+- `rasmus-kottbullar.m4a` - Rasmus: "Köttbullar..." (IKEA-nivån). **Tillfällig syntetisk TTS-platshållare**, ersätts med en riktig inspelning. Samma fil ligger i `en/` tills vidare.
 - (Valfritt) Lägg till fler för andra familjemedlemmar!
 
 ### English (en folder):
@@ -29,6 +30,7 @@
 - `astrid-failed.m4a` - "Now I got you!" (when timer runs out)
 - `astrid-success.m4a` - "Where did they go?" (when you successfully hide)
 - `molltas-meow.m4a` - Your cat's meowing
+- `rasmus-kottbullar.m4a` - Rasmus: "Meatballs..." (IKEA level). **Temporary synthetic TTS placeholder** (the Swedish clip, copied) to be replaced by a real recording.
 - (Optional) Add more for other family members!
 
 ## Exempel / Examples:

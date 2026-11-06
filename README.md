@@ -4,16 +4,17 @@ Ett webbaserat 3D horror-överlevnadsspel byggt med React och Three.js, inspirer
 
 ## 🎮 Spelbeskrivning
 
-Navigera genom 6 successivt svårare nivåer i ett gult tegelhus med orange tak. Hitta nyckeln i varje nivå och nå dörren innan karaktären hinner fånga dig!
+Navigera genom 7 successivt svårare nivåer i ett gult tegelhus med orange tak. Hitta nyckeln i varje nivå och nå dörren innan karaktären hinner fånga dig!
 
 ## 📊 Nivåer
 
 1. **Level 1: Molltas** - Vit katt (Hastighet: 1.5)
 2. **Level 2: Astrid** - 13 år (Hastighet: 1.8)
-3. **Level 3: Selma** - 11 år (Hastighet: 2.0)
-4. **Level 4: Kerstin** - 13 år (Hastighet: 2.3)
-5. **Level 5: Mamma** - 46 år (Hastighet: 2.6)
-6. **Level 6: Pappa** - 48 år (Hastighet: 3.0)
+3. **Level 3: Kerstin** - Klassrummet, 13 år (Hastighet: 2.3)
+4. **Level 4: Rasmus** - IKEA, beställ 16 köttbullar innan han hinner fram (40 s)
+5. **Level 5: Selma** - 11 år (Hastighet: 2.0)
+6. **Level 6: Maria** - 46 år (Hastighet: 2.6)
+7. **Level 7: Pappa** - 48 år (Hastighet: 3.0)
 
 ## 🎯 Spelets Mål
 
@@ -103,7 +104,7 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 - **Frametidsbudget:** p95 < 16,7 ms rapporteras alltid. Utan baslinje kan testet inte fela lokalt (men felar med `CI` satt); med baslinje felar det vid regression (p95 > max(1,5x, +40 ms) av baslinjen, calls/triangles > 1,1x). Den absoluta 16,7 ms-gränsen kräver riktig GPU och slås på med `E2E_ENFORCE_BUDGET=1` – på SwiftShader ligger p95 runt 70–130 ms.
 - **Typsnitt:** drei `<Text>` hämtar glyfdata från cdn.jsdelivr.net vid körning. Svaren är incheckade i `tests/e2e/fixtures/jsdelivr-fonts.har.zip` och spelas upp så att testerna är offline-säkra. Spela in på nytt: `E2E_RECORD_FONTS=1 npx playwright test -c tests/e2e/playwright.config.js --project=test -g "classroom \(level 3\)"`.
 - **Klassrumsintrot** har timers (skott efter 7 s) som inte kan frysas utifrån; visual-testerna avbryts om en capture tar > 6 s.
-- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-6` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget.
+- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-7` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget.
 - Rapport: `playwright-report/` (öppna med `npx playwright show-report playwright-report`).
 - **CI (`.github/workflows/pr-check.yml`, ADR `docs/adr/0001-ci-e2e-baselines.md`):** e2e körs på PR:er mot `main` och `staging`, uppdelat i shards. Baslinjer tas från PR:ens basbranch. Tre PR-etiketter styr körningen (en ny körning startar när etiketten läggs till eller tas bort):
   - **`visual-change-approved`** – avsiktlig visuell ändring (och release-PR:er `staging` → `main` med visuell ändring). Screenshot-baslinjerna spelas in från PR:ens merge-commit, så screenshot-diffen är inte en grind; övriga e2e-kontroller körs som vanligt, och perf-baslinjen tas fortfarande alltid från basen. Granska diffen först. **Etiketten sätts av en människa eller reviewern, aldrig av PR:ens författare (gäller även agenter), och måste bedömas på nytt efter nya commits** (en push med etiketten satt ger `::warning::`).
@@ -176,7 +177,7 @@ yellowhorrorhosegame/
 2. **Dörr-interaktion**: Närma dig dörren med nyckeln för att gå vidare
 3. **Fiendeförföljelse**: Karaktärer följer alltid spelaren och blir snabbare för varje nivå
 4. **Hälsosystem**: Tar skada när du är nära karaktären, Game Over vid 0 hälsa
-5. **Level-progression**: 6 nivåer med ökande svårighetsgrad
+5. **Level-progression**: 7 nivåer med ökande svårighetsgrad
 
 ## 🐛 Kända Problem
 

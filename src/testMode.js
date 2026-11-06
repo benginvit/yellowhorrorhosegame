@@ -63,7 +63,7 @@ let frozen = false
 // Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
 let virtualTimers = null
 // Test-only start overrides merged into the game state when "Start" is pressed
-// (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
+// (?level=<1-7>, ?inside=1 for the Astrid house interior). null in prod builds.
 let startOverrides = null
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
@@ -78,10 +78,12 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   source = mulberry32(seed)
 
   const level = parseInt(params.get('level') ?? '', 10)
-  if (level >= 1 && level <= 6) {
+  if (level >= 1 && level <= 7) {
     startOverrides = { currentLevel: level }
     // Level 3 is the classroom; its intro starts in the 'seated' phase.
     if (level === 3) startOverrides.classroomIntroPhase = 'seated'
+    // Level 4 is IKEA (Rasmus); it starts in the 'intro' phase.
+    if (level === 4) startOverrides.ikeaPhase = 'intro'
     if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
   }
   if (freeze) {

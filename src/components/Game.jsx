@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import Player from './Player'
 import House from './House'
 import Ground from './Ground'
@@ -17,11 +18,42 @@ import Ash from './particles/Ash'
 import Bursts from './particles/Bursts'
 import { PARTICLES_ENABLED } from './particles/common'
 import HorrorEffects from './HorrorEffects'
+import { PLAYER_START, PLAYER_START_YAW, KIOSK_POS, INTRO_CAMERA, IKEA_ORDER_SECONDS, rasmusPositionAt } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
 const CLASSROOM_START_YAW = 0
+
+// Intro shot of the kitchen department (IKEA level). Stage 2 replaces the content, not the contract.
+function IkeaIntroCamera() {
+  const camera = useThree((s) => s.camera)
+  useFrame(() => {
+    camera.position.set(...INTRO_CAMERA.position)
+    camera.lookAt(...INTRO_CAMERA.target)
+  })
+  return null
+}
+
+// Placeholder IKEA scene: floor, a box for the kiosk and a red capsule for Rasmus.
+function IkeaPlaceholder({ progress }) {
+  return (
+    <>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[60, 60]} />
+        <meshStandardMaterial color="#b8b4a8" />
+      </mesh>
+      <mesh position={[KIOSK_POS[0], 1, KIOSK_POS[2]]} castShadow>
+        <boxGeometry args={[1, 2, 0.6]} />
+        <meshStandardMaterial color="#0058a3" />
+      </mesh>
+      <mesh position={rasmusPositionAt(progress).map((v, i) => (i === 1 ? v + 0.9 : v))} castShadow>
+        <capsuleGeometry args={[0.35, 1.1, 4, 8]} />
+        <meshStandardMaterial color="#cc1111" />
+      </mesh>
+    </>
+  )
+}
 
 function Game({
   gameState,
@@ -32,6 +64,7 @@ function Game({
   onTakeDamage,
   onEnterHouse,
   onSetHiding,
+  onIkeaOrderComplete,
   onWakeAstrid,
   onUpdateHideTimer,
   mobileMovement,
@@ -43,6 +76,7 @@ function Game({
 
   const isAstridLevel = level.name === 'Astrid'
   const isKerstinLevel = level.name === 'Kerstin'
+  const isIkeaLevel = level.name === 'Rasmus'
   const classroomIntroPhase = gameState.classroomIntroPhase
   const isIntroActive = false
 
@@ -89,6 +123,50 @@ function Game({
 
   const handleFurnitureProximity = (furnitureId, isNear) => {
     setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
+  }
+
+  // IKEA level (placeholder until the stage 2 environment, Rasmus and kiosk land)
+  if (isIkeaLevel) {
+    const ikeaPhase = gameState.ikeaPhase
+    return (
+      <>
+        <Canvas
+          shadows
+          dpr={CANVAS_DPR}
+          frameloop={CANVAS_FRAMELOOP}
+          gl={CANVAS_GL}
+          onCreated={onCanvasCreated}
+          camera={{ fov: 75, position: PLAYER_START }}
+        >
+          <Lighting variant="classroom" />
+          <Suspense fallback={null}>
+            <IkeaPlaceholder progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS} />
+            {ikeaPhase === 'intro' ? (
+              <IkeaIntroCamera />
+            ) : (
+              <Player
+                mobileMovement={mobileMovement}
+                mobileRotation={mobileRotation}
+                isLocked={true}
+                startPosition={PLAYER_START}
+                startYaw={PLAYER_START_YAW}
+              />
+            )}
+            <TestModeProbe />
+          </Suspense>
+          <HorrorEffects />
+        </Canvas>
+        {ikeaPhase === 'ordering' && (
+          <button
+            className="restart-btn"
+            style={{ position: 'fixed', bottom: '18%', left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}
+            onClick={onIkeaOrderComplete}
+          >
+            Beställ
+          </button>
+        )}
+      </>
+    )
   }
 
   // Classroom level
