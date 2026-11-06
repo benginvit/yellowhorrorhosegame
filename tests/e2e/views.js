@@ -1,5 +1,5 @@
 // Fixed camera poses for the screenshot diffs (frozen, seed=1).
-// level 1 = outdoors with the house (z = -25), level 3 = classroom ("seated" intro phase).
+// level 1 = outdoors with the house (z = -25), level 3 = classroom ("seated" intro phase), level 4 = IKEA ("phase": ordering = fixed player pose, default intro = the kitchen intro shot).
 // yaw: radians, + = turn left (0 = facing -z).
 export const VIEWS = [
   { name: 'house-front', level: 1, x: 0, z: 15, yaw: 0 },
@@ -7,6 +7,8 @@ export const VIEWS = [
   { name: 'house-door', level: 1, x: 0, z: -6, yaw: 0 },
   { name: 'classroom-start', level: 3, x: 0, z: 2, yaw: 0 },
   { name: 'classroom-left', level: 3, x: -6, z: 4, yaw: -0.5 },
+  { name: 'ikea-kiosk', level: 4, phase: 'ordering', x: 0, z: 3, yaw: 0 },
+  { name: 'ikea-kitchen', level: 4, x: -8, z: -6, yaw: 0 }, // intro phase: the camera is the fixed intro shot
 ]
 
 // Lighting checks (lighting.spec.js). Luma = Rec. 709, 0-255, of the canvas
@@ -17,6 +19,7 @@ export const LIGHT_VIEWS = [
   { name: 'outdoor-door', level: 1, x: 0, z: -6, yaw: 0, flicker: true },
   { name: 'outdoor-key', level: 1, x: 2, z: 0, yaw: -0.45 },
   { name: 'classroom-start', level: 3, x: 0, z: 2, yaw: 0, shadowScene: 'classroom', flicker: true },
+  { name: 'ikea-kiosk', level: 4, phase: 'ordering', x: 0, z: 3, yaw: 0, shadowScene: 'ikea', flicker: true },
   { name: 'house-interior', level: 2, inside: true, x: 0, z: -14, yaw: 0, shadowScene: 'house interior', flicker: true },
 ]
 

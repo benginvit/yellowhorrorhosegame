@@ -7,7 +7,7 @@ import { VIEWS } from './views.js'
 // later runs compare against it (see README).
 async function capture(page, view) {
   await replayCdnFonts(page)
-  await openFrozen(page, { level: view.level })
+  await openFrozen(page, { level: view.level, phase: view.phase })
   await setView(page, view)
   await waitTextSynced(page)
   await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 1 / 60)) // render with text
