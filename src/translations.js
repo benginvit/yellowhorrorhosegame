@@ -21,7 +21,6 @@ export const translations = {
     statusHidden: 'GÖMD!',
     statusVisible: 'SYNLIG!',
     enterHouseQuietly: 'Gå in i huset tyst...',
-    enterHouseQuietly: 'Gå in i huset tyst...',
 
     // IKEA level
     ikeaOrderNow: 'BESTÄLL! SNABBT!',
@@ -87,7 +86,6 @@ export const translations = {
     hideTimer: 'Hide Timer',
     statusHidden: 'HIDDEN!',
     statusVisible: 'VISIBLE!',
-    enterHouseQuietly: 'Enter the house quietly...',
     enterHouseQuietly: 'Enter the house quietly...',
 
     // IKEA level

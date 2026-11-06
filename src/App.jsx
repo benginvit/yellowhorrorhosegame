@@ -26,7 +26,8 @@ const INITIAL_STATE = {
   levelComplete: false,
   classroomIntroPhase: null, // null | 'seated' | 'shots' | 'panic' | 'active'
   ikeaPhase: null, // null | 'intro' | 'ordering' | 'won' | 'lost'
-  ikeaTimeLeft: IKEA_ORDER_SECONDS
+  ikeaTimeLeft: IKEA_ORDER_SECONDS,
+  ikeaLookingBack: false // the player looks back at Rasmus (order paused, countdown continues)
 }
 
 function App() {
@@ -140,10 +141,6 @@ function App() {
 
     if (phase === 'ordering') {
       playVoiceRecording('Rasmus', 'kottbullar', language)
-      const half = setTimer(
-        () => playVoiceRecording('Rasmus', 'kottbullar', language),
-        (IKEA_ORDER_SECONDS / 2) * 1000
-      )
       const tick = setTimerInterval(() => {
         setGameState(prev => {
           if (prev.ikeaPhase !== 'ordering') return prev
@@ -152,14 +149,10 @@ function App() {
           return { ...prev, ikeaTimeLeft: 0, ikeaPhase: 'lost', health: 0, gameOver: true, isPlaying: false }
         })
       }, IKEA_TICK_MS)
-      return () => {
-        clearTimer(half)
-        clearTimerInterval(tick)
-      }
+      return () => clearTimerInterval(tick)
     }
 
     if (phase === 'won') {
-      fadeOutMusic()
       const t = setTimer(() => {
         setGameState(prev => (prev.ikeaPhase === 'won' ? { ...prev, levelComplete: true } : prev))
       }, IKEA_WON_MS)
@@ -168,6 +161,13 @@ function App() {
 
     return undefined
   }, [gameState.isPlaying, gameState.ikeaPhase, language])
+
+  // Second "Köttbullar..." at 50 % progress
+  useEffect(() => {
+    if (gameState.ikeaPhase === 'ordering' && gameState.ikeaTimeLeft === IKEA_ORDER_SECONDS / 2) {
+      playVoiceRecording('Rasmus', 'kottbullar', language)
+    }
+  }, [gameState.ikeaPhase, gameState.ikeaTimeLeft, language])
 
   // Rasmus reached the player: existing jumpscare / game over path
   useEffect(() => {
@@ -215,7 +215,8 @@ function App() {
       levelComplete: false,
       classroomIntroPhase: isKerstinNext ? 'seated' : null,
       ikeaPhase: isRasmusNext ? 'intro' : null,
-      ikeaTimeLeft: IKEA_ORDER_SECONDS
+      ikeaTimeLeft: IKEA_ORDER_SECONDS,
+      ikeaLookingBack: false
     }
   }
 
@@ -228,8 +229,14 @@ function App() {
   }
 
   const completeIkeaOrder = useCallback(() => {
-    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaPhase: 'won' } : prev))
+    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaPhase: 'won', ikeaLookingBack: false } : prev))
   }, [])
+
+  const setIkeaLookingBack = useCallback((looking) => {
+    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaLookingBack: looking } : prev))
+  }, [])
+
+  const hideJumpscare = useCallback(() => setShowJumpscare(false), [])
 
   const collectKey = useCallback(() => {
     setGameState(prev => ({ ...prev, hasKey: true }))
@@ -337,6 +344,7 @@ function App() {
             onEnterHouse={enterHouse}
             onSetHiding={setHiding}
             onIkeaOrderComplete={completeIkeaOrder}
+            onIkeaLookBack={setIkeaLookingBack}
             onWakeAstrid={wakeAstrid}
             onUpdateHideTimer={updateHideTimer}
             mobileMovement={mobileMovement}
@@ -567,7 +575,7 @@ function App() {
       {showJumpscare && (
         <Jumpscare
           characterName={currentLevel?.name}
-          onComplete={() => setShowJumpscare(false)}
+          onComplete={hideJumpscare}
         />
       )}
 
