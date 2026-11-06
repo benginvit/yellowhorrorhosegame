@@ -857,3 +857,28 @@ export const stopAllSounds = () => {
     audioContext = null
   }
 }
+
+// Footstep for Rasmus. volume 0..1, pan -1 (left) .. 1 (right) relative to the listener.
+export const playFootstepSound = (volume = 0.2, pan = 0) => {
+  const ctx = getAudioContext()
+  const now = ctx.currentTime
+
+  const osc = ctx.createOscillator()
+  const gainNode = ctx.createGain()
+  const panner = ctx.createStereoPanner()
+
+  osc.connect(gainNode)
+  gainNode.connect(panner)
+  panner.connect(ctx.destination)
+
+  osc.type = 'triangle'
+  osc.frequency.setValueAtTime(110, now)
+  osc.frequency.exponentialRampToValueAtTime(45, now + 0.12)
+  panner.pan.value = Math.max(-1, Math.min(1, pan))
+
+  gainNode.gain.setValueAtTime(Math.max(0.001, volume), now)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.14)
+
+  osc.start(now)
+  osc.stop(now + 0.14)
+}

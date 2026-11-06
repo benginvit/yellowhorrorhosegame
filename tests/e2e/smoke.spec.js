@@ -189,3 +189,35 @@ test.describe('smoke (touch)', () => {
     expectNoErrors(errors)
   })
 })
+
+test.describe('Rasmus', () => {
+  test('IKEA (level 4) Rasmus walks closer to the kiosk while ordering (frozen clock)', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4 })
+    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 60, 1 / 60), s)
+    // Distance from Rasmus' group (named "rasmus") to the kiosk at the origin.
+    const distance = () =>
+      page.evaluate(() => {
+        const p = window.__YHH_TEST_MODE__.scene.getObjectByName('rasmus').position
+        return Math.hypot(p.x, p.z)
+      })
+
+    const atStart = await distance() // intro: at the knife shelf
+    // React commits the new ikeaTimeLeft between evaluate() calls, so let it settle (and the visual position ease) with a second advance.
+    const advanceAndSettle = async (s) => {
+      await advanceSeconds(s)
+      await advanceSeconds(1)
+    }
+
+    await advanceAndSettle(8.5) // ordering starts, countdown at 40 s
+    const ordering = await distance()
+    await advanceAndSettle(10)
+    const later = await distance()
+    expect(later).toBeLessThan(ordering - 2)
+    await advanceAndSettle(10)
+    expect(await distance()).toBeLessThan(later - 2)
+    expectNoErrors(errors)
+  })
+})
