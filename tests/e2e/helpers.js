@@ -11,6 +11,9 @@ export function trackErrors(page) {
   const errors = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`)
+    // Chrome loses the oldest WebGL context once ~16 are alive. The test build leaves
+    // unmounted Canvases to garbage collection (testMode.js), so count this as an error.
+    if (msg.type() === 'warning' && /Too many active WebGL contexts/.test(msg.text())) errors.push(`console.warning: ${msg.text()}`)
   })
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`))
   return errors

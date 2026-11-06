@@ -5,12 +5,15 @@ import { getTranslation } from '../translations'
 
 // Mounted in <body> so the buttons sit above the canvas wrapper and the mobile controls.
 const bodyPortal = { current: document.body }
-// Stacking contract (z-index, see index.css): mobile controls 900 < kiosk 901-950 <
-// .ui-overlay 1000 (HUD, victory and game-over screens). Above the touch areas so the
-// buttons can be tapped, below the UI overlay so the victory screen of a won order (and
-// a game-over screen) is always clickable: with the kiosk on top, its "order done" panel
-// covered the continue button whenever the two overlapped (BENG-91).
-const KIOSK_Z_RANGE = [950, 901]
+// Stacking contract (z-index, see index.css): mobile controls 900 < .ui-overlay 1000
+// (HUD, instructions, victory and game-over screens). While the order is in progress
+// the kiosk sits ABOVE the UI overlay (KIOSK_Z_ORDERING, as before: the instructions
+// text must not draw over the panel, and nothing in the overlay is clickable then).
+// Once the order is done ('won') it drops BELOW the overlay (KIOSK_Z_DONE), so the
+// victory screen that follows always gets the click: on top, the "order done" panel
+// intercepted it whenever the two overlapped (BENG-91).
+const KIOSK_Z_ORDERING = [100000, 50000]
+const KIOSK_Z_DONE = [950, 901]
 const overlay = { pointerEvents: 'none' }
 const lookBackButton = { position: 'absolute', left: '50%', bottom: '3%', transform: 'translateX(-50%)', pointerEvents: 'auto' }
 const panelStyle = {
@@ -129,11 +132,12 @@ function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, 
   }, [ordering, onLookBack])
 
   // drei only sets the wrapper's z-index (within zIndexRange) once the projected position changes, which
-  // never happens for a fixed kiosk (and not at all on a frozen clock): set it up front so the buttons sit
-  // above the mobile controls. Relies on drei Html's DOM structure: wrapper > inner div (styles) > children.
-  // Re-check it when upgrading drei.
+  // never happens for a fixed kiosk (and not at all on a frozen clock): set it from a marker element
+  // instead, keyed on the phase so it is applied again when the range changes. Relies on drei Html's DOM
+  // structure: wrapper > inner div (styles) > children. Re-check it when upgrading drei.
+  const zRange = ordering ? KIOSK_Z_ORDERING : KIOSK_Z_DONE
   const raiseWrapper = (el) => {
-    if (el) el.parentElement.parentElement.style.zIndex = String(KIOSK_Z_RANGE[0])
+    if (el) el.parentElement.parentElement.style.zIndex = String(zRange[0])
   }
 
   const btn = (testId, label, onClick, { disabled = false, small = false } = {}) => (
@@ -252,8 +256,8 @@ function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, 
   return (
     <>
       {(ordering || ikeaPhase === 'won') && (
-        <Html fullscreen portal={bodyPortal} zIndexRange={KIOSK_Z_RANGE} style={overlay}>
-          <div ref={raiseWrapper} />
+        <Html fullscreen portal={bodyPortal} zIndexRange={zRange} style={overlay}>
+          <div key={ordering ? 'ordering' : 'done'} ref={raiseWrapper} />
           {ikeaPhase === 'won' ? (
             <div style={donePanelStyle}>
               <h2 style={title} data-testid="ikea-done">{t('ikeaOrderDone')}</h2>

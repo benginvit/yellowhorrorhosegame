@@ -44,21 +44,31 @@
 //                 while no Canvas is live
 //   emit(type)    fire a sound event ('hit', 'jumpscare', 'astrid'): light dip, particle burst
 //
+// Software GL and the frozen clock (BENG-91): the e2e suite renders on
+// SwiftShader, which executes GPU work asynchronously and far slower than
+// advance() can issue frames (~40 ms per house-interior frame on a 16-core box,
+// ~100 ms on the CI runner, against ~1 ms of JS). Without a sync point the queued
+// GPU work piles up - 1452 frames leave tens of seconds of it - and every later
+// wait on the GPU stalls until the pile drains: R3F's forced context loss 500 ms
+// after a Canvas unmounts (a synchronous call: the page's main thread blocked for
+// the whole remaining backlog, 13-23 s here, >= 52 s on the CI runner where the
+// test timed out, ~4 s on a faster box), the compositor's next frame (no
+// requestAnimationFrame), the page close (so the NEXT test in the worker started
+// 5-10 s late). advance() therefore reads one pixel back every SYNC_EVERY_FRAMES
+// frames, which waits for the frames so far: the backlog is bounded (~0.3 s here,
+// a few seconds on CI) and the GPU time is paid inside advance() instead of as a
+// stall somewhere else - the total does not grow. Test builds additionally skip
+// the forced context loss, so the main thread never waits on the old context at
+// all; garbage collection releases it asynchronously. Prod builds are unchanged.
+//
 // Canvas remount (game over -> restart, classroom -> IKEA, IKEA -> Selma): gl,
 // camera and scene always belong to the live Canvas, which the probe's cleanup
 // retires. The frozen test clock is global: advance() keeps moving it (so the
 // next level's start-pose timers fire) even in the moment between the old Canvas
 // retiring and the next one's onCreated, which a test stepping through a level
-// change relies on. R3F force-loses the old WebGL context
-// (WEBGL_lose_context.loseContext) 500 ms after a Canvas unmounts. On the software
-// GL stack the e2e suite runs on (SwiftShader) that one synchronous call blocks
-// the page's main thread for 10-25 s locally and 50+ s on the CI runner: no
-// requestAnimationFrame, no evaluate(), no clicks, so whatever a test does at that
-// moment looks hung (BENG-91). Test builds therefore skip the forced loss and let
-// garbage collection release the old context: that destruction is asynchronous
-// and never blocks the main thread (measured: no stall at all, and the page-close
-// cost is the same as before). Prod builds are unchanged (R3F's default loss on
-// unmount).
+// change relies on. setTime(t) is absolute on the live Canvas' R3F clock, and
+// between Canvases there is no such clock, so it does nothing then; advance()
+// is a relative step and can move the global clock on its own.
 //
 // Timers: game code that must follow the test clock uses setTimer / clearTimer /
 // setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
@@ -108,11 +118,14 @@ let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
-// Test builds only (see "Canvas remount" above): unsubscribe of the current Canvas'
-// per-frame gl.info reset.
+// Test builds only (see "Software GL and the frozen clock" above): unsubscribe of
+// the current Canvas' per-frame gl.info reset.
 let unsubscribeInfoReset = null
 // R3F state of the live Canvas (test builds, ?freeze=1): what advance()/setTime() drive.
 let liveState = null
+// GPU sync interval of advance() in frames (see above). 16 frames keep the backlog
+// at ~0.3 s here / a few seconds on CI; syncing every frame costs ~15 % more.
+const SYNC_EVERY_FRAMES = 16
 
 if (import.meta.env.VITE_TEST_MODE === '1') {
   const params = new URLSearchParams(window.location.search)
@@ -181,9 +194,23 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     // change the next Canvas' onCreated can land a moment after the old one retired, and a
     // test that steps the clock right through the change (ikea.spec.js level chain) needs
     // the new level's start-pose timers to keep counting in that window.
+    const syncPixel = new Uint8Array(4)
+    let framesSinceSync = 0
+    // Waits for the frames issued so far (a readback is the only blocking GPU wait
+    // WebGL offers; finish() does not block in Chrome).
+    const syncGpu = (gl) => {
+      const ctx = gl.getContext()
+      ctx.readPixels(0, 0, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, syncPixel)
+    }
     window.__YHH_TEST_MODE__.advance = (frames = 1, dt = 1 / 60) => {
       for (let i = 0; i < frames; i++) {
-        if (liveState) liveState.advance(liveState.clock.elapsedTime + dt)
+        if (liveState) {
+          liveState.advance(liveState.clock.elapsedTime + dt)
+          if (++framesSinceSync >= SYNC_EVERY_FRAMES) {
+            framesSinceSync = 0
+            syncGpu(liveState.gl)
+          }
+        }
         virtualTimers.tick(dt * 1000)
       }
       return liveState !== null
@@ -329,9 +356,9 @@ export function onCanvasCreated(state) {
     api.scene = state.scene
     api.ready = false
 
-    // See "Canvas remount" above: R3F calls this 500 ms after the Canvas unmounts,
-    // and on SwiftShader the forced loss blocks the main thread for 10-50 s. The
-    // old context is left to garbage collection instead.
+    // See "Software GL and the frozen clock" above: R3F calls this 500 ms after the
+    // Canvas unmounts and it blocks the main thread for as long as the GPU backlog
+    // takes to drain. The old context is left to garbage collection instead.
     state.gl.forceContextLoss = () => {}
 
     // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep
