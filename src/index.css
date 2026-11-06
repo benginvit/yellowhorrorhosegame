@@ -75,6 +75,50 @@ canvas {
   box-shadow: 0 6px 25px rgba(255, 165, 0, 0.6);
 }
 
+/* Staging level picker (only rendered with VITE_LEVEL_SELECT=1) */
+.level-select {
+  margin-top: 28px;
+  padding: 12px 14px;
+  border: 2px dashed #ff5252;
+  border-radius: 8px;
+  background: rgba(255, 82, 82, 0.08);
+}
+
+.level-select-label {
+  color: #ff5252;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.level-select-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.level-select-btn {
+  background: #222;
+  color: #ffeb3b;
+  border: 1px solid #ffa500;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 44px; /* touch target */
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.level-select-btn:hover,
+.level-select-btn:active {
+  background: #ffa500;
+  color: #000;
+}
+
 .game-hud {
   position: absolute;
   top: 20px;
@@ -267,6 +311,20 @@ canvas {
   .start-btn {
     padding: 14px 35px;
     font-size: 18px;
+  }
+
+  .level-select {
+    margin-top: 18px;
+    padding: 10px;
+  }
+
+  .level-select-label {
+    font-size: 12px;
+  }
+
+  .level-select-btn {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 
   .game-hud {

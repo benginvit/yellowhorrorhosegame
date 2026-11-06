@@ -176,13 +176,15 @@ function App() {
     }
   }, [gameState.ikeaPhase])
 
-  const startGame = () => {
+  // `level` comes from the staging level buttons (UI.jsx); without it the URL's
+  // ?level=N applies (test / level-select builds) or the game starts on level 1.
+  const startGame = (level) => {
     initAudio()
     if (language) preloadAudioFiles(language)
 
     setGameState({
       ...INITIAL_STATE,
-      ...getStartOverrides(),
+      ...getStartOverrides(levels, level),
       isPlaying: true,
     })
   }

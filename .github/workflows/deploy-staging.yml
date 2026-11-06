@@ -38,6 +38,7 @@ jobs:
           push: true
           build-args: |
             STAGING=true
+            VITE_LEVEL_SELECT=1
           tags: |
             ${{ env.IMAGE_NAME }}:staging
             ${{ env.IMAGE_NAME }}:staging-${{ github.sha }}

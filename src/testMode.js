@@ -6,6 +6,10 @@
 // __YHH_TEST_MODE__ marker string. Do NOT hoist the check into a variable or
 // reference test-only strings outside of such a block.
 //
+// Level start (?level=N, ?inside=1) is NOT test-only: it is also read in a build
+// with VITE_LEVEL_SELECT=1 (staging, see "Level select" below). Seed, freeze and
+// the test probes stay behind VITE_TEST_MODE.
+//
 // Query params (only read in test builds):
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
@@ -41,6 +45,15 @@
 // not in any start pose): blood splatter (App.jsx, BloodSplatter.jsx), the success
 // voice line (App.jsx), Jumpscare.jsx, cat meows (Character.jsx, Math.random).
 // IS_FROZEN is true only with ?freeze=1 (test builds).
+//
+// Level select (VITE_LEVEL_SELECT=1, staging builds only; never prod): enables
+// ?level=N (and ?inside=1) plus the level buttons on the start screen (UI.jsx),
+// nothing else: no seed, no frozen clock, no test API. The game plays like prod.
+// The __YHH_LEVEL_SELECT__ marker string lives only inside the
+// `if (import.meta.env.VITE_LEVEL_SELECT === '1')` gates (here and in UI.jsx) so a
+// prod build drops it; scripts/check-prod-bundle.sh fails the prod build otherwise.
+//   ?level=N    start at level N (1..levels.length) when "Start" is pressed
+//   ?inside=1   with Astrid's level: start inside the house
 
 import { useEffect } from 'react'
 import { emitSoundEvent } from './utils/sounds'
@@ -62,9 +75,10 @@ let frameloop = 'always'
 let frozen = false
 // Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
 let virtualTimers = null
-// Test-only start overrides merged into the game state when "Start" is pressed
-// (?level=<1-7>, ?inside=1 for the Astrid house interior). null in prod builds.
-let startOverrides = null
+// Level start requested in the URL (?level=N, ?inside=1), read in test builds and
+// level-select builds. null in prod builds and when ?level is absent/invalid; the
+// range check against the level list happens in getStartOverrides().
+let levelRequest = null
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
@@ -77,15 +91,6 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
 
   source = mulberry32(seed)
 
-  const level = parseInt(params.get('level') ?? '', 10)
-  if (level >= 1 && level <= 7) {
-    startOverrides = { currentLevel: level }
-    // Level 3 is the classroom; its intro starts in the 'seated' phase.
-    if (level === 3) startOverrides.classroomIntroPhase = 'seated'
-    // Level 4 is IKEA (Rasmus); it starts in the 'intro' phase.
-    if (level === 4) startOverrides.ikeaPhase = 'intro'
-    if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
-  }
   if (freeze) {
     frameloop = 'never'
     frozen = true
@@ -165,11 +170,38 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   }
 }
 
+// Shared level start: test builds and level-select (staging) builds. Both operands
+// are build-time literals, so a prod build drops this block.
+if (import.meta.env.VITE_TEST_MODE === '1' || import.meta.env.VITE_LEVEL_SELECT === '1') {
+  const params = new URLSearchParams(window.location.search)
+  const level = parseInt(params.get('level') ?? '', 10)
+  if (level >= 1) levelRequest = { level, inside: params.get('inside') === '1' }
+}
+
+if (import.meta.env.VITE_LEVEL_SELECT === '1') {
+  // Marker for scripts/check-prod-bundle.sh; also lets e2e tell the build apart.
+  window.__YHH_LEVEL_SELECT__ = true
+}
+
 export { TestModeProbe }
 
-/** Extra game state applied on Start (test builds only, else {}). */
-export function getStartOverrides() {
-  return startOverrides ?? {}
+/**
+ * Game state applied on top of INITIAL_STATE when the game starts at a level:
+ * currentLevel plus that level's start phase, chosen by level NAME (Kerstin ->
+ * classroom intro 'seated', Rasmus -> IKEA 'intro'; Astrid + ?inside=1 -> inside
+ * the house). `level` defaults to the URL's ?level=N (test / level-select builds);
+ * the start-screen level buttons pass it explicitly. Values outside
+ * 1..levels.length (and prod builds, where ?level is never read) give {} so the
+ * game starts on level 1.
+ */
+export function getStartOverrides(levels, level = levelRequest?.level) {
+  if (!Number.isInteger(level) || level < 1 || level > levels.length) return {}
+  const overrides = { currentLevel: level }
+  const name = levels[level - 1]?.name
+  if (name === 'Kerstin') overrides.classroomIntroPhase = 'seated'
+  if (name === 'Rasmus') overrides.ikeaPhase = 'intro'
+  if (name === 'Astrid' && levelRequest?.inside && level === levelRequest.level) overrides.isInsideHouse = true
+  return overrides
 }
 
 /** Drop-in replacement for Math.random() where it affects visuals/animation. */
