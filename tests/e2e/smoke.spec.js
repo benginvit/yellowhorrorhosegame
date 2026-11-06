@@ -59,11 +59,12 @@ test.describe('smoke', () => {
   })
 
   test('IKEA (level 4) phase flow intro -> ordering -> lost on the frozen clock', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // 40+ s of advance() at 60 fps is slow on software rendering
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4 })
-    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 60, 1 / 60), s)
+    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 20, 1 / 20), s) // coarse dt: the heavy IKEA scene renders slowly on software GL
 
     await expect(page.locator('.hud-item').first()).toContainText('Rasmus')
     await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro
@@ -90,6 +91,7 @@ test.describe('smoke', () => {
   })
 
   test('IKEA (level 4) win path: order -> level complete -> Selma (level 5)', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // 40+ s of advance() at 60 fps is slow on software rendering
     test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
     const errors = trackErrors(page)
     await replayCdnFonts(page)

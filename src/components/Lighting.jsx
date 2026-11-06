@@ -98,7 +98,7 @@ export const IKEA_LIGHTING = {
     intensity: 0.5,
     position: [10, 20, 8],
     castShadow: true,
-    shadowMapSize: [2048, 2048],
+    shadowMapSize: [1024, 1024],
     shadowCamera: 32,
   },
   fog: { color: '#b9c4d2', near: 30, far: 80 },

@@ -63,9 +63,10 @@ function Instanced({ geometry, placements, color, castShadow = false }) {
 const TABLE_LENGTH = 2.4
 // Long tables in rows on the restaurant side (x > 2), each with chairs on both long sides.
 const TABLE_SPOTS = []
-for (const x of [5, 9]) for (const z of [-13, -9, -5, -1, 6]) TABLE_SPOTS.push([x, z])
-// Rasmus sits at RASMUS_SEAT_POS when the order is complete: a table next to his seat.
-TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + 1.3, RASMUS_SEAT_POS[2]])
+for (const x of [5, 9]) for (const z of [-13, -9, -5, -1, 6]) if (!(x === 5 && z === -1)) TABLE_SPOTS.push([x, z]) // (5, -1) would touch Rasmus' table
+// Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is 0.85 to the right of the seat,
+// so the chair filter below removes the chair at the seat itself.
+TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + 0.85, RASMUS_SEAT_POS[2]])
 // Tables run along z; chairs sit on both sides in x.
 const TABLES = TABLE_SPOTS.map(([x, z]) => [x, z, Math.PI / 2])
 const CHAIRS = TABLE_SPOTS.flatMap(([x, z]) => {
