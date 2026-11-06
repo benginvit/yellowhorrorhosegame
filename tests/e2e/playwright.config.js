@@ -59,7 +59,7 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: 'test', use: { baseURL: TEST_URL }, testMatch: ['smoke.spec.js', 'visual.spec.js', 'perf.spec.js', 'lighting.spec.js', 'lighting-baseline.spec.js', 'determinism.spec.js', 'dust.spec.js', 'ash.spec.js', 'particles.spec.js'] },
+    { name: 'test', use: { baseURL: TEST_URL }, testMatch: ['smoke.spec.js', 'visual.spec.js', 'perf.spec.js', 'lighting.spec.js', 'lighting-baseline.spec.js', 'determinism.spec.js', 'dust.spec.js', 'ash.spec.js', 'particles.spec.js', 'ikea.spec.js'] },
     { name: 'prod', use: { baseURL: PROD_URL }, testMatch: ['smoke.spec.js', 'prod-check.spec.js'] },
     // Staging build (VITE_LEVEL_SELECT=1): level picker + ?level=N, otherwise prod behaviour.
     { name: 'staging', use: { baseURL: STAGING_URL }, testMatch: ['smoke.spec.js', 'level-select.spec.js'] },

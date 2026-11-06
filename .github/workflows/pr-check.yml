@@ -113,6 +113,11 @@ jobs:
             baselines: true
             retries: 1
             args: --project=test visual.spec.js lighting.spec.js lighting-baseline.spec.js smoke.spec.js dust.spec.js ash.spec.js particles.spec.js
+          # IKEA level flows (frozen clock, 40 s of software-GL frames): own shard so the visual shard stays short.
+          - name: ikea
+            baselines: false
+            retries: 0
+            args: --project=test ikea.spec.js
           - name: prod
             baselines: false
             retries: 1
