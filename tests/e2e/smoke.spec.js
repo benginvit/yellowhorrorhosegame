@@ -36,4 +36,44 @@ test.describe('smoke', () => {
     expect(info, 'classroom should issue many draw calls').toBeGreaterThan(30)
     expectNoErrors(errors)
   })
+
+  test('IKEA (level 4) renders without errors', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4 })
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1))
+    expect(await canvasColourCount(page)).toBeGreaterThan(20)
+    expectNoErrors(errors)
+  })
+
+  test('IKEA (level 4) phases: intro -> ordering -> lost, and won -> Selma', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4 })
+    const step = async (sec) => {
+      await page.evaluate((s) => window.__YHH_TEST_MODE__.advance(Math.round(s * 10), 0.1), sec)
+      await page.waitForTimeout(50) // let React flush
+    }
+    const pay = page.getByTestId('ikea-pay')
+    await expect(pay).toHaveCount(0)
+    await step(7.5)
+    await expect(pay).toHaveCount(0)
+    await step(0.6)
+    await expect(pay).toHaveCount(1)
+    await step(39)
+    await expect(page.locator('.game-over-screen')).toHaveCount(0)
+    await step(1.5)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+
+    // Won path
+    await openFrozen(page, { level: 4 })
+    await step(8.5)
+    await pay.click()
+    await expect(page.locator('.victory-screen')).toHaveCount(0)
+    await step(6.5)
+    await expect(page.locator('.victory-screen')).toBeVisible()
+    await page.locator('.victory-screen .restart-btn').click()
+    await expect(page.locator('.victory-screen')).toHaveCount(0)
+  })
 })

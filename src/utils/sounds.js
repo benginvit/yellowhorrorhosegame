@@ -54,7 +54,8 @@ export const preloadAudioFiles = (language = 'sv') => {
   // List of audio files to preload
   const filesToPreload = [
     { character: 'Astrid', actions: ['wake', 'failed', 'success', 'snoring'] },
-    { character: 'Molltas', actions: ['meow'] }
+    { character: 'Molltas', actions: ['meow'] },
+    { character: 'Rasmus', actions: ['kottbullar'] }
   ]
 
   preloadedAudio = {}

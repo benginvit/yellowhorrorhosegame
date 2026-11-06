@@ -11,6 +11,7 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
+import IkeaRestaurant from './IkeaRestaurant'
 import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
 import Dust from './particles/Dust'
 import Ash from './particles/Ash'
@@ -22,6 +23,8 @@ import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated
 
 const CLASSROOM_START = [0, 1.6, 2]
 const CLASSROOM_START_YAW = 0
+const IKEA_START = [0, 1.6, 4]
+const IKEA_START_YAW = 0
 
 function Game({
   gameState,
@@ -34,6 +37,7 @@ function Game({
   onSetHiding,
   onWakeAstrid,
   onUpdateHideTimer,
+  onIkeaLookBack, // eslint-disable-line no-unused-vars -- consumed by the stage 2 scene
   mobileMovement,
   mobileRotation
 }) {
@@ -43,6 +47,7 @@ function Game({
 
   const isAstridLevel = level.name === 'Astrid'
   const isKerstinLevel = level.name === 'Kerstin'
+  const isIkeaLevel = level.name === 'Rasmus'
   const classroomIntroPhase = gameState.classroomIntroPhase
   const isIntroActive = false
 
@@ -89,6 +94,38 @@ function Game({
 
   const handleFurnitureProximity = (furnitureId, isNear) => {
     setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
+  }
+
+  // IKEA level (Rasmus): no chase, no Character
+  if (isIkeaLevel) {
+    return (
+      <Canvas
+        shadows
+        dpr={CANVAS_DPR}
+        frameloop={CANVAS_FRAMELOOP}
+        gl={CANVAS_GL}
+        onCreated={onCanvasCreated}
+        camera={{ fov: 75, position: IKEA_START }}
+      >
+        <Lighting variant="classroom" />
+        <Suspense fallback={null}>
+          <IkeaRestaurant
+            ikeaPhase={gameState.ikeaPhase}
+            ikeaTimeLeft={gameState.ikeaTimeLeft}
+            ikeaLookingBack={gameState.ikeaLookingBack}
+          />
+          <Player
+            mobileMovement={mobileMovement}
+            mobileRotation={mobileRotation}
+            startPosition={IKEA_START}
+            startYaw={IKEA_START_YAW}
+            inClassroom={true}
+          />
+          <TestModeProbe />
+        </Suspense>
+        <HorrorEffects />
+      </Canvas>
+    )
   }
 
   // Classroom level

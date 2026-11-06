@@ -10,17 +10,18 @@ Navigera genom 6 successivt svårare nivåer i ett gult tegelhus med orange tak.
 
 1. **Level 1: Molltas** - Vit katt (Hastighet: 1.5)
 2. **Level 2: Astrid** - 13 år (Hastighet: 1.8)
-3. **Level 3: Selma** - 11 år (Hastighet: 2.0)
-4. **Level 4: Kerstin** - 13 år (Hastighet: 2.3)
-5. **Level 5: Mamma** - 46 år (Hastighet: 2.6)
-6. **Level 6: Pappa** - 48 år (Hastighet: 3.0)
+3. **Level 3: Kerstin** - 13 år, klassrummet (Hastighet: 2.3)
+4. **Level 4: Rasmus** - IKEA, beställ köttbullar på 40 s (ingen jakt)
+5. **Level 5: Selma** - 11 år (Hastighet: 2.0)
+6. **Level 6: Maria** - 46 år (Hastighet: 2.6)
+7. **Level 7: Pappa** - 48 år (Hastighet: 3.0)
 
 ## 🎯 Spelets Mål
 
 - Hitta den gyllene nyckeln i varje nivå
 - Undvik karaktären som jagar dig
 - Nå dörren när du har nyckeln för att gå vidare till nästa nivå
-- Klara alla 6 nivåer för att vinna!
+- Klara alla 7 nivåer för att vinna!
 
 ## 🕹️ Kontroller
 
@@ -176,7 +177,7 @@ yellowhorrorhosegame/
 2. **Dörr-interaktion**: Närma dig dörren med nyckeln för att gå vidare
 3. **Fiendeförföljelse**: Karaktärer följer alltid spelaren och blir snabbare för varje nivå
 4. **Hälsosystem**: Tar skada när du är nära karaktären, Game Over vid 0 hälsa
-5. **Level-progression**: 6 nivåer med ökande svårighetsgrad
+5. **Level-progression**: 7 nivåer med ökande svårighetsgrad
 
 ## 🐛 Kända Problem
 

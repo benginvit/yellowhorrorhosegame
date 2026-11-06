@@ -32,6 +32,7 @@ export const translations = {
     levelCompleteAstrid: '🎉 DU GÖMDE DIG! 🎉',
     levelCompleteSelma: '⭐ FANTASTISKT! ⭐',
     levelCompleteKerstin: '💪 BRA JOBBAT! 💪',
+    levelCompleteRasmus: '🍝 16 KÖTTBULLAR LEVERERADE! 🍝',
     levelCompleteMaria: '🏆 HÄLFTEN KLAR! 🏆',
     levelCompletePappa: '👑 MÄSTARE! 👑',
 
@@ -39,6 +40,7 @@ export const translations = {
     levelCompleteDescAstrid: 'Du lyckades gömma dig från Astrid!',
     levelCompleteDescSelma: 'Selma kunde inte hitta dig!',
     levelCompleteDescKerstin: 'Du var snabbare än Kerstin!',
+    levelCompleteDescRasmus: 'Rasmus var bara hungrig.',
     levelCompleteDescMaria: 'Maria kunde inte stoppa dig!',
     levelCompleteDescPappa: 'Du klarade den svåraste nivån!',
 
@@ -92,6 +94,7 @@ export const translations = {
     levelCompleteAstrid: '🎉 YOU HID SUCCESSFULLY! 🎉',
     levelCompleteSelma: '⭐ AMAZING! ⭐',
     levelCompleteKerstin: '💪 WELL DONE! 💪',
+    levelCompleteRasmus: '🍝 16 MEATBALLS DELIVERED! 🍝',
     levelCompleteMaria: '🏆 HALFWAY THERE! 🏆',
     levelCompletePappa: '👑 MASTER! 👑',
 
@@ -99,6 +102,7 @@ export const translations = {
     levelCompleteDescAstrid: 'You successfully hid from Astrid!',
     levelCompleteDescSelma: 'Selma couldn\'t find you!',
     levelCompleteDescKerstin: 'You were faster than Kerstin!',
+    levelCompleteDescRasmus: 'Rasmus was just hungry.',
     levelCompleteDescMaria: 'Maria couldn\'t stop you!',
     levelCompleteDescPappa: 'You beat the hardest level!',
 

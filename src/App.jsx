@@ -4,8 +4,14 @@ import { getStartOverrides, setTimer, clearTimer } from './testMode'
 import UI from './components/UI'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
+import IkeaKiosk from './components/IkeaKiosk'
 import MobileControls from './components/MobileControls'
 import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playMachineGunSound, playScreamSound, emitSoundEvent } from './utils/sounds'
+
+const IKEA_INTRO_MS = 8000
+const IKEA_WIN_MS = 6000
+const IKEA_TICK_MS = 100
+const IKEA_ORDER_SECONDS = 40
 
 const INITIAL_STATE = {
   isPlaying: false,
@@ -19,7 +25,10 @@ const INITIAL_STATE = {
   astridAwake: false,
   hideTimer: 15,
   levelComplete: false,
-  classroomIntroPhase: null // null | 'seated' | 'shots' | 'panic' | 'active'
+  classroomIntroPhase: null, // null | 'seated' | 'shots' | 'panic' | 'active'
+  ikeaPhase: null, // null | 'intro' | 'ordering' | 'won' | 'lost'
+  ikeaTimeLeft: IKEA_ORDER_SECONDS,
+  ikeaLookingBack: false
 }
 
 function App() {
@@ -37,11 +46,14 @@ function App() {
 
   const introTimersRef = useRef([])
   const introStartedRef = useRef(false)
+  const ikeaPhaseRef = useRef(null)
+  const ikeaTimeRef = useRef(IKEA_ORDER_SECONDS)
 
   const levels = [
     { name: 'Molltas', description: 'White Cat', speed: 2.0 },
     { name: 'Astrid', description: '13 years old', speed: 1.8 },
     { name: 'Kerstin', description: '13 years old', speed: 2.3 },
+    { name: 'Rasmus', description: 'IKEA', speed: 0 },
     { name: 'Selma', description: '11 years old', speed: 2.0 },
     { name: 'Maria', description: '46 years old', speed: 2.6 },
     { name: 'Pappa', description: '48 years old', speed: 3.0 }
@@ -117,6 +129,61 @@ function App() {
     }
   }, [gameState.isPlaying, gameState.currentLevel])
 
+  // IKEA level (Rasmus): intro -> ordering after 8 s, then a 40 s countdown on the (test) clock
+  const isIkeaPlaying = gameState.isPlaying && levels[gameState.currentLevel - 1]?.name === 'Rasmus'
+  ikeaPhaseRef.current = gameState.ikeaPhase
+
+  useEffect(() => {
+    if (!isIkeaPlaying || gameState.ikeaPhase !== 'intro') return
+    const t = setTimer(() => {
+      playVoiceRecording('Rasmus', 'kottbullar', language)
+      ikeaPhaseRef.current = 'ordering'
+      setGameState(prev => (prev.ikeaPhase === 'intro' ? { ...prev, ikeaPhase: 'ordering' } : prev))
+    }, IKEA_INTRO_MS)
+    return () => clearTimer(t)
+  }, [isIkeaPlaying, gameState.ikeaPhase, language])
+
+  useEffect(() => {
+    if (!isIkeaPlaying || gameState.ikeaPhase !== 'ordering') return
+    ikeaTimeRef.current = gameState.ikeaTimeLeft
+    let timer
+    const tick = () => {
+      if (ikeaPhaseRef.current !== 'ordering') return
+      ikeaTimeRef.current = Math.max(0, Math.round((ikeaTimeRef.current - 0.1) * 10) / 10)
+      if (ikeaTimeRef.current > 0) {
+        const left = ikeaTimeRef.current
+        setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaTimeLeft: left } : prev))
+        timer = setTimer(tick, IKEA_TICK_MS)
+        return
+      }
+      // Time is up: jumpscare + game over, no blood/damage
+      ikeaPhaseRef.current = 'lost'
+      setShowJumpscare(true)
+      setGameState(prev => ({ ...prev, ikeaPhase: 'lost', ikeaTimeLeft: 0, ikeaLookingBack: false, gameOver: true, isPlaying: false }))
+    }
+    timer = setTimer(tick, IKEA_TICK_MS)
+    return () => clearTimer(timer)
+  }, [isIkeaPlaying, gameState.ikeaPhase])
+
+  useEffect(() => {
+    if (!isIkeaPlaying || gameState.ikeaPhase !== 'won') return
+    playVoiceRecording('Rasmus', 'kottbullar', language)
+    const t = setTimer(() => {
+      setGameState(prev => (prev.ikeaPhase === 'won' ? { ...prev, levelComplete: true } : prev))
+    }, IKEA_WIN_MS)
+    return () => clearTimer(t)
+  }, [isIkeaPlaying, gameState.ikeaPhase, language])
+
+  const onIkeaOrderComplete = useCallback(() => {
+    if (ikeaPhaseRef.current !== 'ordering') return
+    ikeaPhaseRef.current = 'won'
+    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaPhase: 'won' } : prev))
+  }, [])
+
+  const onIkeaLookBack = useCallback((lookingBack) => {
+    setGameState(prev => (prev.ikeaLookingBack === !!lookingBack ? prev : { ...prev, ikeaLookingBack: !!lookingBack }))
+  }, [])
+
   const startGame = () => {
     initAudio()
     if (language) preloadAudioFiles(language)
@@ -141,6 +208,7 @@ function App() {
     const nextLevel = prev.currentLevel + 1
     const nextLevelData = levels[nextLevel - 1]
     const isKerstinNext = nextLevelData?.name === 'Kerstin'
+    const isIkeaNext = nextLevelData?.name === 'Rasmus'
 
     return {
       ...prev,
@@ -153,7 +221,10 @@ function App() {
       astridAwake: false,
       hideTimer: 15,
       levelComplete: false,
-      classroomIntroPhase: isKerstinNext ? 'seated' : null
+      classroomIntroPhase: isKerstinNext ? 'seated' : null,
+      ikeaPhase: isIkeaNext ? 'intro' : null,
+      ikeaTimeLeft: IKEA_ORDER_SECONDS,
+      ikeaLookingBack: false
     }
   }
 
@@ -280,6 +351,16 @@ function App() {
             onRotate={setMobileRotation}
           />
         </>
+      )}
+
+      {gameState.isPlaying && currentLevel?.name === 'Rasmus' && (
+        <IkeaKiosk
+          ikeaPhase={gameState.ikeaPhase}
+          ikeaTimeLeft={gameState.ikeaTimeLeft}
+          ikeaLookingBack={gameState.ikeaLookingBack}
+          onOrderComplete={onIkeaOrderComplete}
+          onLookBack={onIkeaLookBack}
+        />
       )}
 
       {/* Classroom intro: "Göm er!" overlay */}

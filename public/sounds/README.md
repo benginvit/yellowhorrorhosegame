@@ -68,3 +68,6 @@ public/
   - Sänka rösten
   - Prata långsammare
   - Viska ilsket
+
+## Tillfälliga klipp / Temporary clips
+- `sv/rasmus-kottbullar.m4a` - Rasmus "köttbullar" (IKEA, level 4). **Tillfälligt klipp** - byts mot en riktig inspelning.

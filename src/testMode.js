@@ -8,6 +8,7 @@
 //
 // Query params (only read in test builds):
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
+//   ?level=<1-7> start at that level (level 4 = IKEA in ikeaPhase 'intro'; ?ikea=ordering skips the intro)
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -63,7 +64,7 @@ let frozen = false
 // Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
 let virtualTimers = null
 // Test-only start overrides merged into the game state when "Start" is pressed
-// (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
+// (?level=<1-7>, ?ikea=ordering, ?inside=1 for the Astrid house interior). null in prod builds.
 let startOverrides = null
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
@@ -78,10 +79,12 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   source = mulberry32(seed)
 
   const level = parseInt(params.get('level') ?? '', 10)
-  if (level >= 1 && level <= 6) {
+  if (level >= 1 && level <= 7) {
     startOverrides = { currentLevel: level }
     // Level 3 is the classroom; its intro starts in the 'seated' phase.
     if (level === 3) startOverrides.classroomIntroPhase = 'seated'
+    // Level 4 is IKEA (Rasmus): starts in 'intro'; ?ikea=ordering skips the 8 s intro.
+    if (level === 4) startOverrides.ikeaPhase = params.get('ikea') === 'ordering' ? 'ordering' : 'intro'
     if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
   }
   if (freeze) {
