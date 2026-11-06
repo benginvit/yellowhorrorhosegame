@@ -239,3 +239,76 @@ test.describe('Rasmus', () => {
     expectNoErrors(errors)
   })
 })
+
+// Stacking contract of the kiosk's DOM overlay (OrderKiosk.jsx, index.css): while the order is in
+// progress the kiosk sits above the mobile controls AND above .ui-overlay (the instructions text must
+// not draw over it, nothing in the overlay is clickable then); once the order is done it drops below
+// .ui-overlay, so the victory screen always gets the click. With the kiosk on top in 'won', its "order
+// done" panel intercepted the click on the continue button in the IKEA win flow (BENG-91).
+test.describe('IKEA kiosk overlay', () => {
+  const ADVANCE = (page, frames, dt) => page.evaluate(([n, d]) => window.__YHH_TEST_MODE__.advance(n, d), [frames, dt])
+  // z-index of the kiosk's top-level wrapper (portalled into <body>), the mobile controls and .ui-overlay.
+  const layers = (testId) => (page) => page.evaluate((id) => {
+    const zIndex = (el) => Number(getComputedStyle(el).zIndex)
+    let wrapper = document.querySelector(`[data-testid="${id}"]`)
+    while (wrapper.parentElement !== document.body) wrapper = wrapper.parentElement
+    return { kiosk: zIndex(wrapper), mobile: zIndex(document.querySelector('.mobile-controls')), ui: zIndex(document.querySelector('.ui-overlay')) }
+  }, testId)
+  // Same kiosk flow as ikea.spec.js (BENG-77), kept separate so the two specs stay independent.
+  async function orderMeatballs(page) {
+    await page.getByTestId('ikea-start').click()
+    await page.getByTestId('ikea-category-main').click()
+    await page.getByTestId('ikea-dish-meatballs').click()
+    for (let i = 0; i < 12; i++) await page.getByTestId('ikea-qty-plus').click()
+    await page.getByTestId('ikea-qty-next').click()
+    await page.getByTestId('ikea-side-mash').click()
+    for (let i = 0; i < 3; i++) {
+      const sausageNo = page.getByTestId('ikea-sausage-no')
+      const familyNo = page.getByTestId('ikea-family-no')
+      const loading = page.getByTestId('ikea-loading')
+      await expect(sausageNo.or(familyNo).or(loading)).toBeVisible()
+      if (await loading.isVisible()) { await ADVANCE(page, 100, 1 / 60); await expect(loading).toHaveCount(0) }
+      else if (await sausageNo.isVisible()) { await sausageNo.click(); await expect(sausageNo).toHaveCount(0) }
+      else { await familyNo.click(); await expect(familyNo).toHaveCount(0) }
+    }
+    await expect(page.getByTestId('ikea-cart')).toBeVisible()
+  }
+
+  test('ordering: sits above the mobile controls and above the UI overlay', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'phase=ordering exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'ordering' })
+    await expect(page.getByTestId('ikea-start')).toBeVisible()
+    const z = await layers('ikea-start')(page)
+    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs mobile controls ${z.mobile}`).toBeGreaterThan(z.mobile)
+    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs .ui-overlay ${z.ui}`).toBeGreaterThan(z.ui)
+    expectNoErrors(errors)
+  })
+
+  test('won: drops below the UI overlay and the victory screen gets the click', async ({ page }, testInfo) => {
+    test.setTimeout(240_000) // the IKEA scene renders slowly on software GL
+    test.skip(testInfo.project.name !== 'test', 'phase=ordering exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'ordering' })
+    await orderMeatballs(page)
+    await page.getByTestId('ikea-pay').click()
+    await expect(page.getByTestId('ikea-done')).toBeVisible()
+    const z = await layers('ikea-done')(page)
+    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs .ui-overlay ${z.ui}`).toBeLessThan(z.ui)
+    await ADVANCE(page, 90, 1 / 20) // 4.5 s: 'won' -> level complete
+    const button = page.locator('.victory-screen .restart-btn')
+    await expect(button).toBeVisible()
+    // The actual bug: the top-most element at the button's centre must be the button itself.
+    const hit = await button.evaluate((el) => {
+      const r = el.getBoundingClientRect()
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+      return top === el || el.contains(top) ? 'button' : `${top?.tagName} ${top?.getAttribute('data-testid') ?? ''}`.trim()
+    })
+    expect(hit, 'element at the centre of the continue button').toBe('button')
+    await button.click()
+    await expect(page.locator('.hud-item').first()).toContainText('5: Selma')
+    expectNoErrors(errors)
+  })
+})
