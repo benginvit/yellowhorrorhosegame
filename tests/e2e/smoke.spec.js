@@ -239,3 +239,28 @@ test.describe('Rasmus', () => {
     expectNoErrors(errors)
   })
 })
+
+// Stacking contract of the kiosk's DOM overlay (OrderKiosk.jsx, index.css): mobile controls <
+// kiosk < .ui-overlay, so the kiosk buttons can be tapped and the victory / game-over screens are
+// never covered by the kiosk. With the kiosk on top, its "order done" panel intercepted the click on
+// the victory screen's continue button in the IKEA win flow (BENG-91).
+test.describe('IKEA kiosk overlay', () => {
+  test('sits above the mobile controls and below the UI overlay', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'phase=ordering exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'ordering' })
+    await expect(page.getByTestId('ikea-start')).toBeVisible()
+    const z = await page.evaluate(() => {
+      const zIndex = (el) => Number(getComputedStyle(el).zIndex)
+      // The kiosk is portalled into <body>; its top-level wrapper carries the z-index.
+      const start = document.querySelector('[data-testid="ikea-start"]')
+      let wrapper = start
+      while (wrapper.parentElement !== document.body) wrapper = wrapper.parentElement
+      return { kiosk: zIndex(wrapper), mobile: zIndex(document.querySelector('.mobile-controls')), ui: zIndex(document.querySelector('.ui-overlay')) }
+    })
+    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs mobile controls ${z.mobile}`).toBeGreaterThan(z.mobile)
+    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs .ui-overlay ${z.ui}`).toBeLessThan(z.ui)
+    expectNoErrors(errors)
+  })
+})

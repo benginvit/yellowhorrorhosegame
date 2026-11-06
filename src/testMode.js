@@ -31,11 +31,34 @@
 //                 scene without post-FX.
 //   camera        the Canvas' camera (tests set position/rotation, then advance())
 //   scene         the Canvas' THREE.Scene
-//   ready         true once the scene has mounted and a frame has been rendered
+//   ready         true once the scene has mounted and a frame has been rendered;
+//                 false again from the moment that Canvas unmounts (game over,
+//                 restart, level change) until the next Canvas is ready
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
-//                 advancing clock.elapsedTime by dt and passing dt to useFrame
-//   setTime(t)    freeze only: set clock.elapsedTime without rendering
+//                 advancing clock.elapsedTime by dt and passing dt to useFrame,
+//                 and move the frozen test clock (timers fire) by frames * dt.
+//                 Returns true. While no Canvas is live (ready false) it only
+//                 moves the test clock, renders nothing and returns false.
+//   setTime(t)    freeze only: set clock.elapsedTime without rendering (moves the
+//                 test clock forward by the difference); false and no effect
+//                 while no Canvas is live
 //   emit(type)    fire a sound event ('hit', 'jumpscare', 'astrid'): light dip, particle burst
+//
+// Canvas remount (game over -> restart, classroom -> IKEA, IKEA -> Selma): gl,
+// camera and scene always belong to the live Canvas, which the probe's cleanup
+// retires. The frozen test clock is global: advance() keeps moving it (so the
+// next level's start-pose timers fire) even in the moment between the old Canvas
+// retiring and the next one's onCreated, which a test stepping through a level
+// change relies on. R3F force-loses the old WebGL context
+// (WEBGL_lose_context.loseContext) 500 ms after a Canvas unmounts. On the software
+// GL stack the e2e suite runs on (SwiftShader) that one synchronous call blocks
+// the page's main thread for 10-25 s locally and 50+ s on the CI runner: no
+// requestAnimationFrame, no evaluate(), no clicks, so whatever a test does at that
+// moment looks hung (BENG-91). Test builds therefore skip the forced loss and let
+// garbage collection release the old context: that destruction is asynchronous
+// and never blocks the main thread (measured: no stall at all, and the page-close
+// cost is the same as before). Prod builds are unchanged (R3F's default loss on
+// unmount).
 //
 // Timers: game code that must follow the test clock uses setTimer / clearTimer /
 // setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
@@ -85,6 +108,11 @@ let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
+// Test builds only (see "Canvas remount" above): unsubscribe of the current Canvas'
+// per-frame gl.info reset.
+let unsubscribeInfoReset = null
+// R3F state of the live Canvas (test builds, ?freeze=1): what advance()/setTime() drive.
+let liveState = null
 
 if (import.meta.env.VITE_TEST_MODE === '1') {
   const params = new URLSearchParams(window.location.search)
@@ -92,7 +120,6 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
   if (params.get('phase') === 'ordering') ikeaStartPhase = 'ordering'
-
   source = mulberry32(seed)
 
   if (freeze) {
@@ -149,17 +176,45 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     emit: emitSoundEvent, // fire a sound event ('hit', 'jumpscare', 'astrid') without playing the game
   }
   window.__YHH_TEST__ = window.__YHH_TEST_MODE__
+  if (freeze) {
+    // Render on the live Canvas (if any) and always move the frozen test clock: on a level
+    // change the next Canvas' onCreated can land a moment after the old one retired, and a
+    // test that steps the clock right through the change (ikea.spec.js level chain) needs
+    // the new level's start-pose timers to keep counting in that window.
+    window.__YHH_TEST_MODE__.advance = (frames = 1, dt = 1 / 60) => {
+      for (let i = 0; i < frames; i++) {
+        if (liveState) liveState.advance(liveState.clock.elapsedTime + dt)
+        virtualTimers.tick(dt * 1000)
+      }
+      return liveState !== null
+    }
+    window.__YHH_TEST_MODE__.setTime = (t) => {
+      if (!liveState) return false
+      virtualTimers.tick(Math.max(0, t - liveState.clock.elapsedTime) * 1000)
+      liveState.clock.elapsedTime = t
+      return true
+    }
+  }
 
   // Rendered inside <Canvas> after the scene content, so its effect runs once
-  // the content has been committed.
+  // the content has been committed. Its cleanup retires the Canvas from the API.
   TestModeProbe = function TestModeProbe() {
     const get = useThree((s) => s.get)
     useEffect(() => {
       const api = window.__YHH_TEST_MODE__
+      const gl = get().gl
+      // This Canvas is unmounting (game over, restart, level change). Guarded by
+      // renderer identity: on a level change the next Canvas' onCreated can run
+      // before this (passive) cleanup, and must not be undone.
+      const retire = () => {
+        if (api.gl !== gl) return
+        api.ready = false
+        liveState = null
+      }
       if (freeze) {
         get().advance(get().clock.elapsedTime)
         api.ready = true
-        return undefined
+        return retire
       }
       let frames = 0
       const unsubscribe = addAfterEffect(() => {
@@ -168,7 +223,10 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
           unsubscribe()
         }
       })
-      return unsubscribe
+      return () => {
+        unsubscribe()
+        retire()
+      }
     }, [get])
     return null
   }
@@ -271,23 +329,19 @@ export function onCanvasCreated(state) {
     api.scene = state.scene
     api.ready = false
 
+    // See "Canvas remount" above: R3F calls this 500 ms after the Canvas unmounts,
+    // and on SwiftShader the forced loss blocks the main thread for 10-50 s. The
+    // old context is left to garbage collection instead.
+    state.gl.forceContextLoss = () => {}
+
     // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep
     // the per-frame reset: with the default autoReset only the last gl.render()
     // call would count if a frame ever has several. Reset once per frame instead.
+    // Only the live Canvas' reset stays subscribed (the effect list is global).
     state.gl.info.autoReset = false
-    addEffect(() => state.gl.info.reset())
+    unsubscribeInfoReset?.()
+    unsubscribeInfoReset = addEffect(() => state.gl.info.reset())
 
-    if (api.freeze) {
-      api.advance = (frames = 1, dt = 1 / 60) => {
-        for (let i = 0; i < frames; i++) {
-          state.advance(state.clock.elapsedTime + dt)
-          virtualTimers.tick(dt * 1000)
-        }
-      }
-      api.setTime = (t) => {
-        virtualTimers.tick(Math.max(0, t - state.clock.elapsedTime) * 1000)
-        state.clock.elapsedTime = t
-      }
-    }
+    if (api.freeze) liveState = state // advance()/setTime() are defined once, see the gate above
   }
 }

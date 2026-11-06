@@ -5,6 +5,12 @@ import { getTranslation } from '../translations'
 
 // Mounted in <body> so the buttons sit above the canvas wrapper and the mobile controls.
 const bodyPortal = { current: document.body }
+// Stacking contract (z-index, see index.css): mobile controls 900 < kiosk 901-950 <
+// .ui-overlay 1000 (HUD, victory and game-over screens). Above the touch areas so the
+// buttons can be tapped, below the UI overlay so the victory screen of a won order (and
+// a game-over screen) is always clickable: with the kiosk on top, its "order done" panel
+// covered the continue button whenever the two overlapped (BENG-91).
+const KIOSK_Z_RANGE = [950, 901]
 const overlay = { pointerEvents: 'none' }
 const lookBackButton = { position: 'absolute', left: '50%', bottom: '3%', transform: 'translateX(-50%)', pointerEvents: 'auto' }
 const panelStyle = {
@@ -25,6 +31,8 @@ const panelStyle = {
   pointerEvents: 'auto',
   fontFamily: 'sans-serif',
 }
+// "Order done" is informational: it must never catch clicks meant for what is drawn on top of it.
+const donePanelStyle = { ...panelStyle, pointerEvents: 'none' }
 const bigButton = { display: 'block', width: '100%', margin: '8px 0', padding: '16px', fontSize: '22px', touchAction: 'manipulation' }
 const smallButton = { ...bigButton, width: 'auto', display: 'inline-block', margin: '8px', padding: '12px 22px' }
 const disabledButton = { opacity: 0.4, cursor: 'not-allowed' }
@@ -120,11 +128,12 @@ function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, 
     }
   }, [ordering, onLookBack])
 
-  // drei only sets the wrapper's z-index once the projected position changes, which never happens for
-  // a fixed kiosk (and not at all on a frozen clock): set it up front so the buttons sit above the mobile controls.
-  // Relies on drei Html's DOM structure: wrapper > inner div (styles) > children. Re-check it when upgrading drei.
+  // drei only sets the wrapper's z-index (within zIndexRange) once the projected position changes, which
+  // never happens for a fixed kiosk (and not at all on a frozen clock): set it up front so the buttons sit
+  // above the mobile controls. Relies on drei Html's DOM structure: wrapper > inner div (styles) > children.
+  // Re-check it when upgrading drei.
   const raiseWrapper = (el) => {
-    if (el) el.parentElement.parentElement.style.zIndex = '100000'
+    if (el) el.parentElement.parentElement.style.zIndex = String(KIOSK_Z_RANGE[0])
   }
 
   const btn = (testId, label, onClick, { disabled = false, small = false } = {}) => (
@@ -243,10 +252,10 @@ function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, 
   return (
     <>
       {(ordering || ikeaPhase === 'won') && (
-        <Html fullscreen portal={bodyPortal} zIndexRange={[100000, 50000]} style={overlay}>
+        <Html fullscreen portal={bodyPortal} zIndexRange={KIOSK_Z_RANGE} style={overlay}>
           <div ref={raiseWrapper} />
           {ikeaPhase === 'won' ? (
-            <div style={panelStyle}>
+            <div style={donePanelStyle}>
               <h2 style={title} data-testid="ikea-done">{t('ikeaOrderDone')}</h2>
             </div>
           ) : (

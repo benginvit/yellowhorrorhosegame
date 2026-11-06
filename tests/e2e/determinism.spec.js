@@ -138,6 +138,41 @@ test.describe('game timers follow the frozen clock', () => {
     await expect(page.locator(jumpscare)).toHaveCount(1)
     expectNoErrors(errors)
   })
+
+  // Test-API contract across a Canvas remount (testMode.js, "Canvas remount"): `ready` must drop
+  // with the old Canvas (it used to stay true, so waitReady() after a restart passed on the disposed
+  // Canvas), advance() must not drive it (no-op, false), and the new Canvas must come up without the
+  // 10-50 s main-thread stall that R3F's forced context loss causes on software GL (BENG-91).
+  test('Canvas remount after game over: ready drops with the old Canvas and the API follows the new one', async ({ page }) => {
+    test.setTimeout(150_000)
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 1 })
+    const ready = () => page.evaluate(() => window.__YHH_TEST_MODE__.ready)
+    // Molltas (Character.jsx) hits for 25 within 2 units, at most every 0.5 s of frozen time:
+    // stand next to her start position (-8, 1, -18) and let four hits land.
+    await page.evaluate(() => window.__YHH_TEST_MODE__.camera.position.set(-8, 1.6, -17))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(45, 1 / 20)) // 2.25 s: hits at 0.5, 1, 1.5, 2 s
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    await expect.poll(ready).toBe(false) // the probe's cleanup retires the unmounted Canvas
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 0))).toBe(false) // no Canvas to drive
+    expect(await ready()).toBe(false)
+
+    const t0 = Date.now()
+    await page.locator('.restart-btn').click()
+    await page.locator('.start-btn').click()
+    await waitReady(page) // now genuinely waits for the new Canvas
+    await waitSceneContent(page)
+    await waitFrames(page)
+    // Stall guard: with the forced context loss the page delivered no frame for 13-23 s locally
+    // and 50+ s on the CI runner; a clean remount renders and animates again within a second.
+    expect(Date.now() - t0, 'time from restart to the first frames of the new Canvas').toBeLessThan(10_000)
+    expect(await ready()).toBe(true)
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 0))).toBe(true)
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.gl.info.render.calls)).toBeGreaterThan(20)
+    await expect(page.locator('.hud-item').first()).toContainText('1: Molltas')
+    expectNoErrors(errors)
+  })
 })
 
 test.describe('key rotation does not depend on the frame rate', () => {
