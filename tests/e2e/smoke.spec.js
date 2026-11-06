@@ -36,4 +36,28 @@ test.describe('smoke', () => {
     expect(info, 'classroom should issue many draw calls').toBeGreaterThan(30)
     expectNoErrors(errors)
   })
+
+  test('IKEA (level 4) phase flow intro -> ordering -> lost on the frozen clock', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'test', 'level selection exists only in the test build')
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4 })
+    const advanceSeconds = (s) => page.evaluate((n) => window.__YHH_TEST_MODE__.advance(n * 60, 1 / 60), s)
+
+    await expect(page.locator('.hud-item').first()).toContainText('Rasmus')
+    await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro
+    await expect(page.getByRole('button', { name: 'Beställ' })).toHaveCount(0)
+
+    await advanceSeconds(7)
+    await expect(page.getByRole('button', { name: 'Beställ' })).toHaveCount(0)
+    await advanceSeconds(1.5) // past 8 s: ordering
+    await expect(page.getByRole('button', { name: 'Beställ' })).toBeVisible()
+    await expect(page.locator('.game-over-screen')).toHaveCount(0)
+
+    await advanceSeconds(39) // 40 s timer not yet out
+    await expect(page.locator('.game-over-screen')).toHaveCount(0)
+    await advanceSeconds(2) // lost
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    expectNoErrors(errors)
+  })
 })

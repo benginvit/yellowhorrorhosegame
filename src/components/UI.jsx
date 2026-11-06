@@ -83,6 +83,17 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               <div className="hud-item">
                 {t('enterHouseQuietly')}
               </div>
+            ) : currentLevel.name === 'Rasmus' ? (
+              <>
+                {(gameState.ikeaPhase === 'intro' || gameState.ikeaPhase === 'ordering') && (
+                  <div className="hud-item low-health">{t('ikeaOrderNow')}</div>
+                )}
+                {gameState.ikeaPhase === 'ordering' && (
+                  <div className={`hud-item ${gameState.ikeaTimeLeft <= 10 ? 'low-health' : ''}`}>
+                    {t('ikeaTimer')}: {Math.ceil(gameState.ikeaTimeLeft)}s
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className={`hud-item ${gameState.hasKey ? 'has-key' : ''}`}>
@@ -108,6 +119,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               {currentLevel.name === 'Astrid' && t('levelCompleteAstrid')}
               {currentLevel.name === 'Selma' && t('levelCompleteSelma')}
               {currentLevel.name === 'Kerstin' && t('levelCompleteKerstin')}
+              {currentLevel.name === 'Rasmus' && t('levelCompleteRasmus')}
               {currentLevel.name === 'Maria' && t('levelCompleteMaria')}
               {currentLevel.name === 'Pappa' && t('levelCompletePappa')}
             </h2>
@@ -116,6 +128,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               {currentLevel.name === 'Astrid' && t('levelCompleteDescAstrid')}
               {currentLevel.name === 'Selma' && t('levelCompleteDescSelma')}
               {currentLevel.name === 'Kerstin' && t('levelCompleteDescKerstin')}
+              {currentLevel.name === 'Rasmus' && t('levelCompleteDescRasmus')}
               {currentLevel.name === 'Maria' && t('levelCompleteDescMaria')}
               {currentLevel.name === 'Pappa' && t('levelCompleteDescPappa')}
             </p>

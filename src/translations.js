@@ -21,6 +21,11 @@ export const translations = {
     statusHidden: 'GÖMD!',
     statusVisible: 'SYNLIG!',
     enterHouseQuietly: 'Gå in i huset tyst...',
+    enterHouseQuietly: 'Gå in i huset tyst...',
+
+    // IKEA level
+    ikeaOrderNow: 'BESTÄLL! SNABBT!',
+    ikeaTimer: 'Tid kvar',
 
     // Instructions
     instructionsMove: 'WASD - Flytta',
@@ -34,6 +39,7 @@ export const translations = {
     levelCompleteKerstin: '💪 BRA JOBBAT! 💪',
     levelCompleteMaria: '🏆 HÄLFTEN KLAR! 🏆',
     levelCompletePappa: '👑 MÄSTARE! 👑',
+    levelCompleteRasmus: '🍽️ KÖTTBULLAR! 🍽️',
 
     levelCompleteDescMolltas: 'Du sprang förbi Molltas och hittade nyckeln!',
     levelCompleteDescAstrid: 'Du lyckades gömma dig från Astrid!',
@@ -41,6 +47,7 @@ export const translations = {
     levelCompleteDescKerstin: 'Du var snabbare än Kerstin!',
     levelCompleteDescMaria: 'Maria kunde inte stoppa dig!',
     levelCompleteDescPappa: 'Du klarade den svåraste nivån!',
+    levelCompleteDescRasmus: 'Rasmus var bara hungrig!',
 
     levelComplete: 'Level',
     levelCompleteWord: 'klar!',
@@ -55,7 +62,7 @@ export const translations = {
 
     // Victory
     victoryTitle: 'SEGER!',
-    victoryDesc1: 'Du undkom från alla 6 karaktärerna!',
+    victoryDesc1: 'Du undkom från alla 7 karaktärerna!',
     victoryDesc2: 'Grattis, du överlevde Yellow Horror Hose!',
     playAgainButton: 'SPELA IGEN'
   },
@@ -81,6 +88,11 @@ export const translations = {
     statusHidden: 'HIDDEN!',
     statusVisible: 'VISIBLE!',
     enterHouseQuietly: 'Enter the house quietly...',
+    enterHouseQuietly: 'Enter the house quietly...',
+
+    // IKEA level
+    ikeaOrderNow: 'ORDER! QUICK!',
+    ikeaTimer: 'Time left',
 
     // Instructions
     instructionsMove: 'WASD - Move',
@@ -94,6 +106,7 @@ export const translations = {
     levelCompleteKerstin: '💪 WELL DONE! 💪',
     levelCompleteMaria: '🏆 HALFWAY THERE! 🏆',
     levelCompletePappa: '👑 MASTER! 👑',
+    levelCompleteRasmus: '🍽️ MEATBALLS! 🍽️',
 
     levelCompleteDescMolltas: 'You ran past Molltas and found the key!',
     levelCompleteDescAstrid: 'You successfully hid from Astrid!',
@@ -101,6 +114,7 @@ export const translations = {
     levelCompleteDescKerstin: 'You were faster than Kerstin!',
     levelCompleteDescMaria: 'Maria couldn\'t stop you!',
     levelCompleteDescPappa: 'You beat the hardest level!',
+    levelCompleteDescRasmus: 'Rasmus was just hungry!',
 
     levelComplete: 'Level',
     levelCompleteWord: 'Complete!',
@@ -115,7 +129,7 @@ export const translations = {
 
     // Victory
     victoryTitle: 'VICTORY!',
-    victoryDesc1: 'You escaped from all 6 characters!',
+    victoryDesc1: 'You escaped from all 7 characters!',
     victoryDesc2: 'Congratulations, you survived the Yellow Horror Hose!',
     playAgainButton: 'PLAY AGAIN'
   }
