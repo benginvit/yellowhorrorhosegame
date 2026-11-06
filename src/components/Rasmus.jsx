@@ -151,7 +151,7 @@ function Rasmus({ ikeaPhase, progress }) {
         w.sinceStep = 0
         const lx = g.position.x - camera.position.x
         const lz = g.position.z - camera.position.z
-        // The camera's right vector from its quaternion (rotation.y is not yaw: the Euler order is 'YXZ' and the camera looks back)
+        // The camera's right vector from its quaternion (camera.rotation uses the default 'XYZ' order while Player sets the quaternion from a 'YXZ' yaw/pitch, so rotation.y is not the yaw)
         _right.set(1, 0, 0).applyQuaternion(camera.quaternion)
         const right = lx * _right.x + lz * _right.z
         const dist = Math.max(1, Math.hypot(lx, lz))
@@ -242,7 +242,7 @@ function Rasmus({ ikeaPhase, progress }) {
       </group>
 
       {/* The knife on the shelf row until he picks it up (he stands at KNIFE_SHELF_POS in the intro; the row is 0.6 behind him) */}
-      <group ref={shelfKnife} position={[0.1, 1.25, -0.6]}>
+      <group ref={shelfKnife} position={[0.25, 1.3, -0.6]}>
         <Knife />
       </group>
       {/* Dropped knife once he sits down to eat */}
@@ -252,7 +252,7 @@ function Rasmus({ ikeaPhase, progress }) {
       </mesh>
 
       {/* Tray with 16 meatballs and mashed potatoes on the restaurant table beside the seat (the table itself is IkeaStore's) */}
-      <group ref={tray} position={[RASMUS_TABLE_OFFSET_X - 0.2, TABLE_TOP_Y, 0]} visible={false}>
+      <group ref={tray} position={[RASMUS_TABLE_OFFSET_X - 0.15, TABLE_TOP_Y, 0]} visible={false}>
         <group>
           <mesh position={[0, 0.01, 0]}>
             <boxGeometry args={[0.6, 0.02, 0.5]} />

@@ -211,8 +211,8 @@ test.describe('Rasmus', () => {
     // React commits state between evaluate() calls: after each step wait until the HUD countdown has moved
     // on, then advance once more so the visual position eases to the committed target before measuring.
     const hudSeconds = async () => {
-      const text = await page.locator('.hud-item').filter({ hasText: /\d+s/ }).first().textContent()
-      return Number(/(\d+)s/.exec(text)[1])
+      const [text] = await page.locator('.hud-item').filter({ hasText: /\d+s/ }).allTextContents() // never waits for the element
+      return text ? Number(/(\d+)s/.exec(text)[1]) : Infinity
     }
     let lastSeconds = 41
     const stepAndMeasure = async (seconds) => {
@@ -223,9 +223,15 @@ test.describe('Rasmus', () => {
       return distance()
     }
 
-    await advanceCoarse(9) // intro (8 s) -> ordering; the countdown starts once React has committed the phase
-    await advanceCoarse(1)
-    await expect.poll(hudSeconds, { timeout: 20_000 }).toBeLessThan(41)
+    await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro: its effect and timer are registered
+    await advanceCoarse(9) // intro (8 s) -> ordering
+    // The countdown starts once React has committed the phase: let the poll step the clock until it shows.
+    await expect
+      .poll(async () => {
+        await advanceCoarse(0.25)
+        return hudSeconds()
+      }, { timeout: 20_000 })
+      .toBeLessThan(41)
     const ordering = await stepAndMeasure(5)
     const later = await stepAndMeasure(9)
     expect(later).toBeLessThan(ordering - 2)
