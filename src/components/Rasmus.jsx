@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { rasmusPositionAt, RASMUS_SEAT_POS } from '../levels/ikeaLayout'
 
@@ -20,6 +20,9 @@ function Rasmus({ ikeaPhase, progress }) {
   const ref = useRef()
   const target = ikeaPhase === 'won' ? RASMUS_SEAT_POS : rasmusPositionAt(progress)
 
+  // Start position only at mount: a position prop would reset the group on every render and defeat the easing.
+  const [initial] = useState(() => target)
+
   useFrame((_, delta) => {
     if (!ref.current) return
     const k = 1 - Math.exp(-EASE * delta)
@@ -28,7 +31,7 @@ function Rasmus({ ikeaPhase, progress }) {
   })
 
   return (
-    <group ref={ref} position={[target[0], 0, target[2]]}>
+    <group ref={ref} position={[initial[0], 0, initial[2]]}>
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[0.35, 1.1, 4, 8]} />
         <meshStandardMaterial color="#cc1111" />
