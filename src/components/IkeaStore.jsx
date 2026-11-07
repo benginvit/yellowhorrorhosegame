@@ -5,9 +5,16 @@ import { Text } from '@react-three/drei'
 import { KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_POS } from '../levels/ikeaLayout'
 
 // Room bounds (world units). Floor y = 0. The player starts at z = 3 and the kitchen
-// department is at the far (-x, -z) end. RASMUS_PATH and the intro camera line of
-// sight must stay free of obstacles: nothing is placed in x -17..-15 / z -14..-4,
-// the diagonal to (-8, -1), the x = -8 corridor or the strip to (-1.2, 3.4).
+// department is at the far (-x, -z) end. These corridors must stay free of tables, chairs and racks:
+//  - RASMUS_PATH and the intro camera line of sight: x -17..-15 / z -14..-4, the diagonal (-9, -9) -> (-4, -4) ->
+//    (-2.05, -0.5), the strip x = -2.05 / z -0.5..1.9 (between the tray rack, x <= -2.5, and the counter, x >= -1.6)
+//    and z = 1.9 / x -2.05..-0.9 in front of the counter (counter front at z 1.35);
+//  - Rasmus' walk to his seat (Rasmus.jsx SEAT_APPROACH): (-0.9, 1.9) -> (1.8, 2.0) -> RASMUS_SEAT_POS, past the
+//    counter's right end (x 1.6) and in front of Astrid (z 3);
+//  - the player's routes tray -> table -> drink station: (0, 2.2) -> (4.25, 2.4) -> (-3, 5.2). The nearest furniture is
+//    the chair at (3.4, 2.0) of Rasmus' own table and the table at (5, 6), both > 0.4 clear of the lines.
+// Restaurant tables stand at x = 5 and 9 (z <= -1 and z = 6) and the drink station alone at (-3, 6): the area
+// x -2..3 / z 1.8..6 between the counter, the tables and the station is open floor.
 const X_MIN = -26
 const X_MAX = 14
 const Z_MIN = -24
@@ -65,7 +72,7 @@ const TABLE_LENGTH = 2.4
 const TABLE_SPOTS = []
 for (const x of [5, 9]) for (const z of [-13, -9, -5, -1, 6]) if (!(x === 5 && z === -1)) TABLE_SPOTS.push([x, z]) // (5, -1) would touch Rasmus' table
 // Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is RASMUS_TABLE_OFFSET_X to the right of the seat,
-// so the chair filter below removes the chair at the seat itself.
+// and the chair placed at the seat itself (x - 0.85 of that table spot, facing +x) is the one he sits on.
 TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + RASMUS_TABLE_OFFSET_X, RASMUS_SEAT_POS[2]])
 // Tables run along z; chairs sit on both sides in x.
 const TABLES = TABLE_SPOTS.map(([x, z]) => [x, z, Math.PI / 2])
@@ -76,7 +83,7 @@ const CHAIRS = TABLE_SPOTS.flatMap(([x, z]) => {
     out.push([x + 0.85, z + dz, -Math.PI / 2])
   }
   return out
-}).filter(([x, z]) => Math.hypot(x - RASMUS_SEAT_POS[0], z - RASMUS_SEAT_POS[2]) > 0.2) // Rasmus' own seat is left empty (he stands there until he sits)
+})
 
 function Sign({ position, rotation = [0, 0, 0], width, height = 0.7, text, bg = BLUE, fg = YELLOW, size = 0.4 }) {
   return (

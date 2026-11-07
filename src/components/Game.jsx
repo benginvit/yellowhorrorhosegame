@@ -116,6 +116,8 @@ function Game({
     // The player is locked at the kiosk until the order is done, free to walk around afterwards.
     const ikeaLocked = ikeaPhase === 'intro' || ikeaPhase === 'ordering'
     const ikeaServing = ikeaPhase === 'serve' || ikeaPhase === 'drink' || ikeaPhase === 'deliverDrink'
+    // After the wrong drink Rasmus runs at the player: no walking away (the view still turns; isLocked would reset the position).
+    const ikeaFrozen = ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink'
     return (
       <>
         <Canvas
@@ -159,6 +161,7 @@ function Game({
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}
                 bounds={IKEA_BOUNDS}
+                frozen={ikeaFrozen}
               />
             )}
             <TestModeProbe />

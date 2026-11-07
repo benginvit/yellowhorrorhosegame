@@ -1,13 +1,17 @@
 import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { MeatballTray, LingonGlass } from './IkeaServing'
 
-const OFFSET = [0.28, -0.32, -0.7] // camera space: right, down, forward
+// Camera space offsets: right, down, forward. The tray is held with both hands low in front; the glass in the right hand.
+const TRAY_OFFSET = [0.05, -0.34, -0.62]
+const GLASS_OFFSET = [0.26, -0.3, -0.5]
 
 /**
- * What the player carries, drawn in front of the camera (placeholder boxes). Stage 2 replaces the models, not the contract.
+ * What the player carries (ikeaCarrying), drawn in front of the camera: the tray with the meatballs or the glass of
+ * lingonberry drink (models shared with IkeaServing). Follows the camera exactly (no bob), so a frozen frame is fixed.
  *
  * @param {object} props
- * @param {null|'tray'|'drink'} props.carrying  ikeaCarrying; renders nothing for null
+ * @param {null|'tray'|'drink'} props.carrying  renders nothing for null
  */
 function CarriedItem({ carrying }) {
   const group = useRef()
@@ -16,7 +20,8 @@ function CarriedItem({ carrying }) {
   useFrame(() => {
     const g = group.current
     if (!g) return
-    g.position.set(...OFFSET).applyQuaternion(camera.quaternion).add(camera.position)
+    const offset = carrying === 'tray' ? TRAY_OFFSET : GLASS_OFFSET
+    g.position.set(...offset).applyQuaternion(camera.quaternion).add(camera.position)
     g.quaternion.copy(camera.quaternion)
   })
 
@@ -24,21 +29,11 @@ function CarriedItem({ carrying }) {
   return (
     <group ref={group} name="carried-item">
       {carrying === 'tray' ? (
-        <>
-          <mesh>
-            <boxGeometry args={[0.5, 0.03, 0.35]} />
-            <meshStandardMaterial color="#e8e8e8" />
-          </mesh>
-          <mesh position={[0.05, 0.06, 0]}>
-            <sphereGeometry args={[0.07, 8, 6]} />
-            <meshStandardMaterial color="#7a3b1d" />
-          </mesh>
-        </>
+        <group scale={0.8} rotation={[0.15, 0, 0]}>
+          <MeatballTray />
+        </group>
       ) : (
-        <mesh position={[0, 0.08, 0]}>
-          <cylinderGeometry args={[0.05, 0.04, 0.16, 12]} />
-          <meshStandardMaterial color="#b3122f" transparent opacity={0.85} />
-        </mesh>
+        <LingonGlass />
       )}
     </group>
   )
