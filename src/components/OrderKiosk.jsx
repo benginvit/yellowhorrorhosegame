@@ -67,11 +67,12 @@ const SIDES = ['mash', 'fries', 'rice']
  * The ordering kiosk's clickable DOM overlay (works on mobile). The 3D kiosk itself lives in IkeaStore.jsx.
  *
  * @param {object} props
- * @param {null|'intro'|'ordering'|'won'|'lost'} props.ikeaPhase  interactive in 'ordering'; shows "order done" in 'won'
+ * @param {string|null} props.ikeaPhase  interactive in 'ordering'
+ * @param {boolean} [props.orderDone]  show the "order done" panel (App: 'serve' until the player picks up the tray)
  * @param {number} props.ikeaTimeLeft  seconds left (0..IKEA_ORDER_SECONDS)
  * @param {boolean} props.lookingBack  the player is looking back at Rasmus: the kiosk is hidden (the countdown is not paused)
  * @param {'sv'|'en'} props.language
- * @param {() => void} props.onOrderComplete  call once the order is paid (App sets phase 'won')
+ * @param {() => void} props.onOrderComplete  call once the order is paid (App sets phase 'serve')
  * @param {(looking: boolean) => void} props.onLookBack  toggle looking back (also held with Space)
  *
  * Flow: start -> category -> dish -> quantity (exactly 16) -> side (mash) -> 3 interruptions
@@ -81,7 +82,7 @@ const SIDES = ['mash', 'fries', 'rice']
  * ikea-family-scan, ikea-loading, ikea-cart, ikea-cart-remove-sausage, ikea-pay (final "pay"), ikea-error,
  * ikea-back, ikea-done, ikea-look-back (toggle; Space holds).
  */
-function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, onLookBack }) {
+function OrderKiosk({ ikeaPhase, orderDone = false, lookingBack, language = 'sv', onOrderComplete, onLookBack }) {
   const ordering = ikeaPhase === 'ordering'
   const t = (key) => getTranslation(language, key)
 
@@ -255,10 +256,10 @@ function OrderKiosk({ ikeaPhase, lookingBack, language = 'sv', onOrderComplete, 
 
   return (
     <>
-      {(ordering || ikeaPhase === 'won') && (
+      {(ordering || orderDone) && (
         <Html fullscreen portal={bodyPortal} zIndexRange={zRange} style={overlay}>
           <div key={ordering ? 'ordering' : 'done'} ref={raiseWrapper} />
-          {ikeaPhase === 'won' ? (
+          {orderDone ? (
             <div style={donePanelStyle}>
               <h2 style={title} data-testid="ikea-done">{t('ikeaOrderDone')}</h2>
             </div>

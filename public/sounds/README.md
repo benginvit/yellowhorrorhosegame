@@ -21,6 +21,7 @@
 - `astrid-success.m4a` - "Vart tog den vägen?" (när du lyckas gömma dig)
 - `molltas-meow.m4a` - Din katts jamande
 - `rasmus-kottbullar.m4a` - Rasmus: "Köttbullar..." (IKEA-nivån). **Tillfällig syntetisk TTS-platshållare**, ersätts med en riktig inspelning. Samma fil ligger i `en/` tills vidare.
+- `rasmus-lingondryck.m4a` - Rasmus: "Lingondryck" (IKEA-nivån, när han fått maten). **Tillfällig syntetisk TTS-platshållare**, ersätts med en riktig inspelning. Samma fil ligger i `en/` tills vidare.
 - (Valfritt) Lägg till fler för andra familjemedlemmar!
 
 ### English (en folder):
@@ -31,6 +32,7 @@
 - `astrid-success.m4a` - "Where did they go?" (when you successfully hide)
 - `molltas-meow.m4a` - Your cat's meowing
 - `rasmus-kottbullar.m4a` - Rasmus: "Meatballs..." (IKEA level). **Temporary synthetic TTS placeholder** (the Swedish clip, copied) to be replaced by a real recording.
+- `rasmus-lingondryck.m4a` - Rasmus: "Lingonberry drink" (IKEA level, once he has his food). **Temporary synthetic TTS placeholder** (the Swedish clip, copied) to be replaced by a real recording.
 - (Optional) Add more for other family members!
 
 ## Exempel / Examples:

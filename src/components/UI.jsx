@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { playDeathSound } from '../utils/sounds'
 import { getTranslation } from '../translations'
 import { IKEA_ORDER_SECONDS } from '../levels/ikeaLayout'
+import IkeaObjective from './IkeaObjective'
 
 function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart, onContinue }) {
   const currentLevel = levels[gameState.currentLevel - 1]
@@ -120,6 +121,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
                     </div>
                   </div>
                 )}
+                <IkeaObjective gameState={gameState} language={language} />
               </>
             ) : (
               <>
@@ -187,6 +189,9 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           <p style={{ fontSize: '24px', color: '#ffaaaa' }}>
             {currentLevel.name} {t('gameOverCaught')}
           </p>
+          {gameState.ikeaLoseReason === 'wrongDrink' && (
+            <p style={{ fontSize: '24px', color: '#ffaaaa' }} data-testid="ikea-lose-reason">{t('ikeaWrongDrink')}</p>
+          )}
           <p style={{ fontSize: '20px', color: '#ffcccc' }}>
             {t('gameOverReached')} {gameState.currentLevel}
           </p>

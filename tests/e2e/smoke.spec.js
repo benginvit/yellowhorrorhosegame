@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { GAME_CANVAS, trackErrors, startGame, openFrozen, waitTextSynced, replayCdnFonts, canvasColourCount, expectNoErrors } from './helpers.js'
+import { GAME_CANVAS, trackErrors, startGame, openFrozen, waitTextSynced, replayCdnFonts, canvasColourCount, expectNoErrors, serveAndDrink } from './helpers.js'
 
 
 // Runs against both projects: the test build and the prod build.
@@ -146,7 +146,7 @@ test.describe('IKEA kiosk overlay', () => {
     await expect(page.getByTestId('ikea-done')).toBeVisible()
     const z = await layers('ikea-done')(page)
     expect(z.kiosk, `kiosk z-index ${z.kiosk} vs .ui-overlay ${z.ui}`).toBeLessThan(z.ui)
-    await ADVANCE(page, 90, 1 / 20) // 4.5 s: 'won' -> level complete
+    await serveAndDrink(page) // tray, table, drink, glass -> 'won' -> level complete
     const button = page.locator('.victory-screen .restart-btn')
     await expect(button).toBeVisible()
     // The actual bug: the top-most element at the button's centre must be the button itself.

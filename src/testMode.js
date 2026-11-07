@@ -12,7 +12,9 @@
 //
 // Query params (only read in test builds):
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
-//   ?phase=ordering  start the IKEA level in 'ordering' instead of 'intro'
+//   ?phase=ordering|serve|drink|deliverDrink  start the IKEA level in that phase instead of 'intro'
+//               (serve: Rasmus walks to his seat, nothing carried; drink: he sits; deliverDrink: he sits and
+//               the player carries the lingonberry glass; see getStartOverrides)
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -113,7 +115,7 @@ let virtualTimers = null
 // level-select builds. null in prod builds and when ?level is absent/invalid; the
 // range check against the level list happens in getStartOverrides().
 let levelRequest = null
-// ?phase=ordering (IKEA): skip the intro camera shot so e2e views can use fixed poses. Test builds only.
+// ?phase=ordering|serve|drink|deliverDrink (IKEA): skip the intro camera shot so e2e views can use fixed poses. Test builds only.
 let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
@@ -132,7 +134,8 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const parsed = parseInt(params.get('seed') ?? '1', 10)
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
-  if (params.get('phase') === 'ordering') ikeaStartPhase = 'ordering'
+  const phase = params.get('phase')
+  if (['ordering', 'serve', 'drink', 'deliverDrink'].includes(phase)) ikeaStartPhase = phase
   source = mulberry32(seed)
 
   if (freeze) {
@@ -288,7 +291,15 @@ export function getStartOverrides(levels, level = levelRequest?.level) {
   const overrides = { currentLevel: level }
   const name = levels[level - 1]?.name
   if (name === 'Kerstin') overrides.classroomIntroPhase = 'seated'
-  if (name === 'Rasmus') overrides.ikeaPhase = ikeaStartPhase
+  if (name === 'Rasmus') {
+    overrides.ikeaPhase = ikeaStartPhase
+    // Test starts straight into a later phase get the state that phase would normally have.
+    if (ikeaStartPhase === 'drink' || ikeaStartPhase === 'deliverDrink') overrides.ikeaRasmusSeated = true
+    if (ikeaStartPhase === 'deliverDrink') {
+      overrides.ikeaCarrying = 'drink'
+      overrides.ikeaDrinkChoice = 'lingon'
+    }
+  }
   if (name === 'Astrid' && levelRequest?.inside && level === levelRequest.level) overrides.isInsideHouse = true
   return overrides
 }

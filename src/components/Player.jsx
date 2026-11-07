@@ -9,7 +9,8 @@ function Player({
   startPosition = null,
   startYaw = 0, // default: facing -z (toward whiteboard)
   inClassroom = false,
-  lookBack = false // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
+  lookBack = false, // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
+  bounds = null // optional { minX, maxX, minZ, maxZ } rectangle the player stays inside (replaces the outdoor limits)
 }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
@@ -138,7 +139,10 @@ function Player({
     // Keep camera at player height
     camera.position.y = 1.6
 
-    if (inClassroom) {
+    if (bounds) {
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds.minX, bounds.maxX)
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds.minZ, bounds.maxZ)
+    } else if (inClassroom) {
       // Tighter boundaries inside classroom
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, -8.5, 8.5)
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, -7.5, 5.8)
