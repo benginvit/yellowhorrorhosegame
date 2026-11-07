@@ -22,7 +22,8 @@ const INITIAL_STATE = {
   gameOver: false,
   victory: false,
   isInsideHouse: false,
-  isHiding: false,
+  isHiding: false, // lying under Astrid's bed (toggled with F / the button, never just by standing near)
+  bedNear: false, // within reach of the bed's foot end (BedInteraction)
   astridAwake: false,
   hideTimer: 15,
   levelComplete: false,
@@ -46,6 +47,8 @@ function App() {
   const [gameState, setGameState] = useState(INITIAL_STATE)
   // What the player can use right now (ikeaNearTarget checked against the phase / carrying / seated). Exposed to UI and Game.
   const ikeaInteractTarget = validInteractTarget(gameState.ikeaNearTarget, gameState)
+  // The bed prompt / button: bedNear is only ever set by BedInteraction, which exists only inside Astrid's house.
+  const bedInteract = gameState.bedNear
   const viewState = { ...gameState, ikeaInteractTarget }
   // Read by timers, so a language change does not restart the IKEA phase effect (and replay its clip).
   const languageRef = useRef(language)
@@ -251,6 +254,7 @@ function App() {
       gameOver: false,
       isInsideHouse: false,
       isHiding: false,
+      bedNear: false,
       astridAwake: false,
       hideTimer: 15,
       levelComplete: false,
@@ -342,8 +346,17 @@ function App() {
     setGameState(prev => ({ ...prev, isInsideHouse: true }))
   }, [])
 
-  const setHiding = useCallback((hiding) => {
-    setGameState(prev => ({ ...prev, isHiding: hiding }))
+  const setBedNear = useCallback((near) => {
+    setGameState(prev => (prev.bedNear === near ? prev : { ...prev, bedNear: near }))
+  }, [])
+
+  // F / the on-screen button: crawl in when within reach of the bed, crawl out when lying under it.
+  const toggleHide = useCallback(() => {
+    setGameState(prev => {
+      if (prev.gameOver || prev.levelComplete) return prev
+      if (prev.isHiding) return { ...prev, isHiding: false }
+      return prev.bedNear ? { ...prev, isHiding: true } : prev
+    })
   }, [])
 
   const wakeAstrid = useCallback(() => {
@@ -424,7 +437,8 @@ function App() {
             onNextLevel={nextLevel}
             onTakeDamage={takeDamage}
             onEnterHouse={enterHouse}
-            onSetHiding={setHiding}
+            onSetBedNear={setBedNear}
+            onToggleHide={toggleHide}
             onIkeaOrderComplete={completeIkeaOrder}
             onIkeaLookBack={setIkeaLookingBack}
             onIkeaRasmusSeated={ikeaRasmusSeated}
@@ -439,9 +453,10 @@ function App() {
           <MobileControls
             onMove={setMobileMovement}
             onRotate={setMobileRotation}
-            interactTarget={ikeaInteractTarget}
-            onInteract={ikeaInteract}
-            interactLabel={getTranslation(language || 'en', 'ikeaUse')}
+            interactTarget={bedInteract ? 'bed' : ikeaInteractTarget}
+            testId={bedInteract ? 'hide-use' : 'ikea-use'}
+            onInteract={bedInteract ? toggleHide : ikeaInteract}
+            interactLabel={getTranslation(language || 'en', bedInteract ? (gameState.isHiding ? 'hideExitButton' : 'hideEnterButton') : 'ikeaUse')}
           />
         </>
       )}

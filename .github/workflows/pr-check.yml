@@ -122,6 +122,11 @@ jobs:
             baselines: false
             retries: 0
             args: --project=test ikea.spec.js -g "ikea-kiosk|level chain|ending after"
+          # Hiding under Astrid's bed (level 2, frozen clock): three short tests.
+          - name: hiding
+            baselines: false
+            retries: 0
+            args: --project=test hiding.spec.js
           - name: prod
             baselines: false
             retries: 1

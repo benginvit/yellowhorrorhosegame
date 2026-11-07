@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { HIDE_TRANSITION_SECONDS, UNDER_BED_YAW_RANGE, UNDER_BED_PITCH_RANGE, UNDER_BED_PITCH } from '../levels/astridLayout'
 
 function Player({
   mobileMovement = { x: 0, y: 0 },
@@ -10,7 +11,8 @@ function Player({
   startYaw = 0, // default: facing -z (toward whiteboard)
   inClassroom = false,
   lookBack = false, // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
-  bounds = null // optional { minX, maxX, minZ, maxZ } rectangle the player stays inside (replaces the outdoor limits)
+  bounds = null, // optional { minX, maxX, minZ, maxZ } rectangle the player stays inside (replaces the outdoor limits)
+  pose = null // optional { position: [x, y, z], yaw, locked }: while locked the camera eases to that pose and the player can only look around a little; unlocking eases back to where the player stood
 }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
@@ -19,6 +21,11 @@ function Player({
   const moveSpeed = 5
   const rotateSpeed = 2
   const initialized = useRef(false)
+  // Under-pose transition: 0 = standing (normal controls), 1 = in the pose. `stand` is where the player was when it started.
+  const poseBlend = useRef(0)
+  const poseActive = useRef(false)
+  const stand = useRef(new THREE.Vector3())
+  const underPos = useRef([0, 0.25, 0])
 
   // Set starting position/rotation on first render
   useEffect(() => {
@@ -69,6 +76,12 @@ function Player({
       return
     }
 
+    const poseLocked = !!pose?.locked
+    if (poseLocked && !poseActive.current) {
+      poseActive.current = true
+      stand.current.copy(camera.position)
+    }
+
     // Keyboard rotation controls
     const rotSpeed = rotateSpeed * delta
 
@@ -93,6 +106,35 @@ function Player({
 
     // Clamp pitch to prevent camera flipping
     rotation.current.pitch = THREE.MathUtils.clamp(rotation.current.pitch, -Math.PI / 3, Math.PI / 3)
+
+    if (poseActive.current) {
+      poseBlend.current = THREE.MathUtils.clamp(poseBlend.current + (poseLocked ? delta : -delta) / HIDE_TRANSITION_SECONDS, 0, 1)
+      if (poseBlend.current === 0 && !poseLocked) {
+        poseActive.current = false // back on its feet: normal controls from here
+      } else {
+        const p = THREE.MathUtils.smoothstep(poseBlend.current, 0, 1)
+        if (poseLocked) underPos.current = pose.position
+        const target = underPos.current
+        if (poseLocked) {
+          // Look out from under the bed: swing toward the pose's yaw, then free look within a small range around it.
+          const swing = Math.atan2(Math.sin(pose.yaw - rotation.current.yaw), Math.cos(pose.yaw - rotation.current.yaw))
+          if (poseBlend.current < 1) {
+            rotation.current.yaw += swing * Math.min(1, delta * 8)
+            rotation.current.pitch += (UNDER_BED_PITCH - rotation.current.pitch) * Math.min(1, delta * 8)
+          } else {
+            rotation.current.yaw = pose.yaw + THREE.MathUtils.clamp(-swing, -UNDER_BED_YAW_RANGE, UNDER_BED_YAW_RANGE)
+          }
+          rotation.current.pitch = THREE.MathUtils.clamp(rotation.current.pitch, UNDER_BED_PITCH - UNDER_BED_PITCH_RANGE, UNDER_BED_PITCH + UNDER_BED_PITCH_RANGE)
+        }
+        camera.position.set(
+          THREE.MathUtils.lerp(stand.current.x, target[0], p),
+          THREE.MathUtils.lerp(1.6, target[1], p),
+          THREE.MathUtils.lerp(stand.current.z, target[2], p)
+        )
+        camera.quaternion.setFromEuler(new THREE.Euler(rotation.current.pitch, rotation.current.yaw, 0, 'YXZ'))
+        return
+      }
+    }
 
     // Apply rotation to camera
     const euler = new THREE.Euler(rotation.current.pitch, rotation.current.yaw + (lookBack ? Math.PI : 0), 0, 'YXZ')
