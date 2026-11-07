@@ -11,6 +11,20 @@ const FAR = [0, -12]
 const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
 const cameraY = (page) => page.evaluate(() => window.__YHH_TEST_MODE__.camera.position.y)
+/**
+ * Steps the clock until the camera height satisfies `ok`. The Canvas content (Player's pose) is updated by react-three-fiber's
+ * own reconciler a moment after the UI, so one advance() right after a click can run before the pose arrived.
+ */
+async function settleHeight(page, ok) {
+  await expect
+    .poll(async () => {
+      await ADVANCE(page, 0.6)
+      return ok(await cameraY(page))
+    }, { timeout: 30_000 })
+    .toBe(true)
+}
+const under = (y) => y < 0.5
+const standing = (y) => y > 1.5
 const prompt = (page) => page.getByTestId('hide-prompt')
 const underBed = (page) => page.getByTestId('hide-vignette')
 
@@ -54,14 +68,12 @@ test.describe('hiding under the bed (level 2)', () => {
 
     await page.keyboard.press('KeyF')
     await expect(underBed(page)).toBeVisible()
-    await ADVANCE(page, 1)
+    await settleHeight(page, under)
     await expect(prompt(page)).toHaveText('Krypa ut (F)')
-    expect(await cameraY(page)).toBeLessThan(0.5)
 
     await page.keyboard.press('KeyF')
     await expect(underBed(page)).toBeHidden()
-    await ADVANCE(page, 1)
-    expect(await cameraY(page)).toBeGreaterThan(1.5)
+    await settleHeight(page, standing)
     expectNoErrors(errors)
   })
 
@@ -77,13 +89,11 @@ test.describe('hiding under the bed on a phone', () => {
     await expect(page.getByTestId('hide-use')).toHaveText('Krypa in')
     await page.getByTestId('hide-use').tap()
     await expect(underBed(page)).toBeVisible()
-    await ADVANCE(page, 1)
-    expect(await cameraY(page)).toBeLessThan(0.5)
+    await settleHeight(page, under)
     await expect(page.getByTestId('hide-use')).toHaveText('Krypa ut')
     await page.getByTestId('hide-use').tap()
     await expect(underBed(page)).toBeHidden()
-    await ADVANCE(page, 1)
-    expect(await cameraY(page)).toBeGreaterThan(1.5)
+    await settleHeight(page, standing)
     expectNoErrors(errors)
   })
 })
