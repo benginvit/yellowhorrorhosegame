@@ -117,7 +117,7 @@ jobs:
           - name: ikea-flow
             baselines: false
             retries: 0
-            args: --project=test ikea.spec.js -g "ikea-outcomes|ikea-mobile"
+            args: --project=test ikea.spec.js -g "ikea-outcomes|ikea-mobile|ikea-serving"
           - name: ikea-kiosk
             baselines: false
             retries: 0

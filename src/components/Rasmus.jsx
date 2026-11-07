@@ -5,7 +5,11 @@ import { rasmusPositionAt, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_P
 import { playFootstepSound } from '../utils/sounds'
 
 const EASE = 10 // 1/s, exponential smoothing rate
-const SIT_SPEED = 2.5 // world units/s when walking to the seat after the order is won
+const SIT_SPEED = 2.5 // world units/s when walking to the seat after the order is done
+const RUN_SPEED = 5 // world units/s when he runs at the player after a wrong drink
+const RUN_STOP = 1 // he stops this far from the player
+const SEATED_PHASES = ['serve', 'drink', 'deliverDrink', 'won']
+const SERVED_PHASES = ['drink', 'deliverDrink', 'won'] // the tray is on the table once it has been served
 const STEP_LENGTH = 0.8 // world units between footsteps
 const WALK_CYCLE = 7 // rad per world unit walked (leg swing)
 const PICKUP_AT = 1.5 // s into the intro when the knife is taken from the shelf
@@ -42,19 +46,23 @@ function Knife() {
 }
 
 /**
- * Rasmus (Roblox/lowpoly style: sneaky side-swept fringe, red t-shirt, jeans). Carries a knife but never uses it.
+ * Rasmus (Roblox/lowpoly style: sneaky side-swept fringe, red t-shirt, jeans). Carries a knife.
  *
  * @param {object} props
- * @param {null|'intro'|'ordering'|'won'|'lost'} props.ikeaPhase  intro: takes the knife from the shelf and turns toward the
- *   kiosk; ordering: walks, looks at the player, footsteps; won: drops the knife, sits at RASMUS_SEAT_POS and eats;
- *   lost: stands at the player.
+ * @param {null|'intro'|'ordering'|'serve'|'drink'|'deliverDrink'|'won'|'lost'} props.ikeaPhase  intro: takes the knife from
+ *   the shelf and turns toward the kiosk; ordering: walks, looks at the player, footsteps; serve / drink / deliverDrink / won:
+ *   drops the knife, sits at RASMUS_SEAT_POS and eats (the tray is on the table from 'drink' on); lost: stands at the player,
+ *   or with loseReason 'wrongDrink' runs at the player from where he sits.
  * @param {number} props.progress  0..1 along RASMUS_PATH (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS).
+ * @param {null|'timeout'|'wrongDrink'} [props.loseReason]
+ * @param {boolean} [props.drinkAsked]  he has said "Lingondryck" (ikeaDrinkAsked, true from 'drink' + ~2 s); stage 2 animates the ask
+ * @param {() => void} [props.onSeated]  called once when he has sat down in 'serve' (App then allows serving)
  *
  * The logical position is rasmusPositionAt(progress), a pure function of ikeaTimeLeft; the visual position (the group
  * named "rasmus", readable in tests via scene.getObjectByName('rasmus')) eases toward it in useFrame because progress
  * only changes every 0.25 s. No shadow casters on purpose.
  */
-function Rasmus({ ikeaPhase, progress }) {
+function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, onSeated }) {
   const root = useRef() // world position
   const body = useRef() // facing (yaw) and sit offset
   const legL = useRef()
@@ -67,12 +75,15 @@ function Rasmus({ ikeaPhase, progress }) {
   const tray = useRef()
   const camera = useThree((s) => s.camera)
 
-  const walkRef = useRef({ dist: 0, sinceStep: 0, phaseStart: 0, phase: null, yaw: 0, sit: 0 })
+  const walkRef = useRef({ dist: 0, sinceStep: 0, phaseStart: 0, phase: null, yaw: 0, sit: 0, seatedReported: false })
 
-  const target = ikeaPhase === 'won' ? RASMUS_SEAT_POS : rasmusPositionAt(progress)
+  const seatedPhase = SEATED_PHASES.includes(ikeaPhase)
+  const running = ikeaPhase === 'lost' && loseReason === 'wrongDrink'
+  const target = seatedPhase ? RASMUS_SEAT_POS : rasmusPositionAt(progress)
 
   // Start position only at mount: a position prop would reset the group on every render and defeat the easing.
-  const [initial] = useState(() => target)
+  // (a test start straight into 'serve' has him walk in from the end of the path instead of already sitting)
+  const [initial] = useState(() => (ikeaPhase === 'serve' ? rasmusPositionAt(1) : target))
 
   useFrame((state, delta) => {
     const g = root.current
@@ -83,21 +94,24 @@ function Rasmus({ ikeaPhase, progress }) {
       w.phase = ikeaPhase
       w.phaseStart = t
       // Constant pace to the seat, fast enough to be seated within 2.5 s even from the far end of the path.
-      if (ikeaPhase === 'won') w.sitSpeed = Math.max(SIT_SPEED, Math.hypot(RASMUS_SEAT_POS[0] - g.position.x, RASMUS_SEAT_POS[2] - g.position.z) / 2.5)
+      if (seatedPhase) w.sitSpeed = Math.max(SIT_SPEED, Math.hypot(RASMUS_SEAT_POS[0] - g.position.x, RASMUS_SEAT_POS[2] - g.position.z) / 2.5)
     }
     const inPhase = t - w.phaseStart
 
     const prevX = g.position.x
     const prevZ = g.position.z
-    if (ikeaPhase === 'won') {
-      // Walk to the seat at a steady pace.
-      const dx = target[0] - prevX
-      const dz = target[2] - prevZ
-      const d = Math.hypot(dx, dz)
-      const step = Math.min(d, w.sitSpeed * delta)
-      if (d > 1e-4) {
-        g.position.x += (dx / d) * step
-        g.position.z += (dz / d) * step
+    if (seatedPhase || running) {
+      // Walk to the seat (or run at the player) at a steady pace.
+      const goalX = running ? camera.position.x : target[0]
+      const goalZ = running ? camera.position.z : target[2]
+      const dx = goalX - prevX
+      const dz = goalZ - prevZ
+      const d = Math.max(0, Math.hypot(dx, dz) - (running ? RUN_STOP : 0))
+      const full = Math.hypot(dx, dz)
+      const step = Math.min(d, (running ? RUN_SPEED : w.sitSpeed) * delta)
+      if (full > 1e-4 && step > 0) {
+        g.position.x += (dx / full) * step
+        g.position.z += (dz / full) * step
       }
     } else {
       const k = 1 - Math.exp(-EASE * delta)
@@ -105,7 +119,7 @@ function Rasmus({ ikeaPhase, progress }) {
       g.position.z += (target[2] - prevZ) * k
     }
     const moved = Math.hypot(g.position.x - prevX, g.position.z - prevZ)
-    const arrivedAtSeat = ikeaPhase === 'won' && Math.hypot(target[0] - g.position.x, target[2] - g.position.z) < 0.05
+    const arrivedAtSeat = seatedPhase && Math.hypot(target[0] - g.position.x, target[2] - g.position.z) < 0.05
     const walking = moved > 1e-4 && !arrivedAtSeat
 
     // Facing
@@ -115,7 +129,7 @@ function Rasmus({ ikeaPhase, progress }) {
       faceYaw = inPhase < TURN_AT ? toward(KNIFE_SHELF_POS[0], KNIFE_SHELF_POS[2] - 1) : toward(KIOSK_POS[0], KIOSK_POS[2])
     } else if (ikeaPhase === 'ordering' || ikeaPhase === 'lost') {
       faceYaw = toward(camera.position.x, camera.position.z)
-    } else if (ikeaPhase === 'won') {
+    } else if (seatedPhase) {
       faceYaw = arrivedAtSeat ? SEAT_YAW : walking ? toward(target[0], target[2]) : w.yaw
     }
     let dyaw = faceYaw - w.yaw
@@ -132,7 +146,7 @@ function Rasmus({ ikeaPhase, progress }) {
     legL.current.rotation.x = swing * (1 - w.sit) - 1.5 * w.sit
     legR.current.rotation.x = -swing * (1 - w.sit) - 1.5 * w.sit
 
-    const holdsKnife = ikeaPhase !== 'won' && (ikeaPhase !== 'intro' || inPhase >= PICKUP_AT)
+    const holdsKnife = !seatedPhase && (ikeaPhase !== 'intro' || inPhase >= PICKUP_AT)
     const reaching = ikeaPhase === 'intro' && inPhase < PICKUP_AT
     // Right arm carries the knife out in front; left arm swings. While eating both hands go to the mouth.
     const eat = arrivedAtSeat ? -1.2 + Math.sin(t * 5) * 0.25 : 0
@@ -142,7 +156,12 @@ function Rasmus({ ikeaPhase, progress }) {
     handKnife.current.visible = holdsKnife
     shelfKnife.current.visible = ikeaPhase === 'intro' && inPhase < PICKUP_AT
     floorKnife.current.visible = arrivedAtSeat
-    tray.current.visible = ikeaPhase === 'won' && arrivedAtSeat
+    tray.current.visible = SERVED_PHASES.includes(ikeaPhase) && arrivedAtSeat
+
+    if (arrivedAtSeat && ikeaPhase === 'serve' && !w.seatedReported) {
+      w.seatedReported = true
+      onSeated?.()
+    }
 
     // Footsteps (positional: louder the further he has come, panned by his side of the camera)
     if (ikeaPhase === 'ordering' && walking) {

@@ -20,7 +20,12 @@ import HorrorEffects from './HorrorEffects'
 import IkeaStore from './IkeaStore'
 import Rasmus from './Rasmus'
 import OrderKiosk from './OrderKiosk'
-import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS } from '../levels/ikeaLayout'
+import DrinkStation from './DrinkStation'
+import DrinkMenu from './DrinkMenu'
+import CarriedItem from './CarriedItem'
+import IkeaServing from './IkeaServing'
+import IkeaInteraction from './IkeaInteraction'
+import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS, IKEA_BOUNDS } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
@@ -48,6 +53,11 @@ function Game({
   onSetHiding,
   onIkeaOrderComplete,
   onIkeaLookBack,
+  onIkeaRasmusSeated,
+  onIkeaNear,
+  onIkeaInteract,
+  onIkeaChooseDrink,
+  onIkeaCloseMenu,
   onWakeAstrid,
   onUpdateHideTimer,
   mobileMovement,
@@ -108,9 +118,12 @@ function Game({
     setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
   }
 
-  // IKEA level (Rasmus and the kiosk UI are still stubs)
+  // IKEA level (the serve / drink props are placeholders, see DrinkStation, DrinkMenu, CarriedItem, IkeaServing)
   if (isIkeaLevel) {
     const ikeaPhase = gameState.ikeaPhase
+    // The player is locked at the kiosk until the order is done, free to walk around afterwards.
+    const ikeaLocked = ikeaPhase === 'intro' || ikeaPhase === 'ordering'
+    const ikeaServing = ikeaPhase === 'serve' || ikeaPhase === 'drink' || ikeaPhase === 'deliverDrink'
     return (
       <>
         <Canvas
@@ -124,9 +137,20 @@ function Game({
           <Lighting variant="ikea" />
           <Suspense fallback={null}>
             <IkeaStore />
-            <Rasmus ikeaPhase={ikeaPhase} progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS} />
+            <Rasmus
+              ikeaPhase={ikeaPhase}
+              progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
+              loseReason={gameState.ikeaLoseReason}
+              drinkAsked={gameState.ikeaDrinkAsked}
+              onSeated={onIkeaRasmusSeated}
+            />
+            <DrinkStation active={ikeaPhase === 'drink'} drinkAsked={gameState.ikeaDrinkAsked} />
+            <IkeaServing ikeaPhase={ikeaPhase} carrying={gameState.ikeaCarrying} />
+            <CarriedItem carrying={gameState.ikeaCarrying} />
+            {ikeaServing && <IkeaInteraction onNear={onIkeaNear} onInteract={onIkeaInteract} />}
             <OrderKiosk
               ikeaPhase={ikeaPhase}
+              orderDone={ikeaPhase === 'serve' && gameState.ikeaCarrying === null}
               ikeaTimeLeft={gameState.ikeaTimeLeft}
               language={language}
               lookingBack={gameState.ikeaLookingBack}
@@ -139,16 +163,18 @@ function Game({
               <Player
                 mobileMovement={mobileMovement}
                 mobileRotation={mobileRotation}
-                isLocked={true}
+                isLocked={ikeaLocked}
                 startPosition={PLAYER_START}
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}
+                bounds={IKEA_BOUNDS}
               />
             )}
             <TestModeProbe />
           </Suspense>
           <HorrorEffects />
         </Canvas>
+        <DrinkMenu open={ikeaPhase === 'drink' && gameState.ikeaMenuOpen} language={language} onChoose={onIkeaChooseDrink} onClose={onIkeaCloseMenu} />
       </>
     )
   }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors } from './helpers.js'
+import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera, useAt, serveAndDrink, AT_TRAY, AT_TABLE, AT_STATION } from './helpers.js'
 
 // IKEA level (level 4, Rasmus) on the frozen clock. Only the "test" project matches this file (playwright.config.js).
 // The kiosk is driven through its data-testid hooks (see OrderKiosk.jsx). The IKEA
@@ -56,17 +56,70 @@ async function orderMeatballs(page, { sausage = false, tap = false } = {}) {
   await expect(page.getByTestId('ikea-cart')).toBeVisible()
 }
 
+test.describe('ikea-serving', () => {
+  test('drink phase: lingonberry -> deliverDrink -> glass on the table -> level complete', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+    await useAt(page, AT_STATION)
+    await expect(page.getByTestId('ikea-drink-menu')).toBeVisible()
+    await page.getByTestId('ikea-drink-lingon').click()
+    await expect(page.getByTestId('ikea-drink-menu')).toHaveCount(0)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink') // deliverDrink
+    await useAt(page, AT_TABLE)
+    await expect(page.locator('.victory-screen')).toHaveCount(0) // 'won': level complete follows after ~4 s
+    await ADVANCE(page, 4.5)
+    await expect(page.locator('.victory-screen')).toBeVisible()
+    expectNoErrors(errors)
+  })
+
+  test('drink phase: the wrong drink (cola) -> lost -> game over "Fel dryck!"', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await useAt(page, AT_STATION)
+    await page.getByTestId('ikea-drink-cola').click()
+    await ADVANCE(page, 2) // Rasmus is still running at the player
+    await expect(page.locator('.game-over-screen')).toHaveCount(0)
+    await ADVANCE(page, 1)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    await expect(page.getByTestId('ikea-lose-reason')).toHaveText('Fel dryck!')
+    expectNoErrors(errors)
+  })
+
+  test('serving is blocked until Rasmus has sat down', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'serve' })
+    await useAt(page, AT_TRAY)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait') // tray in hand, he is still walking
+    await setCamera(page, ...AT_TABLE)
+    await ADVANCE(page, 0.2)
+    await expect(page.getByTestId('ikea-use-hint')).toHaveCount(0) // no target at the table yet
+    await page.keyboard.press('KeyF')
+    await ADVANCE(page, 0.1)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait') // still 'serve'
+    await ADVANCE(page, 4.5) // he sits down
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+    await ADVANCE(page, 0.1) // the next frame sees the table as a target
+    await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
+    await page.keyboard.press('KeyF')
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink') // 'drink'
+    expectNoErrors(errors)
+  })
+})
+
 test.describe('ikea-outcomes', () => {
-  test('win: order via the kiosk -> won -> level complete -> level 5 Selma', async ({ page }) => {
+  test('win: order via the kiosk -> serve -> drink -> won -> level complete -> level 5 Selma', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await toOrdering(page)
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
     await expect(page.getByTestId('ikea-done')).toBeVisible()
-    await expect(page.locator('.victory-screen')).toHaveCount(0) // 'won': level complete follows after ~4 s
-    await ADVANCE(page, 4.5)
-    await expect(page.locator('.victory-screen')).toBeVisible()
+    await expect(page.locator('.victory-screen')).toHaveCount(0) // 'serve' follows: tray, table, drink, glass
+    await serveAndDrink(page)
     await page.locator('.victory-screen .restart-btn').click()
     await expect(page.locator('.hud-item').first()).toContainText('5: Selma')
     expectNoErrors(errors)
@@ -172,14 +225,13 @@ test.describe('ikea-mobile (touch)', () => {
     await expect(page.getByTestId('ikea-pay')).toBeInViewport()
     await page.getByTestId('ikea-pay').tap()
     await expect(page.getByTestId('ikea-done')).toBeVisible()
-    await ADVANCE(page, 4.5)
-    await expect(page.locator('.victory-screen')).toBeVisible()
+    await serveAndDrink(page, { tap: true }) // incl. the "Use" button instead of F
     expectNoErrors(errors)
   })
 })
 
-test.describe('level chain classroom (3) -> IKEA (4) -> Selma (5)', () => {
-  test('finishing the classroom starts IKEA; winning IKEA starts Selma', async ({ page }) => {
+test.describe('level chain classroom (3) -> IKEA (4)', () => {
+  test('finishing the classroom starts IKEA; ordering leads on to serving', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 3 })
@@ -207,10 +259,12 @@ test.describe('level chain classroom (3) -> IKEA (4) -> Selma (5)', () => {
     await waitForOrdering(page)
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
+    // The ordering leads on to serving. Walking to the tray needs rendered frames and this chain
+    // has no live Canvas for advance() once the level has changed (it returns false), so the serve
+    // flow itself is covered by the other tests; here only the hand-off into 'serve' is checked.
     await expect(page.getByTestId('ikea-done')).toBeVisible()
-    await ADVANCE(page, 4.5)
-    await page.locator('.victory-screen .restart-btn').click()
-    await expect(hud).toContainText('5: Selma')
+    await ADVANCE(page, 4.5) // Rasmus' seat fallback timer
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTray')
     expectNoErrors(errors)
   })
 

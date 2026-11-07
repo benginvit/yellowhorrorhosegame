@@ -20,18 +20,77 @@ export const TRAY_POS = [0, 1, 0.9]
 export const RASMUS_SEAT_POS = [3.4, 0, 1.2]
 // His table is this far to the right (+x) of the seat; he sits facing it.
 export const RASMUS_TABLE_OFFSET_X = 0.85
+// Where the tray and, later, the glass are put down: the table to the right of Rasmus' seat.
+export const RASMUS_TABLE_POS = [RASMUS_SEAT_POS[0] + RASMUS_TABLE_OFFSET_X, 0, RASMUS_SEAT_POS[2]]
 export const ASTRID_POS = [1.4, 0, 3]
+
+// The drink station (a screen with the drink menu), 8-10 units from Rasmus' table. The screen faces +x, toward the tables.
+export const DRINK_STATION_POS = [-3, 0, 6]
+export const DRINK_STATION_FACING = [1, 0, 0]
+
+// Rectangle the player is kept inside while serving (the restaurant side; the counter at the kiosk is outside it).
+export const IKEA_BOUNDS = { minX: -9, maxX: 13, minZ: 1.8, maxZ: 11 }
+
+// Drink menu, in the order shown. Only CORRECT_DRINK delivers; every other choice is a loss ('wrongDrink').
+export const DRINKS = ['water', 'sparkling', 'lemonade', 'elderflower', 'lingon', 'raspberry', 'cola', 'colaLight']
+export const CORRECT_DRINK = 'lingon'
+
+// Interaction reach (world units, horizontal distance) for the F key / "Use" button.
+export const INTERACT_RANGE = 1.5
+
+// 'drink' starts: Rasmus says "Lingondryck" this long after (ms); then ikeaDrinkAsked is true.
+export const IKEA_DRINK_ASK_MS = 2000
+// After a wrong drink Rasmus runs at the player this long (ms) before the jumpscare and game over.
+export const IKEA_WRONG_DRINK_MS = 2500
+
+/**
+ * The interactable closest to the player within INTERACT_RANGE (horizontal distance), whatever the game state.
+ * @returns {null|'tray'|'table'|'drinkStation'}
+ */
+export function nearestInteractable(x, z) {
+  let best = null
+  let bestDist = INTERACT_RANGE
+  for (const [id, pos] of [['tray', TRAY_POS], ['table', RASMUS_TABLE_POS], ['drinkStation', DRINK_STATION_POS]]) {
+    const d = Math.hypot(pos[0] - x, pos[2] - z)
+    if (d <= bestDist) {
+      best = id
+      bestDist = d
+    }
+  }
+  return best
+}
+
+/**
+ * The target the player can actually use now: the nearby interactable (see nearestInteractable) if the game state allows it.
+ *  - 'tray'         ikeaPhase 'serve', nothing carried;
+ *  - 'table'        'serve' with the tray in hand AND Rasmus seated (serving is blocked until he sits), or
+ *                   'deliverDrink' with the glass in hand;
+ *  - 'drinkStation' ikeaPhase 'drink'.
+ * @returns {null|'tray'|'table'|'drinkStation'}
+ */
+export function validInteractTarget(near, { ikeaPhase, ikeaCarrying, ikeaRasmusSeated }) {
+  if (near === 'tray') return ikeaPhase === 'serve' && ikeaCarrying === null ? near : null
+  if (near === 'table') {
+    const serving = ikeaPhase === 'serve' && ikeaCarrying === 'tray' && ikeaRasmusSeated
+    return serving || (ikeaPhase === 'deliverDrink' && ikeaCarrying === 'drink') ? near : null
+  }
+  if (near === 'drinkStation') return ikeaPhase === 'drink' ? near : null
+  return null
+}
 
 // The knife shelf in the kitchen department, far from the kiosk.
 export const KNIFE_SHELF_POS = [-16, 0, -14]
 
-// Rasmus' walk from the knife shelf to the kiosk (waypoints, first = shelf, last = beside the player).
+// Rasmus' walk from the knife shelf to the kiosk (waypoints, first = shelf, last = just in front of and to the left of the
+// player). The player looks along -z (yaw 0), so the whole walk stays within about 40 degrees of the view axis: he is in
+// sight the entire time, never behind the player. The last two legs pass between the tray rack (x -3.9..-2.5) and the counter.
 export const RASMUS_PATH = [
   KNIFE_SHELF_POS,
-  [-16, 0, -4],
-  [-8, 0, -1],
-  [-8, 0, 5],
-  [-1.2, 0, 3.4],
+  [-9, 0, -9],
+  [-4, 0, -4],
+  [-2.05, 0, -0.5],
+  [-2.05, 0, 1.9],
+  [-0.9, 0, 1.9],
 ]
 
 // NOTE: rasmusPositionAt / rasmusDistanceAt give the *logical* position. The visual

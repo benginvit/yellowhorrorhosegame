@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-function MobileControls({ onMove, onRotate }) {
+function MobileControls({ onMove, onRotate, interactTarget = null, onInteract, interactLabel = 'Use' }) {
   const [joystickActive, setJoystickActive] = useState(false)
   const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 })
   const joystickRef = useRef(null)
@@ -123,6 +123,22 @@ function MobileControls({ onMove, onRotate }) {
           </div>
         )}
       </div>
+
+      {/* "Use" button, only while something is within reach (IKEA level: tray, table, drink station) */}
+      {interactTarget && (
+        <button
+          type="button"
+          className="restart-btn"
+          data-testid="ikea-use"
+          style={{ position: 'absolute', right: '4%', bottom: '25%', pointerEvents: 'auto', touchAction: 'manipulation' }}
+          // The document-level touch handlers above treat any touch as joystick / camera input.
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onClick={onInteract}
+        >
+          {interactLabel}
+        </button>
+      )}
 
       {/* Touch hints */}
       <div className="touch-hint left">🕹️ Move</div>
