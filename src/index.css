@@ -445,3 +445,17 @@ body.ikea-shake canvas {
 @media (prefers-reduced-motion: reduce) {
   body.ikea-shake canvas { animation: none; }
 }
+
+/* Under Astrid's bed: dark edges, fades in while the camera moves under it. */
+.hide-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.85) 100%);
+  animation: hideVignetteIn 0.5s ease-out;
+}
+
+@keyframes hideVignetteIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

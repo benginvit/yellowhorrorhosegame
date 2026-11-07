@@ -25,6 +25,8 @@ import DrinkMenu from './DrinkMenu'
 import CarriedItem from './CarriedItem'
 import IkeaServing from './IkeaServing'
 import IkeaInteraction from './IkeaInteraction'
+import BedInteraction from './BedInteraction'
+import { UNDER_BED_POSE, BED_POS } from '../levels/astridLayout'
 import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS, IKEA_BOUNDS } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
@@ -50,7 +52,8 @@ function Game({
   onNextLevel,
   onTakeDamage,
   onEnterHouse,
-  onSetHiding,
+  onSetBedNear,
+  onToggleHide,
   onIkeaOrderComplete,
   onIkeaLookBack,
   onIkeaRasmusSeated,
@@ -62,7 +65,6 @@ function Game({
   mobileMovement,
   mobileRotation
 }) {
-  const [nearFurniture, setNearFurniture] = useState({})
   const [candyPieces, setCandyPieces] = useState([])
   const candyTimerRef = useRef(null)
 
@@ -107,15 +109,6 @@ function Game({
     setCandyPieces(prev => prev.map(p => p.id === id ? { ...p, collectedByPlayer: true } : p))
     onCollectKey()
   }, [onCollectKey])
-
-  useEffect(() => {
-    const isHidingInSafeSpot = nearFurniture.bed === true
-    onSetHiding(isHidingInSafeSpot)
-  }, [nearFurniture, onSetHiding])
-
-  const handleFurnitureProximity = (furnitureId, isNear) => {
-    setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
-  }
 
   // IKEA level (the serve / drink props are placeholders, see DrinkStation, DrinkMenu, CarriedItem, IkeaServing)
   if (isIkeaLevel) {
@@ -254,10 +247,11 @@ function Game({
         {isAstridLevel && gameState.isInsideHouse ? (
           <>
             <HouseInterior />
-            <Furniture position={[-3, 0, -22]} type="sofa" onPlayerNear={(near) => handleFurnitureProximity('sofa', near)} />
-            <Furniture position={[3, 0, -24]} type="bookshelf" onPlayerNear={(near) => handleFurnitureProximity('bookshelf', near)} />
-            <Furniture position={[0, 0, -28]} type="table" onPlayerNear={(near) => handleFurnitureProximity('table', near)} />
-            <Furniture position={[5, 0, -20]} type="bed" onPlayerNear={(near) => handleFurnitureProximity('bed', near)} />
+            <Furniture position={[-3, 0, -22]} type="sofa" />
+            <Furniture position={[3, 0, -24]} type="bookshelf" />
+            <Furniture position={[0, 0, -28]} type="table" />
+            <Furniture position={BED_POS} type="bed" />
+            <BedInteraction hiding={gameState.isHiding} onNear={onSetBedNear} onToggle={onToggleHide} />
             <Character
               level={level}
               onCatchPlayer={onTakeDamage}
@@ -293,7 +287,11 @@ function Game({
           </>
         )}
 
-        <Player mobileMovement={mobileMovement} mobileRotation={mobileRotation} />
+        <Player
+          mobileMovement={mobileMovement}
+          mobileRotation={mobileRotation}
+          pose={isAstridLevel && gameState.isInsideHouse && gameState.isHiding ? { ...UNDER_BED_POSE, locked: true } : null}
+        />
         <TestModeProbe />
       </Suspense>
       <HorrorEffects />

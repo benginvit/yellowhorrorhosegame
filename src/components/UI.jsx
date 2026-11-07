@@ -79,6 +79,11 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
 
             {currentLevel.name === 'Astrid' && gameState.isInsideHouse ? (
               <>
+                {gameState.bedNear && (
+                  <div className="hud-item" data-testid="hide-prompt">
+                    {gameState.isHiding ? t('hideExitHint') : t('hideEnterHint')}
+                  </div>
+                )}
                 {!gameState.astridAwake ? (
                   <div className="hud-item">
                     {t('astridSleeping')}
@@ -142,9 +147,13 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           </div>
           <div className="instructions">
             {t('instructionsMove')} | {t('instructionsLook')}
-            {currentLevel.name === 'Astrid' && gameState.isInsideHouse && gameState.astridAwake && ` | ${t('instructionsHide')}`}
           </div>
         </>
+      )}
+
+      {/* Lying under the bed: darkened edges, faded in over the camera move */}
+      {gameState.isPlaying && gameState.isHiding && (
+        <div className="hide-vignette" data-testid="hide-vignette" />
       )}
 
       {gameState.levelComplete && (

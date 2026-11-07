@@ -80,7 +80,10 @@ export const translations = {
     // Instructions
     instructionsMove: 'WASD - Flytta',
     instructionsLook: 'Piltangenter/Q-E - Titta runt',
-    instructionsHide: 'GÖM DIG UNDER SÄNGEN!',
+    hideEnterHint: 'Krypa in (F)',
+    hideExitHint: 'Krypa ut (F)',
+    hideEnterButton: 'Krypa in',
+    hideExitButton: 'Krypa ut',
 
     // Level complete
     levelCompleteMolltas: '🐱 DU UNDKOM KATTEN! 🐱',
@@ -197,7 +200,10 @@ export const translations = {
     // Instructions
     instructionsMove: 'WASD - Move',
     instructionsLook: 'Arrow Keys/Q-E - Look Around',
-    instructionsHide: 'HIDE UNDER THE BED!',
+    hideEnterHint: 'Crawl in (F)',
+    hideExitHint: 'Crawl out (F)',
+    hideEnterButton: 'Crawl in',
+    hideExitButton: 'Crawl out',
 
     // Level complete
     levelCompleteMolltas: '🐱 YOU ESCAPED THE CAT! 🐱',
