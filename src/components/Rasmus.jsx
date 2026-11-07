@@ -55,13 +55,14 @@ function Knife() {
  *   or with loseReason 'wrongDrink' runs at the player from where he sits.
  * @param {number} props.progress  0..1 along RASMUS_PATH (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS).
  * @param {null|'timeout'|'wrongDrink'} [props.loseReason]
+ * @param {boolean} [props.drinkAsked]  he has said "Lingondryck" (ikeaDrinkAsked, true from 'drink' + ~2 s); stage 2 animates the ask
  * @param {() => void} [props.onSeated]  called once when he has sat down in 'serve' (App then allows serving)
  *
  * The logical position is rasmusPositionAt(progress), a pure function of ikeaTimeLeft; the visual position (the group
  * named "rasmus", readable in tests via scene.getObjectByName('rasmus')) eases toward it in useFrame because progress
  * only changes every 0.25 s. No shadow casters on purpose.
  */
-function Rasmus({ ikeaPhase, progress, loseReason = null, onSeated }) {
+function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, onSeated }) {
   const root = useRef() // world position
   const body = useRef() // facing (yaw) and sit offset
   const legL = useRef()

@@ -5,6 +5,7 @@ const TABLE_TOP_Y = 0.78 // top of the restaurant tables in IkeaStore
 /**
  * The tray waiting at TRAY_POS (placeholder) and, once the drink is delivered, the glass on Rasmus' table.
  * Rasmus.jsx draws the tray that stands on his table after serving.
+ * Owned by BENG-98 (stage 2): the tray and the glass models live in this file.
  *
  * @param {object} props
  * @param {string|null} props.ikeaPhase

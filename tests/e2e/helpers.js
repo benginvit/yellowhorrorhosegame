@@ -264,8 +264,11 @@ export function setCamera(page, x, z) {
   return page.evaluate(([px, pz]) => window.__YHH_TEST_MODE__.camera.position.set(px, 1.6, pz), [x, z])
 }
 
-const advance = (page, seconds, dt = 1 / 20) =>
-  page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
+// Throws when there is no live Canvas: advance() then renders nothing and the game's frame logic does not run.
+const advance = async (page, seconds, dt = 1 / 20) => {
+  const live = await page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
+  if (!live) throw new Error('advance(): no live Canvas, the frames did not run')
+}
 
 // Spots inside IKEA_BOUNDS within 1.5 of the interactables (ikeaLayout.js): the tray at (0, 0.9), Rasmus' table at
 // (4.25, 1.2), the drink station at (-3, 6).
@@ -277,6 +280,8 @@ export const AT_STATION = [-3, 5.2]
 export async function useAt(page, [x, z], { tap = false } = {}) {
   await setCamera(page, x, z)
   await advance(page, 0.1)
+  // A few more frames if React has not committed the target yet (bounded; the failure is the expect below).
+  for (let i = 0; i < 5 && !(await page.getByTestId('ikea-use-hint').isVisible()); i++) await advance(page, 0.1)
   await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
   if (tap) await page.getByTestId('ikea-use').tap() // the on-screen "Use" button
   else await page.keyboard.press('KeyF')
@@ -286,13 +291,13 @@ export async function useAt(page, [x, z], { tap = false } = {}) {
 export async function serveAndDrink(page, { tap = false } = {}) {
   await useAt(page, AT_TRAY, { tap })
   await advance(page, 4.5) // he is seated (walk or fallback timer)
-  await expect(page.getByTestId('ikea-objective')).toContainText('Servera Rasmus')
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
   await useAt(page, AT_TABLE, { tap })
-  await expect(page.getByTestId('ikea-objective')).toContainText('dryckesstationen')
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
   await useAt(page, AT_STATION, { tap })
   if (tap) await page.getByTestId('ikea-drink-lingon').tap()
   else await page.getByTestId('ikea-drink-lingon').click()
-  await expect(page.getByTestId('ikea-objective')).toContainText('Ställ glaset')
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink')
   await useAt(page, AT_TABLE, { tap })
   await advance(page, 4.5)
   await expect(page.locator('.victory-screen')).toBeVisible()

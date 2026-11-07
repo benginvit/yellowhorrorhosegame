@@ -38,6 +38,46 @@ export const CORRECT_DRINK = 'lingon'
 // Interaction reach (world units, horizontal distance) for the F key / "Use" button.
 export const INTERACT_RANGE = 1.5
 
+// 'drink' starts: Rasmus says "Lingondryck" this long after (ms); then ikeaDrinkAsked is true.
+export const IKEA_DRINK_ASK_MS = 2000
+// After a wrong drink Rasmus runs at the player this long (ms) before the jumpscare and game over.
+export const IKEA_WRONG_DRINK_MS = 2500
+
+/**
+ * The interactable closest to the player within INTERACT_RANGE (horizontal distance), whatever the game state.
+ * @returns {null|'tray'|'table'|'drinkStation'}
+ */
+export function nearestInteractable(x, z) {
+  let best = null
+  let bestDist = INTERACT_RANGE
+  for (const [id, pos] of [['tray', TRAY_POS], ['table', RASMUS_TABLE_POS], ['drinkStation', DRINK_STATION_POS]]) {
+    const d = Math.hypot(pos[0] - x, pos[2] - z)
+    if (d <= bestDist) {
+      best = id
+      bestDist = d
+    }
+  }
+  return best
+}
+
+/**
+ * The target the player can actually use now: the nearby interactable (see nearestInteractable) if the game state allows it.
+ *  - 'tray'         ikeaPhase 'serve', nothing carried;
+ *  - 'table'        'serve' with the tray in hand AND Rasmus seated (serving is blocked until he sits), or
+ *                   'deliverDrink' with the glass in hand;
+ *  - 'drinkStation' ikeaPhase 'drink'.
+ * @returns {null|'tray'|'table'|'drinkStation'}
+ */
+export function validInteractTarget(near, { ikeaPhase, ikeaCarrying, ikeaRasmusSeated }) {
+  if (near === 'tray') return ikeaPhase === 'serve' && ikeaCarrying === null ? near : null
+  if (near === 'table') {
+    const serving = ikeaPhase === 'serve' && ikeaCarrying === 'tray' && ikeaRasmusSeated
+    return serving || (ikeaPhase === 'deliverDrink' && ikeaCarrying === 'drink') ? near : null
+  }
+  if (near === 'drinkStation') return ikeaPhase === 'drink' ? near : null
+  return null
+}
+
 // The knife shelf in the kitchen department, far from the kiosk.
 export const KNIFE_SHELF_POS = [-16, 0, -14]
 

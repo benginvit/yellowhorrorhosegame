@@ -17,7 +17,7 @@ function IkeaObjective({ gameState, language }) {
   else if (ikeaPhase === 'deliverDrink') key = 'ikeaObjDeliverDrink'
   return (
     <>
-      {key && <div className="hud-item" data-testid="ikea-objective">{t(key)}</div>}
+      {key && <div className="hud-item" data-testid="ikea-objective" data-objective={key}>{t(key)}</div>}
       {ikeaInteractTarget && <div className="hud-item" data-testid="ikea-use-hint">{t('ikeaHintUse')}</div>}
     </>
   )

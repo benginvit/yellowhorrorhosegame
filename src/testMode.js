@@ -14,7 +14,8 @@
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
 //   ?phase=ordering|serve|drink|deliverDrink  start the IKEA level in that phase instead of 'intro'
 //               (serve: Rasmus walks to his seat, nothing carried; drink: he sits; deliverDrink: he sits and
-//               the player carries the lingonberry glass; see getStartOverrides)
+//               the player carries the lingonberry glass; drink and deliverDrink also start with
+//               ikeaDrinkAsked: true, i.e. "Lingondryck" already said; see getStartOverrides)
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -294,7 +295,10 @@ export function getStartOverrides(levels, level = levelRequest?.level) {
   if (name === 'Rasmus') {
     overrides.ikeaPhase = ikeaStartPhase
     // Test starts straight into a later phase get the state that phase would normally have.
-    if (ikeaStartPhase === 'drink' || ikeaStartPhase === 'deliverDrink') overrides.ikeaRasmusSeated = true
+    if (ikeaStartPhase === 'drink' || ikeaStartPhase === 'deliverDrink') {
+      overrides.ikeaRasmusSeated = true
+      overrides.ikeaDrinkAsked = true
+    }
     if (ikeaStartPhase === 'deliverDrink') {
       overrides.ikeaCarrying = 'drink'
       overrides.ikeaDrinkChoice = 'lingon'

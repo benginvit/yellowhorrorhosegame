@@ -6,12 +6,14 @@ import { DRINK_STATION_POS, DRINK_STATION_FACING } from '../levels/ikeaLayout'
  * Contract:
  *  - stands at DRINK_STATION_POS (floor level) and its screen faces DRINK_STATION_FACING (a horizontal unit vector);
  *  - the player uses it with F / "Use" when within INTERACT_RANGE; App then opens <DrinkMenu> (ikeaInteractTarget 'drinkStation');
- *  - `active` is true while the drink is asked for (ikeaPhase 'drink'): light the screen up.
+ *  - `active` is true during ikeaPhase 'drink': light the screen up;
+ *  - `drinkAsked` is true once Rasmus has said "Lingondryck" (ikeaDrinkAsked). Gating the station on it is stage 2 (BENG-99).
  *
  * @param {object} props
  * @param {boolean} [props.active]
+ * @param {boolean} [props.drinkAsked]
  */
-function DrinkStation({ active = false }) {
+function DrinkStation({ active = false, drinkAsked = false }) {
   const yaw = Math.atan2(DRINK_STATION_FACING[0], DRINK_STATION_FACING[2])
   return (
     <group name="drink-station" position={DRINK_STATION_POS} rotation={[0, yaw, 0]}>

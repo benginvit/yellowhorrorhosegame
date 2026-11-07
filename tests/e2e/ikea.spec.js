@@ -61,12 +61,12 @@ test.describe('ikea-serving', () => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4, phase: 'drink' })
-    await expect(page.getByTestId('ikea-objective')).toContainText('dryckesstationen')
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
     await useAt(page, AT_STATION)
     await expect(page.getByTestId('ikea-drink-menu')).toBeVisible()
     await page.getByTestId('ikea-drink-lingon').click()
     await expect(page.getByTestId('ikea-drink-menu')).toHaveCount(0)
-    await expect(page.getByTestId('ikea-objective')).toContainText('Ställ glaset') // deliverDrink
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink') // deliverDrink
     await useAt(page, AT_TABLE)
     await expect(page.locator('.victory-screen')).toHaveCount(0) // 'won': level complete follows after ~4 s
     await ADVANCE(page, 4.5)
@@ -93,19 +93,19 @@ test.describe('ikea-serving', () => {
     await replayCdnFonts(page)
     await openFrozen(page, { level: 4, phase: 'serve' })
     await useAt(page, AT_TRAY)
-    await expect(page.getByTestId('ikea-objective')).toContainText('Rasmus går och sätter sig') // tray in hand, he is still walking
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait') // tray in hand, he is still walking
     await setCamera(page, ...AT_TABLE)
     await ADVANCE(page, 0.2)
     await expect(page.getByTestId('ikea-use-hint')).toHaveCount(0) // no target at the table yet
     await page.keyboard.press('KeyF')
     await ADVANCE(page, 0.1)
-    await expect(page.getByTestId('ikea-objective')).toContainText('Rasmus går och sätter sig') // still 'serve'
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait') // still 'serve'
     await ADVANCE(page, 4.5) // he sits down
-    await expect(page.getByTestId('ikea-objective')).toContainText('Servera Rasmus')
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
     await ADVANCE(page, 0.1) // the next frame sees the table as a target
     await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
     await page.keyboard.press('KeyF')
-    await expect(page.getByTestId('ikea-objective')).toContainText('dryckesstationen') // 'drink'
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink') // 'drink'
     expectNoErrors(errors)
   })
 })
@@ -264,7 +264,7 @@ test.describe('level chain classroom (3) -> IKEA (4)', () => {
     // flow itself is covered by the other tests; here only the hand-off into 'serve' is checked.
     await expect(page.getByTestId('ikea-done')).toBeVisible()
     await ADVANCE(page, 4.5) // Rasmus' seat fallback timer
-    await expect(page.getByTestId('ikea-objective')).toContainText('Hämta brickan')
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTray')
     expectNoErrors(errors)
   })
 

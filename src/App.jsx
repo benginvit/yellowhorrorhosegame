@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
-import { IKEA_ORDER_SECONDS, CORRECT_DRINK } from './levels/ikeaLayout'
+import { IKEA_ORDER_SECONDS, CORRECT_DRINK, IKEA_DRINK_ASK_MS, IKEA_WRONG_DRINK_MS, validInteractTarget } from './levels/ikeaLayout'
 import { getStartOverrides, setTimer, clearTimer, setTimerInterval, clearTimerInterval } from './testMode'
 import UI from './components/UI'
 import { getTranslation } from './translations'
@@ -12,8 +12,6 @@ import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRec
 const IKEA_INTRO_MS = 8000
 const IKEA_WON_MS = 4000
 const IKEA_SEAT_FALLBACK_MS = 4000 // Rasmus counts as seated after this long even if his walk never reports it
-const IKEA_DRINK_ASK_MS = 2000 // 'drink' starts: "Lingondryck" is said after this long
-const IKEA_WRONG_DRINK_MS = 2500 // Rasmus runs at the player before the jumpscare and game over
 const IKEA_TICK_MS = 250 // ikeaTimeLeft is counted down in quarter seconds (exact in binary)
 
 const INITIAL_STATE = {
@@ -36,7 +34,8 @@ const INITIAL_STATE = {
   ikeaRasmusSeated: false,
   ikeaDrinkChoice: null, // null | drink id (DRINKS in ikeaLayout.js)
   ikeaLoseReason: null, // null | 'timeout' | 'wrongDrink'
-  ikeaInteractTarget: null, // null | 'tray' | 'table' | 'drinkStation': what is within reach (F / "Use")
+  ikeaNearTarget: null, // null | 'tray' | 'table' | 'drinkStation': closest interactable within reach, whatever the state
+  ikeaDrinkAsked: false, // Rasmus has said "Lingondryck" (set with the voice clip)
   ikeaMenuOpen: false // the drink menu at the drink station
 }
 
@@ -45,6 +44,12 @@ function App() {
   const [mobileMovement, setMobileMovement] = useState({ x: 0, y: 0 })
   const [mobileRotation, setMobileRotation] = useState({ x: 0, y: 0 })
   const [gameState, setGameState] = useState(INITIAL_STATE)
+  // What the player can use right now (ikeaNearTarget checked against the phase / carrying / seated). Exposed to UI and Game.
+  const ikeaInteractTarget = validInteractTarget(gameState.ikeaNearTarget, gameState)
+  const viewState = { ...gameState, ikeaInteractTarget }
+  // Read by timers, so a language change does not restart the IKEA phase effect (and replay its clip).
+  const languageRef = useRef(language)
+  languageRef.current = language
 
   const [showJumpscare, setShowJumpscare] = useState(false)
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
@@ -150,7 +155,7 @@ function App() {
     }
 
     if (phase === 'ordering') {
-      playVoiceRecording('Rasmus', 'kottbullar', language)
+      playVoiceRecording('Rasmus', 'kottbullar', languageRef.current)
       const tick = setTimerInterval(() => {
         setGameState(prev => {
           if (prev.ikeaPhase !== 'ordering') return prev
@@ -171,7 +176,10 @@ function App() {
     }
 
     if (phase === 'drink') {
-      const t = setTimer(() => playVoiceRecording('Rasmus', 'lingondryck', language), IKEA_DRINK_ASK_MS)
+      const t = setTimer(() => {
+        playVoiceRecording('Rasmus', 'lingondryck', languageRef.current)
+        setGameState(prev => (prev.ikeaPhase === 'drink' ? { ...prev, ikeaDrinkAsked: true } : prev))
+      }, IKEA_DRINK_ASK_MS)
       return () => clearTimer(t)
     }
 
@@ -191,7 +199,7 @@ function App() {
     }
 
     return undefined
-  }, [gameState.isPlaying, gameState.ikeaPhase, gameState.ikeaLoseReason, language])
+  }, [gameState.isPlaying, gameState.ikeaPhase, gameState.ikeaLoseReason])
 
   // Second "Köttbullar..." at 50 % progress
   useEffect(() => {
@@ -254,7 +262,8 @@ function App() {
       ikeaRasmusSeated: false,
       ikeaDrinkChoice: null,
       ikeaLoseReason: null,
-      ikeaInteractTarget: null,
+      ikeaNearTarget: null,
+      ikeaDrinkAsked: false,
       ikeaMenuOpen: false
     }
   }
@@ -275,28 +284,23 @@ function App() {
     setGameState(prev => (prev.ikeaPhase === 'serve' && !prev.ikeaRasmusSeated ? { ...prev, ikeaRasmusSeated: true } : prev))
   }, [])
 
-  // What is within reach changed (reported by IkeaInteraction). Walking away from the drink station closes its menu.
-  const setIkeaInteractTarget = useCallback((target) => {
+  // The closest interactable changed (reported by IkeaInteraction). Walking away from the drink station closes its menu.
+  const setIkeaNear = useCallback((near) => {
     setGameState(prev => {
-      if (prev.ikeaInteractTarget === target && (target === 'drinkStation' || !prev.ikeaMenuOpen)) return prev
-      return { ...prev, ikeaInteractTarget: target, ikeaMenuOpen: target === 'drinkStation' && prev.ikeaMenuOpen }
+      if (prev.ikeaNearTarget === near) return prev
+      return { ...prev, ikeaNearTarget: near, ikeaMenuOpen: near === 'drinkStation' && prev.ikeaMenuOpen }
     })
   }, [])
 
-  // F / "Use": act on the target in reach. Serving needs Rasmus seated.
+  // F / "Use": act on the target in reach. Serving needs Rasmus seated (validInteractTarget).
   const ikeaInteract = useCallback(() => {
     setGameState(prev => {
-      const { ikeaPhase, ikeaCarrying, ikeaInteractTarget: target } = prev
-      if (target === 'tray' && ikeaPhase === 'serve' && ikeaCarrying === null) {
-        return { ...prev, ikeaCarrying: 'tray', ikeaInteractTarget: null }
-      }
-      if (target === 'table' && ikeaPhase === 'serve' && ikeaCarrying === 'tray' && prev.ikeaRasmusSeated) {
-        return { ...prev, ikeaPhase: 'drink', ikeaCarrying: null, ikeaInteractTarget: null }
-      }
-      if (target === 'table' && ikeaPhase === 'deliverDrink' && ikeaCarrying === 'drink') {
-        return { ...prev, ikeaPhase: 'won', ikeaCarrying: null, ikeaInteractTarget: null }
-      }
-      if (target === 'drinkStation' && ikeaPhase === 'drink') return { ...prev, ikeaMenuOpen: true }
+      const { ikeaPhase } = prev
+      const target = validInteractTarget(prev.ikeaNearTarget, prev)
+      if (target === 'tray') return { ...prev, ikeaCarrying: 'tray' }
+      if (target === 'table' && ikeaPhase === 'serve') return { ...prev, ikeaPhase: 'drink', ikeaCarrying: null }
+      if (target === 'table' && ikeaPhase === 'deliverDrink') return { ...prev, ikeaPhase: 'won', ikeaCarrying: null }
+      if (target === 'drinkStation') return { ...prev, ikeaMenuOpen: true }
       return prev
     })
   }, [])
@@ -304,7 +308,7 @@ function App() {
   const ikeaChooseDrink = useCallback((id) => {
     setGameState(prev => {
       if (prev.ikeaPhase !== 'drink') return prev
-      const chosen = { ...prev, ikeaDrinkChoice: id, ikeaMenuOpen: false, ikeaInteractTarget: null }
+      const chosen = { ...prev, ikeaDrinkChoice: id, ikeaMenuOpen: false }
       if (id === CORRECT_DRINK) return { ...chosen, ikeaPhase: 'deliverDrink', ikeaCarrying: 'drink' }
       return { ...chosen, ikeaPhase: 'lost', ikeaLoseReason: 'wrongDrink' }
     })
@@ -406,7 +410,7 @@ function App() {
   return (
     <>
       <UI
-        gameState={gameState}
+        gameState={viewState}
         levels={levels}
         language={language}
         onSelectLanguage={setLanguage}
@@ -417,7 +421,7 @@ function App() {
       {gameState.isPlaying && (
         <>
           <Game
-            gameState={gameState}
+            gameState={viewState}
             level={currentLevel}
             language={language}
             onCollectKey={collectKey}
@@ -428,7 +432,7 @@ function App() {
             onIkeaOrderComplete={completeIkeaOrder}
             onIkeaLookBack={setIkeaLookingBack}
             onIkeaRasmusSeated={ikeaRasmusSeated}
-            onIkeaInteractTarget={setIkeaInteractTarget}
+            onIkeaNear={setIkeaNear}
             onIkeaInteract={ikeaInteract}
             onIkeaChooseDrink={ikeaChooseDrink}
             onIkeaCloseMenu={ikeaCloseMenu}
@@ -440,7 +444,7 @@ function App() {
           <MobileControls
             onMove={setMobileMovement}
             onRotate={setMobileRotation}
-            interactTarget={gameState.ikeaInteractTarget}
+            interactTarget={ikeaInteractTarget}
             onInteract={ikeaInteract}
             interactLabel={getTranslation(language || 'en', 'ikeaUse')}
           />

@@ -54,7 +54,7 @@ function Game({
   onIkeaOrderComplete,
   onIkeaLookBack,
   onIkeaRasmusSeated,
-  onIkeaInteractTarget,
+  onIkeaNear,
   onIkeaInteract,
   onIkeaChooseDrink,
   onIkeaCloseMenu,
@@ -141,12 +141,13 @@ function Game({
               ikeaPhase={ikeaPhase}
               progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
               loseReason={gameState.ikeaLoseReason}
+              drinkAsked={gameState.ikeaDrinkAsked}
               onSeated={onIkeaRasmusSeated}
             />
-            <DrinkStation active={ikeaPhase === 'drink'} />
+            <DrinkStation active={ikeaPhase === 'drink'} drinkAsked={gameState.ikeaDrinkAsked} />
             <IkeaServing ikeaPhase={ikeaPhase} carrying={gameState.ikeaCarrying} />
             <CarriedItem carrying={gameState.ikeaCarrying} />
-            {ikeaServing && <IkeaInteraction gameState={gameState} onTarget={onIkeaInteractTarget} onInteract={onIkeaInteract} />}
+            {ikeaServing && <IkeaInteraction onNear={onIkeaNear} onInteract={onIkeaInteract} />}
             <OrderKiosk
               ikeaPhase={ikeaPhase}
               orderDone={ikeaPhase === 'serve' && gameState.ikeaCarrying === null}
