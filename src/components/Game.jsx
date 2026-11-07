@@ -150,7 +150,6 @@ function Game({
             {ikeaServing && <IkeaInteraction onNear={onIkeaNear} onInteract={onIkeaInteract} />}
             <OrderKiosk
               ikeaPhase={ikeaPhase}
-              orderDone={ikeaPhase === 'serve' && gameState.ikeaCarrying === null}
               ikeaTimeLeft={gameState.ikeaTimeLeft}
               language={language}
               lookingBack={gameState.ikeaLookingBack}
@@ -174,7 +173,7 @@ function Game({
           </Suspense>
           <HorrorEffects />
         </Canvas>
-        <DrinkMenu open={ikeaPhase === 'drink' && gameState.ikeaMenuOpen} language={language} onChoose={onIkeaChooseDrink} onClose={onIkeaCloseMenu} />
+        <DrinkMenu open={ikeaPhase === 'drink' && gameState.ikeaMenuOpen} language={language} onChoose={onIkeaChooseDrink} />
       </>
     )
   }

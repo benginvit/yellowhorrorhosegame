@@ -294,6 +294,7 @@ export async function serveAndDrink(page, { tap = false } = {}) {
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
   await useAt(page, AT_TABLE, { tap })
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+  await advance(page, 4) // the station opens once Rasmus has said "Lingondryck" (ikeaDrinkAsked)
   await useAt(page, AT_STATION, { tap })
   if (tap) await page.getByTestId('ikea-drink-lingon').tap()
   else await page.getByTestId('ikea-drink-lingon').click()

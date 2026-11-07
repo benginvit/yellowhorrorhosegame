@@ -3,6 +3,7 @@ import { playDeathSound } from '../utils/sounds'
 import { getTranslation } from '../translations'
 import { IKEA_ORDER_SECONDS } from '../levels/ikeaLayout'
 import IkeaObjective from './IkeaObjective'
+import IkeaHud from './IkeaHud'
 
 function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart, onContinue }) {
   const currentLevel = levels[gameState.currentLevel - 1]
@@ -122,6 +123,11 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
                   </div>
                 )}
                 <IkeaObjective gameState={gameState} language={language} />
+                <IkeaHud
+                  active={gameState.ikeaPhase === 'ordering'}
+                  progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
+                  timeLeft={gameState.ikeaTimeLeft}
+                />
               </>
             ) : (
               <>

@@ -65,16 +65,16 @@ export function nearestInteractable(x, z) {
  *  - 'tray'         ikeaPhase 'serve', nothing carried;
  *  - 'table'        'serve' with the tray in hand AND Rasmus seated (serving is blocked until he sits), or
  *                   'deliverDrink' with the glass in hand;
- *  - 'drinkStation' ikeaPhase 'drink'.
+ *  - 'drinkStation' ikeaPhase 'drink' and Rasmus has asked for the drink (ikeaDrinkAsked: the "Lingondryck" clip has played).
  * @returns {null|'tray'|'table'|'drinkStation'}
  */
-export function validInteractTarget(near, { ikeaPhase, ikeaCarrying, ikeaRasmusSeated }) {
+export function validInteractTarget(near, { ikeaPhase, ikeaCarrying, ikeaRasmusSeated, ikeaDrinkAsked }) {
   if (near === 'tray') return ikeaPhase === 'serve' && ikeaCarrying === null ? near : null
   if (near === 'table') {
     const serving = ikeaPhase === 'serve' && ikeaCarrying === 'tray' && ikeaRasmusSeated
     return serving || (ikeaPhase === 'deliverDrink' && ikeaCarrying === 'drink') ? near : null
   }
-  if (near === 'drinkStation') return ikeaPhase === 'drink' ? near : null
+  if (near === 'drinkStation') return ikeaPhase === 'drink' && ikeaDrinkAsked ? near : null
   return null
 }
 

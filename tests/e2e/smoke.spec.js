@@ -135,7 +135,7 @@ test.describe('IKEA kiosk overlay', () => {
     expectNoErrors(errors)
   })
 
-  test('won: drops below the UI overlay and the victory screen gets the click', async ({ page }, testInfo) => {
+  test('won: the victory screen gets the click', async ({ page }, testInfo) => {
     test.setTimeout(240_000) // the IKEA scene renders slowly on software GL
     test.skip(testInfo.project.name !== 'test', 'phase=ordering exists only in the test build')
     const errors = trackErrors(page)
@@ -143,9 +143,7 @@ test.describe('IKEA kiosk overlay', () => {
     await openFrozen(page, { level: 4, phase: 'ordering' })
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
-    await expect(page.getByTestId('ikea-done')).toBeVisible()
-    const z = await layers('ikea-done')(page)
-    expect(z.kiosk, `kiosk z-index ${z.kiosk} vs .ui-overlay ${z.ui}`).toBeLessThan(z.ui)
+    await expect(page.getByTestId('ikea-start')).toHaveCount(0) // the kiosk is gone once the order is paid
     await serveAndDrink(page) // tray, table, drink, glass -> 'won' -> level complete
     const button = page.locator('.victory-screen .restart-btn')
     await expect(button).toBeVisible()

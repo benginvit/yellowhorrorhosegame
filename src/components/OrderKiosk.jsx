@@ -5,38 +5,26 @@ import { getTranslation } from '../translations'
 
 // Mounted in <body> so the buttons sit above the canvas wrapper and the mobile controls.
 const bodyPortal = { current: document.body }
-// Stacking contract (z-index, see index.css): mobile controls 900 < .ui-overlay 1000
-// (HUD, instructions, victory and game-over screens). While the order is in progress
-// the kiosk sits ABOVE the UI overlay (KIOSK_Z_ORDERING, as before: the instructions
-// text must not draw over the panel, and nothing in the overlay is clickable then).
-// Once the order is done ('won') it drops BELOW the overlay (KIOSK_Z_DONE), so the
-// victory screen that follows always gets the click: on top, the "order done" panel
-// intercepted it whenever the two overlapped (BENG-91).
-const KIOSK_Z_ORDERING = [100000, 50000]
-const KIOSK_Z_DONE = [950, 901]
+// Stacking contract (z-index, see index.css): mobile controls 900 < .ui-overlay 1000 (HUD, instructions,
+// victory and game-over screens) < kiosk. The kiosk only exists while ordering, when nothing in the overlay
+// is clickable and the instructions text must not draw over the panel (BENG-91).
+const KIOSK_Z = [100000, 50000]
 const overlay = { pointerEvents: 'none' }
-const lookBackButton = { position: 'absolute', left: '50%', bottom: '3%', transform: 'translateX(-50%)', pointerEvents: 'auto' }
+// drei offsets a fullscreen overlay by half the canvas size from the wrapper, so the wrapper must sit at the screen
+// centre: the default (the projected position of the group) drifts away from it with the camera and on a frozen clock.
+const screenCentre = (_el, _camera, size) => [size.width / 2, size.height / 2]
+// Layout (side panel on the right ~40 %, bottom half on a portrait phone) lives in index.css (.ikea-side-panel).
 const panelStyle = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 'min(92vw, 520px)',
-  maxHeight: '80vh',
-  overflowY: 'auto',
   boxSizing: 'border-box',
   padding: '16px',
   background: '#0b3d91',
-  border: '6px solid #ffda1a',
-  borderRadius: '14px',
+  borderLeft: '6px solid #ffda1a',
   color: '#fff',
   textAlign: 'center',
   pointerEvents: 'auto',
   fontFamily: 'sans-serif',
 }
-// "Order done" is informational: it must never catch clicks meant for what is drawn on top of it.
-const donePanelStyle = { ...panelStyle, pointerEvents: 'none' }
-const bigButton = { display: 'block', width: '100%', margin: '8px 0', padding: '16px', fontSize: '22px', touchAction: 'manipulation' }
+const bigButton = { display: 'block', width: '100%', margin: '8px 0', padding: '14px', fontSize: '20px', touchAction: 'manipulation' }
 const smallButton = { ...bigButton, width: 'auto', display: 'inline-block', margin: '8px', padding: '12px 22px' }
 const disabledButton = { opacity: 0.4, cursor: 'not-allowed' }
 const title = { margin: '4px 0 10px', fontSize: '24px', color: '#ffda1a' }
@@ -60,7 +48,7 @@ function shuffled(list) {
 }
 
 const CATEGORIES = ['main', 'drinks', 'desserts']
-const DISHES = ['meatballs', 'salmon', 'veggie', 'chicken', 'hotdog']
+const DISHES = ['salmon', 'veggie', 'meatballs', 'chicken', 'hotdog'] // meatballs are no. 3
 const SIDES = ['mash', 'fries', 'rice']
 
 /**
@@ -68,10 +56,9 @@ const SIDES = ['mash', 'fries', 'rice']
  *
  * @param {object} props
  * @param {string|null} props.ikeaPhase  interactive in 'ordering'
- * @param {boolean} [props.orderDone]  show the "order done" panel (App: 'serve' until the player picks up the tray)
  * @param {number} props.ikeaTimeLeft  seconds left (0..IKEA_ORDER_SECONDS)
  * @param {boolean} props.lookingBack  the player is looking back at Rasmus: the kiosk is hidden (the countdown is not paused)
- * @param {'sv'|'en'} props.language
+ * @param {'sv'|'en'|null} props.language  null falls back to 'en', like App
  * @param {() => void} props.onOrderComplete  call once the order is paid (App sets phase 'serve')
  * @param {(looking: boolean) => void} props.onLookBack  toggle looking back (also held with Space)
  *
@@ -80,11 +67,11 @@ const SIDES = ['mash', 'fries', 'rice']
  * Test hooks (data-testid): ikea-start, ikea-category-{main,drinks,desserts}, ikea-dish-{meatballs,...},
  * ikea-qty-{minus,plus,value,next}, ikea-side-{mash,fries,rice}, ikea-sausage-{yes,no}, ikea-family-{yes,no},
  * ikea-family-scan, ikea-loading, ikea-cart, ikea-cart-remove-sausage, ikea-pay (final "pay"), ikea-error,
- * ikea-back, ikea-done, ikea-look-back (toggle; Space holds).
+ * ikea-back, ikea-look-back (toggle; Space holds).
  */
-function OrderKiosk({ ikeaPhase, orderDone = false, lookingBack, language = 'sv', onOrderComplete, onLookBack }) {
+function OrderKiosk({ ikeaPhase, lookingBack, language, onOrderComplete, onLookBack }) {
   const ordering = ikeaPhase === 'ordering'
-  const t = (key) => getTranslation(language, key)
+  const t = (key) => getTranslation(language || 'en', key)
 
   const [step, setStep] = useState('start')
   const [error, setError] = useState(null) // { message, back } while a wrong choice is shown
@@ -134,11 +121,10 @@ function OrderKiosk({ ikeaPhase, orderDone = false, lookingBack, language = 'sv'
 
   // drei only sets the wrapper's z-index (within zIndexRange) once the projected position changes, which
   // never happens for a fixed kiosk (and not at all on a frozen clock): set it from a marker element
-  // instead, keyed on the phase so it is applied again when the range changes. Relies on drei Html's DOM
-  // structure: wrapper > inner div (styles) > children. Re-check it when upgrading drei.
-  const zRange = ordering ? KIOSK_Z_ORDERING : KIOSK_Z_DONE
+  // instead. Relies on drei Html's DOM structure: wrapper > inner div (styles) > children. Re-check it
+  // when upgrading drei.
   const raiseWrapper = (el) => {
-    if (el) el.parentElement.parentElement.style.zIndex = String(zRange[0])
+    if (el) el.parentElement.parentElement.style.zIndex = String(KIOSK_Z[0])
   }
 
   const btn = (testId, label, onClick, { disabled = false, small = false } = {}) => (
@@ -256,27 +242,18 @@ function OrderKiosk({ ikeaPhase, orderDone = false, lookingBack, language = 'sv'
 
   return (
     <>
-      {(ordering || orderDone) && (
-        <Html fullscreen portal={bodyPortal} zIndexRange={zRange} style={overlay}>
-          <div key={ordering ? 'ordering' : 'done'} ref={raiseWrapper} />
-          {orderDone ? (
-            <div style={donePanelStyle}>
-              <h2 style={title} data-testid="ikea-done">{t('ikeaOrderDone')}</h2>
-            </div>
-          ) : (
-            <>
-              {!lookingBack && <div style={panelStyle}>{renderStep()}</div>}
-              <button
-                data-testid="ikea-look-back"
-                className="restart-btn"
-                style={lookBackButton}
-                onClick={() => onLookBack(!lookingBack)}
-                onKeyDown={(e) => e.code === 'Space' && e.preventDefault()}
-              >
-                {lookingBack ? t('ikeaBackToKiosk') : t('ikeaLookBack')}
-              </button>
-            </>
-          )}
+      {ordering && (
+        <Html fullscreen calculatePosition={screenCentre} portal={bodyPortal} zIndexRange={KIOSK_Z} style={overlay}>
+          <div ref={raiseWrapper} />
+          {!lookingBack && <div className="ikea-side-panel" style={panelStyle}>{renderStep()}</div>}
+          <button
+            data-testid="ikea-look-back"
+            className="restart-btn ikea-look-back"
+            onClick={() => onLookBack(!lookingBack)}
+            onKeyDown={(e) => e.code === 'Space' && e.preventDefault()}
+          >
+            {lookingBack ? t('ikeaBackToKiosk') : t('ikeaLookBack')}
+          </button>
         </Html>
       )}
     </>

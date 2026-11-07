@@ -506,6 +506,24 @@ export const playTickSound = (isUrgent = false) => {
   osc.stop(now + 0.05)
 }
 
+// One "lub-dub" heartbeat (two low thumps), for the IKEA ordering stress.
+export const playHeartbeatSound = () => {
+  const ctx = getAudioContext()
+  const now = ctx.currentTime
+  ;[0, 0.16].forEach((offset, i) => {
+    const osc = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+    osc.connect(gainNode)
+    gainNode.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(i === 0 ? 70 : 55, now + offset)
+    gainNode.gain.setValueAtTime(i === 0 ? 0.45 : 0.3, now + offset)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + offset + 0.12)
+    osc.start(now + offset)
+    osc.stop(now + offset + 0.12)
+  })
+}
+
 // Fade out music when level complete
 export const fadeOutMusic = () => {
   if (backgroundMusic) {
