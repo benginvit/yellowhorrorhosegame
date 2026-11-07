@@ -314,10 +314,6 @@ function App() {
     })
   }, [])
 
-  const ikeaCloseMenu = useCallback(() => {
-    setGameState(prev => (prev.ikeaMenuOpen ? { ...prev, ikeaMenuOpen: false } : prev))
-  }, [])
-
   const setIkeaLookingBack = useCallback((looking) => {
     setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaLookingBack: looking } : prev))
   }, [])
@@ -435,7 +431,6 @@ function App() {
             onIkeaNear={setIkeaNear}
             onIkeaInteract={ikeaInteract}
             onIkeaChooseDrink={ikeaChooseDrink}
-            onIkeaCloseMenu={ikeaCloseMenu}
             onWakeAstrid={wakeAstrid}
             onUpdateHideTimer={updateHideTimer}
             mobileMovement={mobileMovement}

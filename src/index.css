@@ -395,3 +395,53 @@ canvas {
     height: 40px;
   }
 }
+
+/* IKEA kiosk: side panel on the right (~40 % of the width) so Rasmus stays in view on the left;
+   on a portrait screen it takes the bottom half and the 3D view stays above it. */
+.ikea-side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+}
+.ikea-look-back {
+  position: absolute;
+  left: 3%;
+  bottom: 3%;
+  pointer-events: auto;
+}
+@media (max-aspect-ratio: 1/1) {
+  .ikea-side-panel {
+    top: 50%;
+    width: 100%;
+    border-left: none !important;
+    border-top: 6px solid #ffda1a;
+    justify-content: flex-start;
+  }
+  .ikea-look-back {
+    bottom: calc(50% + 8px);
+  }
+}
+
+/* IKEA stress effects (IkeaHud.jsx). Smooth, no flashes (BENG-11). */
+@keyframes ikeaVignettePulse {
+  0%, 100% { opacity: var(--ikea-vignette-low); }
+  50% { opacity: var(--ikea-vignette-high); }
+}
+@keyframes ikeaShake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 1px); }
+  50% { transform: translate(2px, -2px); }
+  75% { transform: translate(-1px, 2px); }
+}
+body.ikea-shake canvas {
+  animation: ikeaShake 0.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.ikea-shake canvas { animation: none; }
+}

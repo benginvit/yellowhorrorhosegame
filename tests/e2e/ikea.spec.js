@@ -74,6 +74,17 @@ test.describe('ikea-serving', () => {
     expectNoErrors(errors)
   })
 
+  test('drink menu: 8 buttons in order, no close button', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await useAt(page, AT_STATION)
+    const ids = await page.locator('[data-testid^="ikea-drink-"]:not([data-testid="ikea-drink-menu"])').evaluateAll((els) => els.map((e) => e.dataset.testid))
+    expect(ids).toEqual(['water', 'sparkling', 'lemonade', 'elderflower', 'lingon', 'raspberry', 'cola', 'colaLight'].map((d) => `ikea-drink-${d}`))
+    await expect(page.getByTestId('ikea-drink-close')).toHaveCount(0)
+    expectNoErrors(errors)
+  })
+
   test('drink phase: the wrong drink (cola) -> lost -> game over "Fel dryck!"', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -117,7 +128,8 @@ test.describe('ikea-outcomes', () => {
     await toOrdering(page)
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
-    await expect(page.getByTestId('ikea-done')).toBeVisible()
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/) // the "order done" panel is gone in 'serve'
+    await expect(page.getByTestId('ikea-done')).toHaveCount(0)
     await expect(page.locator('.victory-screen')).toHaveCount(0) // 'serve' follows: tray, table, drink, glass
     await serveAndDrink(page)
     await page.locator('.victory-screen .restart-btn').click()
@@ -197,6 +209,22 @@ test.describe('ikea-kiosk', () => {
     expectNoErrors(errors)
   })
 
+  test('kiosk: meatballs are no. 3 of the main courses', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await toOrdering(page)
+    await page.getByTestId('ikea-start').click()
+    await page.getByTestId('ikea-category-main').click()
+    const ids = await page.locator('[data-testid^="ikea-dish-"]').evaluateAll((els) => els.map((e) => e.dataset.testid))
+    expect(ids).toEqual(['salmon', 'veggie', 'meatballs', 'chicken', 'hotdog'].map((d) => `ikea-dish-${d}`))
+    // Side panel: the right ~40 % of the screen, the 3D view stays free on the left.
+    const box = await page.locator('.ikea-side-panel').boundingBox()
+    expect(box.x).toBeGreaterThan(1280 * 0.55)
+    expect(page.viewportSize().width - (box.x + box.width)).toBeLessThanOrEqual(1)
+    await expect(page.getByTestId('ikea-vignette')).toBeVisible()
+    expectNoErrors(errors)
+  })
+
   test('looking back (Space held) hides the kiosk and blocks input; releasing restores it', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -223,8 +251,10 @@ test.describe('ikea-mobile (touch)', () => {
     await toOrdering(page)
     await orderMeatballs(page, { tap: true })
     await expect(page.getByTestId('ikea-pay')).toBeInViewport()
+    const panel = await page.locator('.ikea-side-panel').boundingBox()
+    expect(panel.y, 'the panel sits in the bottom half').toBeGreaterThanOrEqual(740 / 2 - 1)
     await page.getByTestId('ikea-pay').tap()
-    await expect(page.getByTestId('ikea-done')).toBeVisible()
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
     await serveAndDrink(page, { tap: true }) // incl. the "Use" button instead of F
     expectNoErrors(errors)
   })
@@ -262,7 +292,7 @@ test.describe('level chain classroom (3) -> IKEA (4)', () => {
     // The ordering leads on to serving. Walking to the tray needs rendered frames and this chain
     // has no live Canvas for advance() once the level has changed (it returns false), so the serve
     // flow itself is covered by the other tests; here only the hand-off into 'serve' is checked.
-    await expect(page.getByTestId('ikea-done')).toBeVisible()
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
     await ADVANCE(page, 4.5) // Rasmus' seat fallback timer
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTray')
     expectNoErrors(errors)

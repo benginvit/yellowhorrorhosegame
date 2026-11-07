@@ -278,10 +278,14 @@ export const AT_STATION = [-3, 5.2]
 
 /** Walks to a spot, lets the game see it (state commits between steps) and presses F once the hint is up. */
 export async function useAt(page, [x, z], { tap = false } = {}) {
+  // The pose is set again on every retry: the game may still be moving the camera (Rasmus' scene, phase changes).
   await setCamera(page, x, z)
   await advance(page, 0.1)
   // A few more frames if React has not committed the target yet (bounded; the failure is the expect below).
-  for (let i = 0; i < 5 && !(await page.getByTestId('ikea-use-hint').isVisible()); i++) await advance(page, 0.1)
+  for (let i = 0; i < 5 && !(await page.getByTestId('ikea-use-hint').isVisible()); i++) {
+    await setCamera(page, x, z)
+    await advance(page, 0.1)
+  }
   await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
   if (tap) await page.getByTestId('ikea-use').tap() // the on-screen "Use" button
   else await page.keyboard.press('KeyF')
@@ -294,6 +298,7 @@ export async function serveAndDrink(page, { tap = false } = {}) {
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
   await useAt(page, AT_TABLE, { tap })
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+  await advance(page, 4) // the station opens once Rasmus has said "Lingondryck" (ikeaDrinkAsked)
   await useAt(page, AT_STATION, { tap })
   if (tap) await page.getByTestId('ikea-drink-lingon').tap()
   else await page.getByTestId('ikea-drink-lingon').click()
