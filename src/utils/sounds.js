@@ -1,4 +1,6 @@
 // Sound effects using Web Audio API
+import { setTimer, clearTimer } from '../testMode'
+
 let audioContext = null
 
 const getAudioContext = () => {
@@ -17,6 +19,7 @@ const DUCK_GAIN = 0.316 // about -10 dB
 let musicBus = null
 let musicBusCtx = null
 let duckCount = 0
+let soundGeneration = 0 // bumped by stopAllSounds so a stale release cannot undo a newer duck
 
 const getMusicBus = (ctx) => {
   if (!musicBus || musicBusCtx !== ctx) {
@@ -126,14 +129,18 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
   if (characterName === 'Rasmus' && audio) {
     duckMusic()
     let released = false
+    let safetyTimer = null
+    const generation = soundGeneration
     const release = () => {
       if (released) return
       released = true
+      clearTimer(safetyTimer)
+      if (generation !== soundGeneration) return
       ;['ended', 'pause', 'error'].forEach((e) => audio.removeEventListener(e, release))
       unduckMusic()
     }
     ;['ended', 'pause', 'error'].forEach((e) => audio.addEventListener(e, release))
-    setTimeout(release, 8000) // autoplay blocked / never ended: never leave the music ducked
+    safetyTimer = setTimer(release, 8000) // autoplay blocked / never ended: never leave the music ducked
   }
   return audio
 }
@@ -928,6 +935,7 @@ export const stopAllSounds = () => {
   musicBus = null
   musicBusCtx = null
   duckCount = 0
+  soundGeneration += 1
 }
 
 // Footstep for Rasmus. volume 0..1, pan -1 (left) .. 1 (right) relative to the listener.

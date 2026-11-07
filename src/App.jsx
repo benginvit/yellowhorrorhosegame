@@ -72,6 +72,9 @@ function App() {
   useEffect(() => {
     if (!gameState.isPlaying) { clearTimer(rasmusLineTimerRef.current); setRasmusLine(null) }
   }, [gameState.isPlaying])
+  useEffect(() => {
+    if (gameState.ikeaPhase !== 'drink' && gameState.ikeaPhase !== 'ordering') { clearTimer(rasmusLineTimerRef.current); setRasmusLine(null) }
+  }, [gameState.ikeaPhase])
 
   const introTimersRef = useRef([])
   const introStartedRef = useRef(false)
@@ -433,7 +436,7 @@ function App() {
         <div
           data-testid="ikea-subtitle"
           role="status"
-          style={{ position: 'fixed', left: '50%', bottom: '12%', transform: 'translateX(-50%)', maxWidth: '90vw', padding: '8px 18px', borderRadius: '8px', background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '1.6rem', fontWeight: 'bold', textAlign: 'center', pointerEvents: 'none', zIndex: 50 }}
+          className="ikea-subtitle"
         >
           {getTranslation(language || 'en', rasmusLine === 'lingondryck' ? 'ikeaLineLingondryck' : 'ikeaLineKottbullar')}
         </div>

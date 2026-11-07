@@ -415,7 +415,26 @@ canvas {
   bottom: 3%;
   pointer-events: auto;
 }
+.ikea-subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: bold;
+  text-align: center;
+  pointer-events: none;
+  z-index: 50;
+}
 @media (max-aspect-ratio: 1/1) {
+  .ikea-subtitle {
+    bottom: calc(50% + 8px);
+  }
   .ikea-side-panel {
     top: 50%;
     width: 100%;
