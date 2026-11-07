@@ -1,4 +1,6 @@
 // Sound effects using Web Audio API
+import { setTimer, clearTimer } from '../testMode'
+
 let audioContext = null
 
 const getAudioContext = () => {
@@ -10,6 +12,38 @@ const getAudioContext = () => {
     audioContext.resume()
   }
   return audioContext
+}
+
+// Music/stress bus: the generated music and the heartbeat go through one gain node so a voice line can duck them.
+const DUCK_GAIN = 0.316 // about -10 dB
+let musicBus = null
+let musicBusCtx = null
+let duckCount = 0
+let soundGeneration = 0 // bumped by stopAllSounds so a stale release cannot undo a newer duck
+
+const getMusicBus = (ctx) => {
+  if (!musicBus || musicBusCtx !== ctx) {
+    musicBus = ctx.createGain()
+    musicBus.gain.value = duckCount > 0 ? DUCK_GAIN : 1
+    musicBus.connect(ctx.destination)
+    musicBusCtx = ctx
+  }
+  return musicBus
+}
+
+// Lower the music and stress sounds while a voice line plays; every duckMusic() needs one unduckMusic().
+const duckMusic = () => {
+  duckCount += 1
+  if (duckCount === 1 && audioContext) {
+    getMusicBus(audioContext).gain.setTargetAtTime(DUCK_GAIN, audioContext.currentTime, 0.05)
+  }
+}
+
+const unduckMusic = () => {
+  duckCount = Math.max(0, duckCount - 1)
+  if (duckCount === 0 && audioContext && musicBus && musicBusCtx === audioContext) {
+    musicBus.gain.setTargetAtTime(1, audioContext.currentTime, 0.15)
+  }
 }
 
 // Minimal sound-event bus. Visuals (light flicker) subscribe to it; it does not
@@ -70,7 +104,7 @@ export const preloadAudioFiles = (language = 'sv') => {
         const audio = new Audio()
         audio.preload = 'auto'
         audio.src = audioPath
-        audio.volume = 0.7
+        audio.volume = voiceVolume(character)
 
         // Store in cache
         preloadedAudio[cacheKey] = audio
@@ -87,7 +121,31 @@ export const preloadAudioFiles = (language = 'sv') => {
 }
 
 // Play custom voice recording (uses preloaded audio if available)
+const voiceVolume = (characterName) => (characterName === 'Rasmus' ? 1.0 : 0.7)
+
+// Rasmus' lines are ducked over the music; the ducking ends when the clip ends, fails or is stopped.
 export const playVoiceRecording = (characterName, action, language = 'en') => {
+  const audio = playVoiceClip(characterName, action, language)
+  if (characterName === 'Rasmus' && audio) {
+    duckMusic()
+    let released = false
+    let safetyTimer = null
+    const generation = soundGeneration
+    const release = () => {
+      if (released) return
+      released = true
+      clearTimer(safetyTimer)
+      if (generation !== soundGeneration) return
+      ;['ended', 'pause', 'error'].forEach((e) => audio.removeEventListener(e, release))
+      unduckMusic()
+    }
+    ;['ended', 'pause', 'error'].forEach((e) => audio.addEventListener(e, release))
+    safetyTimer = setTimer(release, 8000) // autoplay blocked / never ended: never leave the music ducked
+  }
+  return audio
+}
+
+const playVoiceClip = (characterName, action, language = 'en') => {
   const cacheKey = `${characterName}-${action}-${language}`
 
   console.log(`🎤 Attempting to play voice: ${cacheKey}`)
@@ -111,7 +169,7 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
       console.log(`⚠️  Audio is already playing, creating new instance`)
       // Create a new instance from the cached source if already playing
       audio = new Audio(preloadedElement.src)
-      audio.volume = 0.7
+      audio.volume = voiceVolume(characterName)
       audio.preload = 'auto'
 
       // Wait for the audio to be ready before playing
@@ -147,7 +205,7 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
       } catch (e) {
         console.log(`⚠️  Could not reset currentTime:`, e)
       }
-      audio.volume = 0.7
+      audio.volume = voiceVolume(characterName)
     }
 
     // Track this audio element
@@ -194,7 +252,7 @@ export const playVoiceRecording = (characterName, action, language = 'en') => {
   const audioPath = `/sounds/${language}/${fileName}`
 
   const audio = new Audio(audioPath)
-  audio.volume = 0.7
+  audio.volume = voiceVolume(characterName)
 
   // Track this audio element
   activeVoiceAudios.push(audio)
@@ -418,7 +476,7 @@ const playGeneratedHorrorMusic = (isIntense = false, isCalm = false) => {
 
     osc.connect(filter)
     filter.connect(gainNode)
-    gainNode.connect(ctx.destination)
+    gainNode.connect(getMusicBus(ctx))
 
     // Use sine wave for music box sound
     osc.type = 'sine'
@@ -514,7 +572,7 @@ export const playHeartbeatSound = () => {
     const osc = ctx.createOscillator()
     const gainNode = ctx.createGain()
     osc.connect(gainNode)
-    gainNode.connect(ctx.destination)
+    gainNode.connect(getMusicBus(ctx))
     osc.type = 'sine'
     osc.frequency.setValueAtTime(i === 0 ? 70 : 55, now + offset)
     gainNode.gain.setValueAtTime(i === 0 ? 0.45 : 0.3, now + offset)
@@ -874,6 +932,10 @@ export const stopAllSounds = () => {
     audioContext.close()
     audioContext = null
   }
+  musicBus = null
+  musicBusCtx = null
+  duckCount = 0
+  soundGeneration += 1
 }
 
 // Footstep for Rasmus. volume 0..1, pan -1 (left) .. 1 (right) relative to the listener.

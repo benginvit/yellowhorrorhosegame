@@ -74,6 +74,18 @@ test.describe('ikea-serving', () => {
     expectNoErrors(errors)
   })
 
+  test('drink phase: Rasmus\' "Lingondryck!" caption shows after ~2 s', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await expect(page.getByTestId('ikea-subtitle')).toHaveCount(0)
+    await ADVANCE(page, 2.5)
+    await expect(page.getByTestId('ikea-subtitle')).toHaveText('Lingondryck!')
+    await ADVANCE(page, 3.5)
+    await expect(page.getByTestId('ikea-subtitle')).toHaveCount(0)
+    expectNoErrors(errors)
+  })
+
   test('drink menu: 8 buttons in order, no close button', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
