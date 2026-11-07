@@ -6,6 +6,7 @@ function Player({
   mobileMovement = { x: 0, y: 0 },
   mobileRotation = { x: 0, y: 0 },
   isLocked = false,
+  moveLocked = false, // no movement, but the view still turns (isLocked also resets the camera to startPosition)
   startPosition = null,
   startYaw = 0, // default: facing -z (toward whiteboard)
   inClassroom = false,
@@ -134,6 +135,7 @@ function Player({
     }
 
     // Apply velocity to camera
+    if (moveLocked) velocity.current.set(0, 0, 0)
     camera.position.add(velocity.current)
 
     // Keep camera at player height

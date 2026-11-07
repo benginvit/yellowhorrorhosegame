@@ -110,6 +110,60 @@ test.describe('ikea-serving', () => {
   })
 })
 
+test.describe('ikea-rasmus', () => {
+  /** Rasmus' position, and whether he is inside the camera frustum (NDC x/y within +-1, in front of the near plane). */
+  const rasmusInfo = (page) => page.evaluate(() => {
+    const { scene, camera } = window.__YHH_TEST_MODE__
+    const p = scene.getObjectByName('rasmus').position
+    const ndc = p.clone().set(p.x, 1.1, p.z).project(camera) // chest height
+    return { x: p.x, z: p.z, camZ: camera.position.z, inView: Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1 && ndc.z < 1 }
+  })
+
+  test('ordering: Rasmus walks toward the player, in front of them and in view at 25, 50 and 75 %', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await toOrdering(page)
+    for (const fraction of [0.25, 0.5, 0.75]) {
+      await ADVANCE(page, 10) // 40 s order: 10 s per 25 %
+      await ADVANCE(page, 1, 1 / 20) // he eases the last stretch to the logical position
+      const r = await rasmusInfo(page)
+      expect(r.z, `Rasmus in front of the player at ${fraction * 100} %`).toBeLessThan(r.camZ)
+      expect(r.inView, `Rasmus in the view at ${fraction * 100} %`).toBe(true)
+    }
+    expectNoErrors(errors)
+  })
+
+  test('serve: Rasmus walks to his seat and reports it (before the 4 s fallback timer)', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'serve' })
+    await useAt(page, AT_TRAY)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait')
+    await ADVANCE(page, 3) // he needs 2.5 s from the end of the path; the fallback timer fires at 4 s
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+    const r = await rasmusInfo(page)
+    expect(Math.hypot(r.x - 3.4, r.z - 1.2)).toBeLessThan(0.1) // RASMUS_SEAT_POS
+    expectNoErrors(errors)
+  })
+
+  test('wrong drink: the player cannot walk away while Rasmus runs at them', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await useAt(page, AT_STATION)
+    await page.getByTestId('ikea-drink-cola').click()
+    await ADVANCE(page, 0.1)
+    await page.waitForTimeout(300) // React commits 'lost' between the synchronous clock steps, not during them
+    const before = await page.evaluate(() => window.__YHH_TEST_MODE__.camera.position.toArray())
+    await page.keyboard.down('KeyD')
+    await ADVANCE(page, 1)
+    await page.keyboard.up('KeyD')
+    const after = await page.evaluate(() => window.__YHH_TEST_MODE__.camera.position.toArray())
+    expect(after).toEqual(before)
+    expectNoErrors(errors)
+  })
+})
+
 test.describe('ikea-outcomes', () => {
   test('win: order via the kiosk -> serve -> drink -> won -> level complete -> level 5 Selma', async ({ page }) => {
     const errors = trackErrors(page)

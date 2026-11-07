@@ -1,10 +1,11 @@
 import { useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Tray, Glass } from './IkeaServing'
 
 const OFFSET = [0.28, -0.32, -0.7] // camera space: right, down, forward
 
 /**
- * What the player carries, drawn in front of the camera (placeholder boxes). Stage 2 replaces the models, not the contract.
+ * What the player carries, drawn in front of the camera (the tray with 16 meatballs and mash, or a glass of lingonberry drink; the models live in IkeaServing).
  *
  * @param {object} props
  * @param {null|'tray'|'drink'} props.carrying  ikeaCarrying; renders nothing for null
@@ -24,21 +25,13 @@ function CarriedItem({ carrying }) {
   return (
     <group ref={group} name="carried-item">
       {carrying === 'tray' ? (
-        <>
-          <mesh>
-            <boxGeometry args={[0.5, 0.03, 0.35]} />
-            <meshStandardMaterial color="#e8e8e8" />
-          </mesh>
-          <mesh position={[0.05, 0.06, 0]}>
-            <sphereGeometry args={[0.07, 8, 6]} />
-            <meshStandardMaterial color="#7a3b1d" />
-          </mesh>
-        </>
+        <group scale={0.75} rotation={[0.12, 0, 0]}>
+          <Tray />
+        </group>
       ) : (
-        <mesh position={[0, 0.08, 0]}>
-          <cylinderGeometry args={[0.05, 0.04, 0.16, 12]} />
-          <meshStandardMaterial color="#b3122f" transparent opacity={0.85} />
-        </mesh>
+        <group position={[0, -0.08, 0]} scale={1.3}>
+          <Glass />
+        </group>
       )}
     </group>
   )

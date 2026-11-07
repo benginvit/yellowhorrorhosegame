@@ -164,6 +164,7 @@ function Game({
                 mobileMovement={mobileMovement}
                 mobileRotation={mobileRotation}
                 isLocked={ikeaLocked}
+                moveLocked={ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink'}
                 startPosition={PLAYER_START}
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}

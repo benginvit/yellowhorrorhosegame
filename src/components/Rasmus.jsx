@@ -1,34 +1,29 @@
 import { useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Vector3 } from 'three'
-import { rasmusPositionAt, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_POS, KIOSK_POS } from '../levels/ikeaLayout'
+import { rasmusPositionAt, RASMUS_SEAT_POS, KNIFE_SHELF_POS, KIOSK_POS, IKEA_WRONG_DRINK_MS } from '../levels/ikeaLayout'
 import { playFootstepSound } from '../utils/sounds'
 
 const EASE = 10 // 1/s, exponential smoothing rate
 const SIT_SPEED = 2.5 // world units/s when walking to the seat after the order is done
-const RUN_SPEED = 5 // world units/s when he runs at the player after a wrong drink
+const RUN_MIN_SPEED = 3 // world units/s, the slowest he runs at the player after a wrong drink
 const RUN_STOP = 1 // he stops this far from the player
+const STAND_MS = 300 // wrong drink: he pushes up from the chair before he runs
+const STAB_MS = 600 // wrong drink: the overhead knife stab at the end of IKEA_WRONG_DRINK_MS
 const SEATED_PHASES = ['serve', 'drink', 'deliverDrink', 'won']
-const SERVED_PHASES = ['drink', 'deliverDrink', 'won'] // the tray is on the table once it has been served
+const EATING_PHASES = ['drink', 'deliverDrink'] // the tray is on the table (IkeaServing draws it) and he eats from it
 const STEP_LENGTH = 0.8 // world units between footsteps
 const WALK_CYCLE = 7 // rad per world unit walked (leg swing)
 const PICKUP_AT = 1.5 // s into the intro when the knife is taken from the shelf
 const TURN_AT = 2.5 // s into the intro when he turns toward the kiosk
-const TABLE_TOP_Y = 0.78 // top of the restaurant tables in IkeaStore
 const SEAT_YAW = Math.PI / 2 // he sits facing +x, toward the table
-const MEATBALLS = 16
 const _right = new Vector3()
+const clamp01 = (v) => Math.min(1, Math.max(0, v))
 
 const SKIN = '#fdd8b5'
 const HAIR = '#5c3a21'
 const SHIRT = '#cc1111'
 const JEANS = '#2f4f8f'
-
-const meatballPositions = Array.from({ length: MEATBALLS }, (_, i) => {
-  const col = i % 4
-  const row = Math.floor(i / 4)
-  return [(col - 1.5) * 0.09, 0.05, (row - 1.5) * 0.09 - 0.03]
-})
 
 function Knife() {
   return (
@@ -50,12 +45,13 @@ function Knife() {
  *
  * @param {object} props
  * @param {null|'intro'|'ordering'|'serve'|'drink'|'deliverDrink'|'won'|'lost'} props.ikeaPhase  intro: takes the knife from
- *   the shelf and turns toward the kiosk; ordering: walks, looks at the player, footsteps; serve / drink / deliverDrink / won:
- *   drops the knife, sits at RASMUS_SEAT_POS and eats (the tray is on the table from 'drink' on); lost: stands at the player,
- *   or with loseReason 'wrongDrink' runs at the player from where he sits.
+ *   the shelf and turns toward the kiosk; ordering: walks heavily toward the player, knife raised, head on the player, footsteps;
+ *   serve: lowers (but keeps) the knife, walks to RASMUS_SEAT_POS, sits and drums his fingers; drink / deliverDrink: eats
+ *   (the tray on the table is drawn by IkeaServing), looks up when `drinkAsked`; won: drinks, pleased; lost: stands at the
+ *   player, or with loseReason 'wrongDrink' stands up, runs at the player and stabs (timed to IKEA_WRONG_DRINK_MS).
  * @param {number} props.progress  0..1 along RASMUS_PATH (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS).
  * @param {null|'timeout'|'wrongDrink'} [props.loseReason]
- * @param {boolean} [props.drinkAsked]  he has said "Lingondryck" (ikeaDrinkAsked, true from 'drink' + ~2 s); stage 2 animates the ask
+ * @param {boolean} [props.drinkAsked]  he has said "Lingondryck" (ikeaDrinkAsked, true from 'drink' + ~2 s); he looks up from his food at the player
  * @param {() => void} [props.onSeated]  called once when he has sat down in 'serve' (App then allows serving)
  *
  * The logical position is rasmusPositionAt(progress), a pure function of ikeaTimeLeft; the visual position (the group
@@ -71,8 +67,8 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
   const armR = useRef()
   const handKnife = useRef()
   const shelfKnife = useRef()
-  const floorKnife = useRef()
-  const tray = useRef()
+  const head = useRef()
+  const smile = useRef()
   const camera = useThree((s) => s.camera)
 
   const walkRef = useRef({ dist: 0, sinceStep: 0, phaseStart: 0, phase: null, yaw: 0, sit: 0, seatedReported: false })
@@ -95,12 +91,18 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
       w.phaseStart = t
       // Constant pace to the seat, fast enough to be seated within 2.5 s even from the far end of the path.
       if (seatedPhase) w.sitSpeed = Math.max(SIT_SPEED, Math.hypot(RASMUS_SEAT_POS[0] - g.position.x, RASMUS_SEAT_POS[2] - g.position.z) / 2.5)
+      // He reaches the player just as the stab starts, so the run takes IKEA_WRONG_DRINK_MS minus the stand-up and the stab.
+      if (running) {
+        const runDist = Math.max(0, Math.hypot(camera.position.x - g.position.x, camera.position.z - g.position.z) - RUN_STOP)
+        w.runSpeed = Math.max(RUN_MIN_SPEED, runDist / ((IKEA_WRONG_DRINK_MS - STAND_MS - STAB_MS) / 1000))
+      }
     }
     const inPhase = t - w.phaseStart
 
     const prevX = g.position.x
     const prevZ = g.position.z
-    if (seatedPhase || running) {
+    const standing = running && inPhase * 1000 < STAND_MS
+    if ((seatedPhase || running) && !standing) {
       // Walk to the seat (or run at the player) at a steady pace.
       const goalX = running ? camera.position.x : target[0]
       const goalZ = running ? camera.position.z : target[2]
@@ -108,7 +110,7 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
       const dz = goalZ - prevZ
       const d = Math.max(0, Math.hypot(dx, dz) - (running ? RUN_STOP : 0))
       const full = Math.hypot(dx, dz)
-      const step = Math.min(d, (running ? RUN_SPEED : w.sitSpeed) * delta)
+      const step = Math.min(d, (running ? w.runSpeed : w.sitSpeed) * delta)
       if (full > 1e-4 && step > 0) {
         g.position.x += (dx / full) * step
         g.position.z += (dz / full) * step
@@ -137,26 +139,57 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
     w.yaw += dyaw * (1 - Math.exp(-8 * delta))
     body.current.rotation.y = w.yaw
 
-    // Walk cycle
+    // Walk cycle. Under 'ordering' the gait is heavy: a dip on every step and a slow sway from side to side.
     w.dist += moved
-    const swing = walking ? Math.sin(w.dist * WALK_CYCLE) * 0.7 : 0
+    const stomp = ikeaPhase === 'ordering' && walking
+    const swing = walking ? Math.sin(w.dist * WALK_CYCLE) * (running ? 1.1 : stomp ? 0.55 : 0.7) : 0
     const sitTarget = arrivedAtSeat ? 1 : 0
     w.sit += (sitTarget - w.sit) * (1 - Math.exp(-6 * delta))
-    body.current.position.y = -0.4 * w.sit
+    body.current.position.y = -0.4 * w.sit - (stomp ? Math.abs(Math.sin(w.dist * WALK_CYCLE)) * 0.07 : 0)
+    body.current.rotation.z = stomp ? Math.sin(w.dist * WALK_CYCLE) * 0.06 : 0
     legL.current.rotation.x = swing * (1 - w.sit) - 1.5 * w.sit
     legR.current.rotation.x = -swing * (1 - w.sit) - 1.5 * w.sit
 
-    const holdsKnife = !seatedPhase && (ikeaPhase !== 'intro' || inPhase >= PICKUP_AT)
+    const holdsKnife = ikeaPhase !== 'intro' || inPhase >= PICKUP_AT
     const reaching = ikeaPhase === 'intro' && inPhase < PICKUP_AT
-    // Right arm carries the knife out in front; left arm swings. While eating both hands go to the mouth.
-    const eat = arrivedAtSeat ? -1.2 + Math.sin(t * 5) * 0.25 : 0
-    armL.current.rotation.x = arrivedAtSeat ? eat : -swing
-    armR.current.rotation.x = arrivedAtSeat ? eat : reaching ? -1.4 : holdsKnife ? -0.9 : swing
+    const stabP = running ? clamp01((inPhase * 1000 - (IKEA_WRONG_DRINK_MS - STAB_MS)) / STAB_MS) : 0
+    const eating = EATING_PHASES.includes(ikeaPhase) && arrivedAtSeat
+    const sipping = ikeaPhase === 'won' && arrivedAtSeat
+    const sip = (Math.sin(t * 1.5) + 1) / 2
 
+    // Right arm carries the knife: out in front while he stalks, lowered (never dropped) once he is serving, overhead for the stab.
+    // The left arm swings, drums on the table while he waits, goes to the mouth while he eats and drinks.
+    let armRx = swing
+    if (reaching) armRx = -1.4
+    else if (running) armRx = -2.4 + 2.5 * stabP
+    else if (seatedPhase) armRx = (walking ? 0.4 : 0.2) + swing * 0.2
+    else if (holdsKnife) armRx = -0.9 + Math.sin(t * 2) * 0.03
+    let armLx = -swing
+    if (arrivedAtSeat) {
+      if (sipping) armLx = -1.0 - 0.8 * sip
+      else if (eating) armLx = -1.2 + Math.sin(t * 5) * 0.25
+      else armLx = -1.35 + Math.sin(t * 16) * 0.1
+    }
+    armL.current.rotation.x = armLx
+    armR.current.rotation.x = armRx
     handKnife.current.visible = holdsKnife
     shelfKnife.current.visible = ikeaPhase === 'intro' && inPhase < PICKUP_AT
-    floorKnife.current.visible = arrivedAtSeat
-    tray.current.visible = SERVED_PHASES.includes(ikeaPhase) && arrivedAtSeat
+
+    // Head: on the player as far as his neck allows. Down at the food until he has asked for the drink, then up at the player.
+    let headYaw = 0
+    if (ikeaPhase !== 'intro') {
+      const rel = toward(camera.position.x, camera.position.z) - w.yaw
+      headYaw = Math.max(-1.1, Math.min(1.1, Math.atan2(Math.sin(rel), Math.cos(rel))))
+    }
+    let headPitch = 0
+    if (ikeaPhase === 'ordering') headPitch = 0.2 // chin down, glaring from under the fringe
+    else if (eating) headPitch = drinkAsked ? -0.1 : 0.35 + Math.sin(t * 5) * 0.08
+    else if (sipping) headPitch = -0.15 - 0.3 * sip
+    else if (running) headPitch = 0.1
+    const kHead = 1 - Math.exp(-8 * delta)
+    head.current.rotation.y += (headYaw - head.current.rotation.y) * kHead
+    head.current.rotation.x += (headPitch - head.current.rotation.x) * kHead
+    smile.current.visible = ikeaPhase === 'won'
 
     if (arrivedAtSeat && ikeaPhase === 'serve' && !w.seatedReported) {
       w.seatedReported = true
@@ -232,7 +265,7 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
         </group>
 
         {/* Head with a side-swept fringe over the forehead */}
-        <group position={[0, 1.6, 0]}>
+        <group ref={head} position={[0, 1.6, 0]}>
           <mesh>
             <boxGeometry args={[0.4, 0.4, 0.4]} />
             <meshStandardMaterial color={SKIN} />
@@ -257,6 +290,18 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
             <boxGeometry args={[0.06, 0.06, 0.01]} />
             <meshStandardMaterial color="#222222" />
           </mesh>
+          <group ref={smile} position={[0, -0.1, 0.201]} visible={false}>
+            <mesh position={[0, -0.01, 0]}>
+              <boxGeometry args={[0.14, 0.025, 0.01]} />
+              <meshStandardMaterial color="#222222" />
+            </mesh>
+            {[-0.08, 0.08].map((x) => (
+              <mesh key={x} position={[x, 0.01, 0]}>
+                <boxGeometry args={[0.025, 0.04, 0.01]} />
+                <meshStandardMaterial color="#222222" />
+              </mesh>
+            ))}
+          </group>
         </group>
       </group>
 
@@ -264,32 +309,6 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
       <group ref={shelfKnife} position={[0.25, 1.3, -0.6]}>
         <Knife />
       </group>
-      {/* Dropped knife once he sits down to eat */}
-      <mesh ref={floorKnife} position={[0.3, 0.03, 0.4]} rotation={[0, 0.8, 0]} visible={false}>
-        <boxGeometry args={[0.05, 0.02, 0.4]} />
-        <meshStandardMaterial color="#cfd3d8" />
-      </mesh>
-
-      {/* Tray with 16 meatballs and mashed potatoes on the restaurant table beside the seat (the table itself is IkeaStore's) */}
-      <group ref={tray} position={[RASMUS_TABLE_OFFSET_X - 0.15, TABLE_TOP_Y, 0]} visible={false}>
-        <group>
-          <mesh position={[0, 0.01, 0]}>
-            <boxGeometry args={[0.6, 0.02, 0.5]} />
-            <meshStandardMaterial color="#e8e8e8" />
-          </mesh>
-          <mesh position={[0.2, 0.06, 0]}>
-            <sphereGeometry args={[0.1, 8, 6]} />
-            <meshStandardMaterial color="#f1e3b0" />
-          </mesh>
-          {meatballPositions.map((p, i) => (
-            <mesh key={i} position={[p[0] - 0.1, p[1] + 0.02, p[2]]}>
-              <sphereGeometry args={[0.04, 8, 6]} />
-              <meshStandardMaterial color="#7a3b1d" />
-            </mesh>
-          ))}
-        </group>
-      </group>
-
       {/* Red glow as on the other characters (no shadows) */}
       <pointLight position={[0, 1.2, 0]} intensity={0.5} distance={3} color="#ff0000" />
     </group>
