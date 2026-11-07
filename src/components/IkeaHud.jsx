@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { IS_FROZEN } from '../testMode'
+import { useEffect, useRef, useState } from 'react'
+import { IS_FROZEN, setTimer, clearTimer } from '../testMode'
 import { playHeartbeatSound } from '../utils/sounds'
 
 const BPM_START = 60
@@ -13,8 +13,8 @@ export const heartbeatBpm = (progress) => BPM_START + (BPM_END - BPM_START) * Ma
  * Stress effects while ordering, growing with progress (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS): heartbeat sound
  * (60 -> 160 bpm), a red vignette that pulses with the beat and a light screen shake the last ~5 s.
  *
- * Photosensitivity (BENG-11): the vignette is a smooth opacity pulse (low -> high within the beat, at most ~2.7 Hz at
- * 160 bpm, with a small amplitude), the shake is a few px of canvas movement without any luminance change, and it is off
+ * Photosensitivity (BENG-11): the vignette is a smooth opacity pulse, one per heartbeat (a new animation per beat, never a
+ * changed duration, so the curve stays continuous; at most ~2.7 Hz at 160 bpm, small amplitude), the shake is a few px of canvas movement without any luminance change, and it is off
  * with prefers-reduced-motion. In a frozen test build there is no sound, no pulse and no shake: the vignette is a
  * static function of progress, so the frame is deterministic.
  *
@@ -26,6 +26,8 @@ export const heartbeatBpm = (progress) => BPM_START + (BPM_END - BPM_START) * Ma
 function IkeaHud({ active, progress, timeLeft }) {
   const progressRef = useRef(progress)
   progressRef.current = progress
+  const [beatCount, setBeatCount] = useState(0) // one vignette pulse is started per heartbeat (key = beatCount)
+  const [beatSeconds, setBeatSeconds] = useState(1)
   const shaking = active && !IS_FROZEN && timeLeft <= SHAKE_SECONDS
 
   // Heartbeat: re-armed after each beat so the tempo follows the progress.
@@ -34,10 +36,13 @@ function IkeaHud({ active, progress, timeLeft }) {
     let id
     const beat = () => {
       try { playHeartbeatSound() } catch (e) { /* audio blocked: the visuals still work */ }
-      id = setTimeout(beat, 60000 / heartbeatBpm(progressRef.current))
+      const ms = 60000 / heartbeatBpm(progressRef.current)
+      setBeatSeconds(ms / 1000)
+      setBeatCount((n) => n + 1)
+      id = setTimer(beat, ms)
     }
     beat()
-    return () => clearTimeout(id)
+    return () => clearTimer(id)
   }, [active])
 
   useEffect(() => {
@@ -56,9 +61,9 @@ function IkeaHud({ active, progress, timeLeft }) {
     '--ikea-vignette-low': base,
     '--ikea-vignette-high': Math.min(1, base + 0.2),
     opacity: base,
-    ...(IS_FROZEN ? null : { animation: `ikeaVignettePulse ${60 / heartbeatBpm(progress)}s ease-in-out infinite` }),
+    ...(IS_FROZEN ? null : { animation: `ikeaVignettePulse ${beatSeconds}s ease-in-out 1` }),
   }
-  return <div data-testid="ikea-vignette" style={style} />
+  return <div key={beatCount} data-testid="ikea-vignette" style={style} />
 }
 
 export default IkeaHud

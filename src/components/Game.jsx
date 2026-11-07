@@ -57,7 +57,6 @@ function Game({
   onIkeaNear,
   onIkeaInteract,
   onIkeaChooseDrink,
-  onIkeaCloseMenu,
   onWakeAstrid,
   onUpdateHideTimer,
   mobileMovement,

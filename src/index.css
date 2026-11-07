@@ -407,7 +407,7 @@ canvas {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: safe center;
 }
 .ikea-look-back {
   position: absolute;

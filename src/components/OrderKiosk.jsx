@@ -12,6 +12,9 @@ const KIOSK_Z = [100000, 50000]
 const overlay = { pointerEvents: 'none' }
 // drei offsets a fullscreen overlay by half the canvas size from the wrapper, so the wrapper must sit at the screen
 // centre: the default (the projected position of the group) drifts away from it with the camera and on a frozen clock.
+// drei hides the overlay (display: none) when the group is behind the camera, but only re-checks when the projected
+// position changes, which never happens here: a no-op onOcclude turns that check off (it would hide the kiosk for good).
+const noop = () => {}
 const screenCentre = (_el, _camera, size) => [size.width / 2, size.height / 2]
 // Layout (side panel on the right ~40 %, bottom half on a portrait phone) lives in index.css (.ikea-side-panel).
 const panelStyle = {
@@ -243,7 +246,7 @@ function OrderKiosk({ ikeaPhase, lookingBack, language, onOrderComplete, onLookB
   return (
     <>
       {ordering && (
-        <Html fullscreen calculatePosition={screenCentre} portal={bodyPortal} zIndexRange={KIOSK_Z} style={overlay}>
+        <Html fullscreen calculatePosition={screenCentre} onOcclude={noop} portal={bodyPortal} zIndexRange={KIOSK_Z} style={overlay}>
           <div ref={raiseWrapper} />
           {!lookingBack && <div className="ikea-side-panel" style={panelStyle}>{renderStep()}</div>}
           <button

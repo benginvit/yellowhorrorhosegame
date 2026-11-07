@@ -251,6 +251,8 @@ test.describe('ikea-mobile (touch)', () => {
     await toOrdering(page)
     await orderMeatballs(page, { tap: true })
     await expect(page.getByTestId('ikea-pay')).toBeInViewport()
+    const panel = await page.locator('.ikea-side-panel').boundingBox()
+    expect(panel.y, 'the panel sits in the bottom half').toBeGreaterThanOrEqual(740 / 2 - 1)
     await page.getByTestId('ikea-pay').tap()
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
     await serveAndDrink(page, { tap: true }) // incl. the "Use" button instead of F

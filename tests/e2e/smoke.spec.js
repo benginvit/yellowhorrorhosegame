@@ -143,7 +143,7 @@ test.describe('IKEA kiosk overlay', () => {
     await openFrozen(page, { level: 4, phase: 'ordering' })
     await orderMeatballs(page)
     await page.getByTestId('ikea-pay').click()
-    await expect(page.getByTestId('ikea-start')).toHaveCount(0) // the kiosk is gone once the order is paid
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/) // the kiosk is gone, 'serve' follows
     await serveAndDrink(page) // tray, table, drink, glass -> 'won' -> level complete
     const button = page.locator('.victory-screen .restart-btn')
     await expect(button).toBeVisible()
