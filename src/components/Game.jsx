@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
-import { Suspense, useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import Player from './Player'
 import House from './House'
 import Ground from './Ground'
@@ -74,16 +74,24 @@ function Game({
   const classroomIntroPhase = gameState.classroomIntroPhase
   const isIntroActive = false
 
-  // IKEA: after the wrong drink Rasmus runs at the player and the player cannot walk away (the view still turns;
-  // isLocked would reset the position). Player reads the lock through this ref every frame instead of a prop: a prop
-  // reaches the Canvas' children only with the Canvas' own React root's commit, which is scheduled asynchronously and
-  // can land a frame or more after this commit (on the frozen test clock a whole advance() later). The ref is written
-  // in this (outer) commit, so the lock holds from the very next frame.
-  const playerLock = useRef({ frozen: false })
-  const ikeaFrozen = isIkeaLevel && gameState.ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink'
-  useLayoutEffect(() => {
-    playerLock.current.frozen = ikeaFrozen
-  }, [ikeaFrozen])
+  // IKEA state that the scene reads every frame (Rasmus' phase, progress, lose reason, drinkAsked; the player's
+  // movement lock after the wrong drink). It goes through this ref, not through props: props reach the Canvas'
+  // children only with the Canvas' own React root's commit, which R3F schedules asynchronously and which can land a
+  // frame or more after this render (on the frozen test clock a whole advance() later, so Rasmus' attack started late
+  // in CI). The mirror is written during this render, before any child mounts or any later frame, and holds plain
+  // values only; the object identity never changes.
+  const ikeaLive = useRef({ ikeaPhase: null, progress: 0, loseReason: null, drinkAsked: false, frozen: false })
+  if (isIkeaLevel) {
+    Object.assign(ikeaLive.current, {
+      ikeaPhase: gameState.ikeaPhase,
+      progress: 1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS,
+      loseReason: gameState.ikeaLoseReason,
+      drinkAsked: gameState.ikeaDrinkAsked,
+      // After the wrong drink Rasmus runs at the player and the player cannot walk away (the view still turns;
+      // isLocked would reset the position).
+      frozen: gameState.ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink',
+    })
+  }
 
   // Spawn candy 10s after level start (3s after shots fire at 7s)
   // Timer stored in ref so phase changes don't cancel it
@@ -140,13 +148,7 @@ function Game({
           <Lighting variant="ikea" />
           <Suspense fallback={null}>
             <IkeaStore />
-            <Rasmus
-              ikeaPhase={ikeaPhase}
-              progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
-              loseReason={gameState.ikeaLoseReason}
-              drinkAsked={gameState.ikeaDrinkAsked}
-              onSeated={onIkeaRasmusSeated}
-            />
+            <Rasmus live={ikeaLive} onSeated={onIkeaRasmusSeated} />
             <DrinkStation active={ikeaPhase === 'drink'} drinkAsked={gameState.ikeaDrinkAsked} />
             <IkeaServing ikeaPhase={ikeaPhase} carrying={gameState.ikeaCarrying} />
             <CarriedItem carrying={gameState.ikeaCarrying} />
@@ -170,7 +172,7 @@ function Game({
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}
                 bounds={IKEA_BOUNDS}
-                lock={playerLock}
+                lock={ikeaLive}
               />
             )}
             <TestModeProbe />

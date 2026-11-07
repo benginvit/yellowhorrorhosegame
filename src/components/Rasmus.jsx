@@ -104,7 +104,10 @@ function Knife() {
  * Rasmus (Roblox/lowpoly style: sneaky side-swept fringe, red t-shirt, jeans). Carries a knife and never lets go of it.
  *
  * @param {object} props
- * @param {null|'intro'|'ordering'|'serve'|'drink'|'deliverDrink'|'won'|'lost'} props.ikeaPhase
+ * @param {{ current: { ikeaPhase, progress, loseReason, drinkAsked } }} props.live  Game's per-frame mirror of the IKEA
+ *   state (a ref, read in useFrame; see Game.jsx: a prop would arrive with the Canvas root's asynchronous commit, so the
+ *   attack after the wrong drink could start a whole frozen-clock step late). Fields:
+ *   ikeaPhase (null|'intro'|'ordering'|'serve'|'drink'|'deliverDrink'|'won'|'lost'):
  *   intro: takes the knife from the shelf and turns toward the kiosk;
  *   ordering: stalks along RASMUS_PATH toward the player (heavy leaning walk, knife pointed at the player, head on the
  *     player, footsteps that grow with the distance walked);
@@ -115,9 +118,9 @@ function Knife() {
  *   won: drinks from the glass on the table, content;
  *   lost: with loseReason 'wrongDrink' he stands up, runs at the player and stabs, timed to IKEA_WRONG_DRINK_MS
  *     (App's jumpscare follows); otherwise (timeout) he stands at the end of the path facing the player.
- * @param {number} props.progress  0..1 along RASMUS_PATH (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS).
- * @param {null|'timeout'|'wrongDrink'} [props.loseReason]
- * @param {boolean} [props.drinkAsked]  he has said "Lingondryck" (ikeaDrinkAsked, set by App with the voice clip)
+ *   progress (number): 0..1 along RASMUS_PATH (1 - ikeaTimeLeft / IKEA_ORDER_SECONDS);
+ *   loseReason (null|'timeout'|'wrongDrink');
+ *   drinkAsked (boolean): he has said "Lingondryck" (ikeaDrinkAsked, set by App with the voice clip).
  * @param {() => void} [props.onSeated]  called once when he has sat down in 'serve' (App then allows serving)
  *
  * The logical position during the order is rasmusPositionAt(progress), a pure function of ikeaTimeLeft; the visual
@@ -125,7 +128,7 @@ function Knife() {
  * because progress only changes every 0.25 s. Every animation is a function of the R3F clock and the frame delta, so a
  * frozen clock gives a fixed pose. No shadow casters on purpose.
  */
-function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, onSeated }) {
+function Rasmus({ live, onSeated }) {
   const root = useRef() // world position
   const body = useRef() // facing (yaw), lean and sit offset
   const head = useRef()
@@ -137,14 +140,14 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
   const shelfKnife = useRef()
   const camera = useThree((s) => s.camera)
 
-  const seatedPhase = SEATED_PHASES.includes(ikeaPhase)
-  const attacking = ikeaPhase === 'lost' && loseReason === 'wrongDrink'
-  const target = rasmusPositionAt(progress) // logical position on the path (intro, ordering, lost by timeout)
-
   // Start position only at mount: a position prop would reset the group on every render and defeat the easing.
   // A test start straight into a seated phase (?phase=): 'serve' walks in from the end of the path, later phases sit already.
-  const [initial] = useState(() => (ikeaPhase === 'serve' ? rasmusPositionAt(1) : seatedPhase ? RASMUS_SEAT_POS : target))
-  const sitsAtMount = seatedPhase && ikeaPhase !== 'serve'
+  const [initial] = useState(() => {
+    const { ikeaPhase, progress } = live.current
+    if (ikeaPhase === 'serve') return rasmusPositionAt(1)
+    return SEATED_PHASES.includes(ikeaPhase) ? RASMUS_SEAT_POS : rasmusPositionAt(progress)
+  })
+  const [sitsAtMount] = useState(() => SEATED_PHASES.includes(live.current.ikeaPhase) && live.current.ikeaPhase !== 'serve')
   const walkRef = useRef({
     phase: null,
     phaseStart: 0,
@@ -165,6 +168,10 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
     if (!g) return
     const w = walkRef.current
     const t = state.clock.elapsedTime
+    const { ikeaPhase, progress, loseReason, drinkAsked } = live.current
+    const seatedPhase = SEATED_PHASES.includes(ikeaPhase)
+    const attacking = ikeaPhase === 'lost' && loseReason === 'wrongDrink'
+    const target = rasmusPositionAt(progress) // logical position on the path (intro, ordering, lost by timeout)
     if (w.phase !== ikeaPhase) {
       w.phase = ikeaPhase
       w.phaseStart = t
