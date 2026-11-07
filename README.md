@@ -80,6 +80,14 @@ docker run -d -p 127.0.0.1:3003:80 yellowhorrorhose:test
 
 Prod-imagen bygger du som vanligt med `docker build -t yellowhorrorhose .`.
 
+### Enhetstester (node --test)
+
+```bash
+npm run test:unit                 # tests/unit/*.test.mjs, ingen webbläsare
+```
+
+Rena moduler utan DOM testas med Nodes inbyggda testrunner (`node --test`, inga extra beroenden). I dag: `src/utils/collision.js` (`tests/unit/collision.test.mjs`). Körs i CI som jobbet `unit tests` i `pr-check.yml`.
+
 ### End-to-end-tester (Playwright)
 
 Playwright-sviten i `tests/e2e` kör headless Chromium med SwiftShader (mjukvaru-WebGL), viewport 1280x720, dpr 1, endast desktop.
@@ -99,6 +107,7 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 | `prod-check.spec.js` | prod | `?seed=1&freeze=1&level=3` mot prod: `window.__YHH_TEST_MODE__` är `undefined`, parametrarna är verkningslösa, ingen nivåväljare |
 | `level-select.spec.js` | staging | `?level=N`/`&inside=1` och nivåknapparna hoppar till rätt nivå (startfas efter nivånamn), ogiltiga värden ignoreras, inget test-API, riktig klocka, fungerar i mobilviewport |
 | `lighting.spec.js` | test | Ljuskontroller (se nedan): ljusstyrka per kamerapose, läsbarhet kring nyckel/dörr, max 2 skuggkastare, inget flimmer när scenen är frusen |
+| `collision.spec.js` | test | Spelarkollision (se "Kollision" nedan) i fryst läge: väggar, stängda dörrar och möbler blockerar, dörröppningen i Astrids hus går att passera, glidning längs vägg, runt ytterhörn och ut ur innerhörn, `?colliders=1` ritar lådorna |
 
 - **Baslinjer** för screenshots (`tests/e2e/__baselines__/`) och frametid (`tests/e2e/perf-baseline.json`) genereras i den miljö som kör testerna och checkas **inte** in (SwiftShader ger olika pixlar/tider per maskin). Första körningen skriver baslinjerna och passerar (lokalt, med varning); kör `npm run test:e2e` igen för att faktiskt jämföra. **Med `CI` satt är det fail-closed:** saknad screenshot-baslinje (`updateSnapshots: 'none'`) och saknad frametidsbaslinje får testerna att *fela* i stället för att tyst skriva en ny – en färsk CI-miljö kan alltså inte passera utan jämförelse (frametidsbaslinje kan ändå skrivas med `E2E_SET_BASELINE=1`). Ny baslinje efter medvetna visuella ändringar: `npm run test:e2e:update` (screenshots) resp. `E2E_SET_BASELINE=1 npm run test:e2e` (frametid). När en baslinje skrivs lokalt skrivs en varning i konsolen och en annotation (`baseline-written`) läggs i rapporten.
 - **Diffens känslighet (viktigt):** screenshot-diffen (`threshold: 0.2`, `maxDiffPixelRatio: 0.01`) fångar grova regressioner (saknade objekt, trasig rendering, fel kamera) men **inte subtila ljus- eller färgändringar**. Vid granskning ändrade ambient-ljus 0,25 → 0,3 51–67 % av husets pixlar och passerade ändå. Lita alltså inte på diffen som skydd för ljus-/färgarbete; granska sådana ändringar visuellt.
@@ -107,7 +116,7 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 - **Frametidsbudget:** p95 < 16,7 ms rapporteras alltid. Utan baslinje kan testet inte fela lokalt (men felar med `CI` satt); med baslinje felar det vid regression (p95 > max(1,5x, +40 ms) av baslinjen, calls/triangles > 1,1x). Den absoluta 16,7 ms-gränsen kräver riktig GPU och slås på med `E2E_ENFORCE_BUDGET=1` – på SwiftShader ligger p95 runt 70–130 ms.
 - **Typsnitt:** drei `<Text>` hämtar glyfdata från cdn.jsdelivr.net vid körning. Svaren är incheckade i `tests/e2e/fixtures/jsdelivr-fonts.har.zip` och spelas upp så att testerna är offline-säkra. Spela in på nytt: `E2E_RECORD_FONTS=1 npx playwright test -c tests/e2e/playwright.config.js --project=test -g "classroom \(level 3\)"`.
 - **Klassrumsintrot** har timers (skott efter 7 s) som inte kan frysas utifrån; visual-testerna avbryts om en capture tar > 6 s.
-- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-N` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget. `?level`/`&inside` finns även i stagingbygget (`VITE_LEVEL_SELECT=1`, se ovan), men inget annat av testläget.
+- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-N` (och `&inside=1` för Astrids hus), `?colliders=1` (ritar kollisionslådorna som magenta wireframes, `ColliderDebug.jsx`) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget. `?level`/`&inside` finns även i stagingbygget (`VITE_LEVEL_SELECT=1`, se ovan), men inget annat av testläget.
 - Rapport: `playwright-report/` (öppna med `npx playwright show-report playwright-report`).
 - **CI (`.github/workflows/pr-check.yml`, ADR `docs/adr/0001-ci-e2e-baselines.md`):** e2e körs på PR:er mot `main` och `staging`, uppdelat i shards. Baslinjer tas från PR:ens basbranch. Tre PR-etiketter styr körningen (en ny körning startar när etiketten läggs till eller tas bort):
   - **`visual-change-approved`** – avsiktlig visuell ändring (och release-PR:er `staging` → `main` med visuell ändring). Screenshot-baslinjerna spelas in från PR:ens merge-commit, så screenshot-diffen är inte en grind; övriga e2e-kontroller körs som vanligt, och perf-baslinjen tas fortfarande alltid från basen. Granska diffen först. **Etiketten sätts av en människa eller reviewern, aldrig av PR:ens författare (gäller även agenter), och måste bedömas på nytt efter nya commits** (en push med etiketten satt ger `::warning::`).
@@ -158,7 +167,14 @@ yellowhorrorhosegame/
 │   │   ├── Character.jsx      # Jagande karaktärer
 │   │   ├── Key.jsx            # Insamlingsbar nyckel
 │   │   ├── Ground.jsx         # Markplan
-│   │   └── Player.jsx         # Spelarens kontroller
+│   │   ├── Player.jsx         # Spelarens kontroller (rörelse via utils/collision.js)
+│   │   └── ColliderDebug.jsx  # ?colliders=1 (testbygge): kollisionslådor som wireframe
+│   ├── levels/
+│   │   ├── houseLayout.js     # Husets/möblernas konstanter (mesh + kollision)
+│   │   ├── classroomLayout.js # Klassrummets konstanter (mesh + kollision)
+│   │   └── colliders/         # Kollisionslådor per scen (outdoor, houseInterior, classroom)
+│   ├── utils/
+│   │   └── collision.js       # resolveMovement: cirkel mot AABB, per axel
 │   ├── App.jsx                # Huvudapp med spellogik
 │   ├── main.jsx               # React entry point
 │   └── index.css              # Styles
@@ -183,6 +199,13 @@ yellowhorrorhosegame/
 3. **Fiendeförföljelse**: Karaktärer följer alltid spelaren och blir snabbare för varje nivå
 4. **Hälsosystem**: Tar skada när du är nära karaktären, Game Over vid 0 hälsa
 5. **Level-progression**: 7 nivåer med ökande svårighetsgrad
+6. **Kollision**: Spelaren går inte igenom väggar eller möbler, bara genom dörrar (se nedan)
+
+### Kollision
+
+Spelaren är en cirkel (radie 0,35, `PLAYER_RADIUS`) som löses mot axel-parallella lådor `{ minX, maxX, minZ, maxZ }` i XZ-planet, utan fysikmotor: `resolveMovement(pos, delta, colliders, radius)` i `src/utils/collision.js` är ren och deterministisk. x och z löses var för sig, så en rörelse snett in i en vägg behåller komponenten längs väggen (man glider). Hörnen är rundade (cirkelns räckvidd krymper mot lådans hörn) och en rörelse rakt mot ett hörn knuffas runt det, så man fastnar inte vid dörrposter. En spelare som börjar inne i en låda (klassrummets egna bänk vid start) får alltid gå ut, men inte in igen. `Player.jsx` tar listan som prop `colliders` och kör den före `bounds` och nivågränserna.
+
+Lådorna ligger i `src/levels/colliders/` (`outdoor.js`, `houseInterior.js`, `classroom.js`) och räknas fram från samma konstanter som mesharna (`src/levels/houseLayout.js`, `src/levels/classroomLayout.js`), så mesh och kollision inte glider isär. Stängda dörrar (husets ytterdörr, klassrummets utgång) är egna lådor i dörröppningen: att "gå igenom" dem är som förut närhetstriggern (`House.jsx`, `ClassroomExit.jsx`), som slår till innan man nuddar dörren; utan nyckel blockerar dörren. Astrids hus har en frontvägg med dörröppning (samma bredd som ytterdörren) som går att passera. Sängen är solid; man når den från fotändan (framsidan, mot ytterdörren – knappen för gömstället, BENG-108) eller den fria långsidan. Sängen står 1,9 från frontväggen så att fotändan går att nå inifrån huset. IKEA har ingen kollision ännu (BENG-109). I testbygget ritar `?colliders=1` lådorna som magenta wireframes.
 
 ## 🐛 Kända Problem
 

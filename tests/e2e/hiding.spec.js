@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test'
 import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera } from './helpers.js'
 
 // Hiding under Astrid's bed (level 2, ?inside=1) on the frozen clock. Only the "test" project matches this file.
-// The bed's foot end is at (5, -18) (levels/astridLayout.js); the button shows within 1.2 of it.
+// The bed's foot end is at (5, -19.5) (levels/astridLayout.js, from houseLayout.js); the button shows within 1.2 of it.
 
 test.setTimeout(240_000)
 
-const NEAR = [5, -17]
+const NEAR = [5, -19] // inside the house, 0.5 in front of the foot end
 const FAR = [0, -12]
 const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])

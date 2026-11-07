@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { HIDE_TRANSITION_SECONDS, UNDER_BED_YAW_RANGE, UNDER_BED_PITCH_RANGE, UNDER_BED_PITCH } from '../levels/astridLayout'
+import { resolveMovement, PLAYER_RADIUS } from '../utils/collision'
 
 function Player({
   mobileMovement = { x: 0, y: 0 },
@@ -13,7 +14,8 @@ function Player({
   lookBack = false, // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
   bounds = null, // optional { minX, maxX, minZ, maxZ } rectangle the player stays inside (replaces the outdoor limits)
   pose = null, // optional { position: [x, y, z], yaw, locked }: while locked the camera eases to that pose and the player can only look around a little; unlocking eases back to where the player stood
-  lock = null // optional ref { current: { frozen } }, read every frame: frozen stops the movement, the view still turns and the position is kept (unlike isLocked, which resets it)
+  lock = null, // optional ref { current: { frozen } }, read every frame: frozen stops the movement, the view still turns and the position is kept (unlike isLocked, which resets it)
+  colliders = null // optional list of { minX, maxX, minZ, maxZ } boxes (walls, furniture) the player cannot walk through (normal walking only, a locked pose moves the camera itself); see utils/collision.js
 }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
@@ -177,8 +179,21 @@ function Player({
       velocity.current.add(forward.clone().multiplyScalar(-mobileMovement.y * speed * 2))
     }
 
-    // Apply velocity to camera
-    camera.position.add(velocity.current)
+    // Apply velocity to camera. With colliders the move is resolved against them first
+    // (one axis at a time, so the player slides along walls); bounds and the level limits
+    // below still apply afterwards.
+    if (colliders && colliders.length > 0) {
+      const next = resolveMovement(
+        { x: camera.position.x, z: camera.position.z },
+        { x: velocity.current.x, z: velocity.current.z },
+        colliders,
+        PLAYER_RADIUS,
+      )
+      camera.position.x = next.x
+      camera.position.z = next.z
+    } else {
+      camera.position.add(velocity.current)
+    }
 
     // Keep camera at player height
     camera.position.y = 1.6

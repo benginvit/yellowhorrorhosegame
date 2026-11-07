@@ -1,5 +1,8 @@
 import { Text } from '@react-three/drei'
 import { useLightFlicker } from '../utils/flicker'
+import {
+  CLASSROOM, CLASSROOM_WALL, CLASSROOM_HEIGHT, CLASSROOM_DOOR, DESK_COLUMNS_X, DESK_ROWS_Z, PLAYER_DESK, DESK_TOP, STUDENT_CHAIR, TEACHER_DESK, CLASSROOM_BOOKSHELF,
+} from '../levels/classroomLayout'
 
 function CeilingPointLight({ intensity, ...props }) {
   const ref = useLightFlicker(intensity)
@@ -7,13 +10,12 @@ function CeilingPointLight({ intensity, ...props }) {
 }
 
 function Classroom() {
-  // Room: x: -9 to 9, z: -8 to 6, y: 0 to 4
+  // Room: x: -9 to 9, z: -8 to 6, y: 0 to 4 (levels/classroomLayout.js; the collision boxes come from the same layout)
   const floorColor = '#c8c0b0'
   const wallColor = '#f0ede8'
   const ceilingColor = '#ffffff'
 
-  const deskPositionsX = [-6, -3, 0, 3, 6]
-  const deskPositionsZ = [-4, -1, 2]
+  const roomWidth = CLASSROOM.maxX - CLASSROOM.minX
 
   return (
     <group>
@@ -30,26 +32,26 @@ function Classroom() {
       </mesh>
 
       {/* Front wall (with whiteboard) */}
-      <mesh position={[0, 2, -8]} receiveShadow>
-        <boxGeometry args={[18, 4.2, 0.2]} />
+      <mesh position={[0, CLASSROOM_HEIGHT / 2, CLASSROOM.minZ]} receiveShadow>
+        <boxGeometry args={[roomWidth, 4.2, CLASSROOM_WALL]} />
         <meshStandardMaterial color={wallColor} />
       </mesh>
 
       {/* Back wall */}
-      <mesh position={[0, 2, 6.1]} receiveShadow>
-        <boxGeometry args={[18, 4.2, 0.2]} />
+      <mesh position={[0, CLASSROOM_HEIGHT / 2, CLASSROOM.maxZ]} receiveShadow>
+        <boxGeometry args={[roomWidth, 4.2, CLASSROOM_WALL]} />
         <meshStandardMaterial color={wallColor} />
       </mesh>
 
       {/* Left wall */}
-      <mesh position={[-9, 2, -1]} receiveShadow>
-        <boxGeometry args={[0.2, 4.2, 15]} />
+      <mesh position={[CLASSROOM.minX, CLASSROOM_HEIGHT / 2, -1]} receiveShadow>
+        <boxGeometry args={[CLASSROOM_WALL, 4.2, 15]} />
         <meshStandardMaterial color={wallColor} />
       </mesh>
 
       {/* Right wall */}
-      <mesh position={[9, 2, -1]} receiveShadow>
-        <boxGeometry args={[0.2, 4.2, 15]} />
+      <mesh position={[CLASSROOM.maxX, CLASSROOM_HEIGHT / 2, -1]} receiveShadow>
+        <boxGeometry args={[CLASSROOM_WALL, 4.2, 15]} />
         <meshStandardMaterial color={wallColor} />
       </mesh>
 
@@ -114,12 +116,12 @@ function Classroom() {
       ))}
 
       {/* Classroom door on right wall */}
-      <mesh position={[8.85, 1.5, 4]}>
-        <boxGeometry args={[0.1, 3, 1.5]} />
+      <mesh position={[CLASSROOM_DOOR.x, CLASSROOM_DOOR.y, CLASSROOM_DOOR.z]}>
+        <boxGeometry args={[CLASSROOM_DOOR.depth, CLASSROOM_DOOR.height, CLASSROOM_DOOR.width]} />
         <meshStandardMaterial color="#8B6914" />
       </mesh>
       <Text
-        position={[8.5, 3.2, 4]}
+        position={[8.5, 3.2, CLASSROOM_DOOR.z]}
         rotation={[0, -Math.PI / 2, 0]}
         fontSize={0.18}
         color="#555555"
@@ -140,10 +142,10 @@ function Classroom() {
       ))}
 
       {/* Teacher's desk at front */}
-      <group position={[0, 0, -6.5]}>
+      <group position={TEACHER_DESK.position}>
         {/* Desk surface */}
         <mesh position={[0, 0.8, 0]} castShadow>
-          <boxGeometry args={[2.5, 0.1, 1]} />
+          <boxGeometry args={[TEACHER_DESK.w, 0.1, TEACHER_DESK.d]} />
           <meshStandardMaterial color="#8B6914" />
         </mesh>
         {/* Desk legs */}
@@ -154,21 +156,21 @@ function Classroom() {
           </mesh>
         ))}
         {/* Chair */}
-        <mesh position={[0, 0.45, 0.8]} castShadow>
-          <boxGeometry args={[0.8, 0.08, 0.8]} />
+        <mesh position={[0, 0.45, TEACHER_DESK.chair.z]} castShadow>
+          <boxGeometry args={[TEACHER_DESK.chair.size, 0.08, TEACHER_DESK.chair.size]} />
           <meshStandardMaterial color="#444444" />
         </mesh>
       </group>
 
       {/* Student desks */}
-      {deskPositionsZ.map(z =>
-        deskPositionsX.map(x => {
-          const isPlayerDesk = x === 0 && z === 2
+      {DESK_ROWS_Z.map(z =>
+        DESK_COLUMNS_X.map(x => {
+          const isPlayerDesk = x === PLAYER_DESK.x && z === PLAYER_DESK.z
           return (
             <group key={`desk-${x}-${z}`} position={[x, 0, z]}>
               {/* Desk top */}
               <mesh position={[0, 0.72, 0]} castShadow>
-                <boxGeometry args={[1.2, 0.07, 0.7]} />
+                <boxGeometry args={[DESK_TOP.w, 0.07, DESK_TOP.d]} />
                 <meshStandardMaterial color={isPlayerDesk ? '#c4a35a' : '#b8955a'} />
               </mesh>
               {/* Desk leg */}
@@ -179,12 +181,12 @@ function Classroom() {
               {/* Chair */}
               {!isPlayerDesk && (
                 <>
-                  <mesh position={[0, 0.42, 0.55]} castShadow>
-                    <boxGeometry args={[0.65, 0.06, 0.6]} />
+                  <mesh position={[0, 0.42, STUDENT_CHAIR.seatZ]} castShadow>
+                    <boxGeometry args={[STUDENT_CHAIR.w, 0.06, STUDENT_CHAIR.seatD]} />
                     <meshStandardMaterial color="#555555" />
                   </mesh>
-                  <mesh position={[0, 0.78, 0.85]} castShadow>
-                    <boxGeometry args={[0.65, 0.65, 0.05]} />
+                  <mesh position={[0, 0.78, STUDENT_CHAIR.backZ]} castShadow>
+                    <boxGeometry args={[STUDENT_CHAIR.w, 0.65, STUDENT_CHAIR.backD]} />
                     <meshStandardMaterial color="#555555" />
                   </mesh>
                 </>
@@ -195,8 +197,8 @@ function Classroom() {
       )}
 
       {/* Bookshelf on back wall */}
-      <mesh position={[-7, 1, 5.8]} castShadow>
-        <boxGeometry args={[3, 2, 0.4]} />
+      <mesh position={CLASSROOM_BOOKSHELF.position} castShadow>
+        <boxGeometry args={[CLASSROOM_BOOKSHELF.w, 2, CLASSROOM_BOOKSHELF.d]} />
         <meshStandardMaterial color="#8B6914" />
       </mesh>
       {/* Books on shelf */}

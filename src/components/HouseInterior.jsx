@@ -1,37 +1,53 @@
 import { useLightFlicker } from '../utils/flicker'
+import { HOUSE_POSITION, HOUSE_HEIGHT, HOUSE_DOOR, INTERIOR_SIZE, INTERIOR_WALL, INTERIOR_WALL_AT } from '../levels/houseLayout'
+
+// Width of each front wall segment beside the doorway.
+const FRONT_SEGMENT = INTERIOR_SIZE / 2 - HOUSE_DOOR.width / 2
 
 function HouseInterior() {
   const lampRef = useLightFlicker(0.4)
   return (
-    <group position={[0, 0, -25]}>
+    <group position={HOUSE_POSITION}>
       {/* Floor */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
-        <boxGeometry args={[14, 0.1, 14]} />
+        <boxGeometry args={[INTERIOR_SIZE, 0.1, INTERIOR_SIZE]} />
         <meshStandardMaterial color="#D2B48C" />
       </mesh>
 
-      {/* Walls */}
+      {/* Walls (the collision boxes come from the same layout, see levels/colliders/houseInterior.js) */}
       {/* Back wall */}
-      <mesh position={[0, 4, -7]} receiveShadow>
-        <boxGeometry args={[14, 8, 0.2]} />
+      <mesh position={[0, HOUSE_HEIGHT / 2, -INTERIOR_WALL_AT]} receiveShadow>
+        <boxGeometry args={[INTERIOR_SIZE, HOUSE_HEIGHT, INTERIOR_WALL]} />
         <meshStandardMaterial color="#FFF8DC" />
       </mesh>
 
       {/* Left wall */}
-      <mesh position={[-7, 4, 0]} receiveShadow>
-        <boxGeometry args={[0.2, 8, 14]} />
+      <mesh position={[-INTERIOR_WALL_AT, HOUSE_HEIGHT / 2, 0]} receiveShadow>
+        <boxGeometry args={[INTERIOR_WALL, HOUSE_HEIGHT, INTERIOR_SIZE]} />
         <meshStandardMaterial color="#FFF8DC" />
       </mesh>
 
       {/* Right wall */}
-      <mesh position={[7, 4, 0]} receiveShadow>
-        <boxGeometry args={[0.2, 8, 14]} />
+      <mesh position={[INTERIOR_WALL_AT, HOUSE_HEIGHT / 2, 0]} receiveShadow>
+        <boxGeometry args={[INTERIOR_WALL, HOUSE_HEIGHT, INTERIOR_SIZE]} />
+        <meshStandardMaterial color="#FFF8DC" />
+      </mesh>
+
+      {/* Front wall: two segments beside the doorway (same width as the front door, House.jsx) and the lintel above it */}
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[side * (HOUSE_DOOR.width / 2 + FRONT_SEGMENT / 2), HOUSE_HEIGHT / 2, INTERIOR_WALL_AT]} receiveShadow>
+          <boxGeometry args={[FRONT_SEGMENT, HOUSE_HEIGHT, INTERIOR_WALL]} />
+          <meshStandardMaterial color="#FFF8DC" />
+        </mesh>
+      ))}
+      <mesh position={[0, HOUSE_DOOR.height + (HOUSE_HEIGHT - HOUSE_DOOR.height) / 2, INTERIOR_WALL_AT]} receiveShadow>
+        <boxGeometry args={[HOUSE_DOOR.width, HOUSE_HEIGHT - HOUSE_DOOR.height, INTERIOR_WALL]} />
         <meshStandardMaterial color="#FFF8DC" />
       </mesh>
 
       {/* Ceiling */}
-      <mesh position={[0, 8, 0]} receiveShadow>
-        <boxGeometry args={[14, 0.2, 14]} />
+      <mesh position={[0, HOUSE_HEIGHT, 0]} receiveShadow>
+        <boxGeometry args={[INTERIOR_SIZE, 0.2, INTERIOR_SIZE]} />
         <meshStandardMaterial color="#FFFFFF" />
       </mesh>
 

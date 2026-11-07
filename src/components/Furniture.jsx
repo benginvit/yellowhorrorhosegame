@@ -1,26 +1,28 @@
+import { FURNITURE_FOOTPRINT as F } from '../levels/houseLayout'
+
 function Furniture({ position, type }) {
   const getFurniture = () => {
     switch (type) {
       case 'sofa':
         return (
           <group position={position}>
-            {/* Sofa base */}
+            {/* Sofa base (footprint shared with the collision box, see levels/houseLayout.js) */}
             <mesh position={[0, 0.4, 0]} castShadow>
-              <boxGeometry args={[3, 0.8, 1.2]} />
+              <boxGeometry args={[F.sofa.w, 0.8, F.sofa.d]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
             {/* Sofa back */}
             <mesh position={[0, 1, -0.4]} castShadow>
-              <boxGeometry args={[3, 1.2, 0.4]} />
+              <boxGeometry args={[F.sofa.w, 1.2, 0.4]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
             {/* Armrests */}
-            <mesh position={[-1.3, 0.7, 0]} castShadow>
-              <boxGeometry args={[0.4, 1, 1.2]} />
+            <mesh position={[-(F.sofa.w / 2 - 0.2), 0.7, 0]} castShadow>
+              <boxGeometry args={[0.4, 1, F.sofa.d]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
-            <mesh position={[1.3, 0.7, 0]} castShadow>
-              <boxGeometry args={[0.4, 1, 1.2]} />
+            <mesh position={[F.sofa.w / 2 - 0.2, 0.7, 0]} castShadow>
+              <boxGeometry args={[0.4, 1, F.sofa.d]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
           </group>
@@ -31,7 +33,7 @@ function Furniture({ position, type }) {
           <group position={position}>
             {/* Table top */}
             <mesh position={[0, 0.8, 0]} castShadow>
-              <boxGeometry args={[2, 0.1, 1.5]} />
+              <boxGeometry args={[F.table.w, 0.1, F.table.d]} />
               <meshStandardMaterial color="#D2691E" />
             </mesh>
             {/* Legs */}
@@ -59,7 +61,7 @@ function Furniture({ position, type }) {
           <group position={position}>
             {/* Main shelf */}
             <mesh position={[0, 1.2, 0]} castShadow>
-              <boxGeometry args={[2, 2.4, 0.5]} />
+              <boxGeometry args={[F.bookshelf.w, 2.4, F.bookshelf.d]} />
               <meshStandardMaterial color="#654321" />
             </mesh>
             {/* Shelves */}
@@ -102,9 +104,9 @@ function Furniture({ position, type }) {
                 <meshStandardMaterial color="#5a3216" />
               </mesh>
             ))}
-            {/* Bed frame */}
+            {/* Bed frame (footprint shared with the collision box) */}
             <mesh position={[0, 0.55, 0]} castShadow>
-              <boxGeometry args={[2.5, 0.2, 4]} />
+              <boxGeometry args={[F.bed.w, 0.2, F.bed.d]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
             {/* Slats under the frame */}

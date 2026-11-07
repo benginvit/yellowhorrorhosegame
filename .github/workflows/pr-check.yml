@@ -82,6 +82,27 @@ jobs:
       - name: Check that every e2e test belongs to a shard
         run: node scripts/check-e2e-shards.mjs
 
+  # Unit tests (node --test, no browser): pure modules such as src/utils/collision.js.
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
   # e2e suite (npm run test:e2e) in the pinned Playwright image, split into
   # parallel shards so each stays well under the 10 minute budget (the frozen-clock
   # determinism tests render hundreds of software-GL frames and take ~8 min alone).
@@ -157,6 +178,11 @@ jobs:
             baselines: false
             retries: 0
             args: --project=test determinism.spec.js --timeout=240000 -g "Canvas remount"
+          # Player collision (walls, doorways, furniture; frozen clock, a few seconds of frames per test).
+          - name: collision
+            baselines: false
+            retries: 0
+            args: --project=test collision.spec.js
     env:
       PLAYWRIGHT_IMAGE_VERSION: 1.64.1
       # perf.spec.js is opt-in (shared software-GL runners are too noisy for a
