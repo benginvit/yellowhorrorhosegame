@@ -6,7 +6,7 @@ import { playFootstepSound } from '../utils/sounds'
 
 const EASE = 10 // 1/s, exponential smoothing rate of the visual position toward the logical one (ordering)
 const POSE_RATE = 8 // 1/s, smoothing of the pose (joints) and the body yaw
-const SEAT_TIME = 3.2 // s: from the end of the order to the seat, whatever the distance (App's fallback marks him seated at 4 s)
+const SEAT_TIME = 2.8 // s: from the end of the order to the seat, whatever the distance (App's fallback marks him seated at 4 s; he reports ~0.1 s after arriving)
 const SIT_SPEED_MIN = 3 // world units/s: never slower than this on the way to the seat
 // He walks the rest of RASMUS_PATH, then around the counter to this point behind his chair, then into the seat.
 const SEAT_APPROACH = [RASMUS_SEAT_POS[0] - 1.6, 0, RASMUS_SEAT_POS[2] + 0.8]
@@ -168,7 +168,10 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
     if (w.phase !== ikeaPhase) {
       w.phase = ikeaPhase
       w.phaseStart = t
-      if (attacking) {
+      if (ikeaPhase === 'intro') {
+        // A new round on a kept mount: start over (the walk, the seat, the pose).
+        Object.assign(w, { dist: 0, sinceStep: 0, route: null, routeIdx: 0, runSpeed: null, atSeat: false, seatedReported: false, pose: null })
+      } else if (attacking) {
         w.route = null
         w.atSeat = false
         w.runSpeed = null
@@ -329,7 +332,7 @@ function Rasmus({ ikeaPhase, progress, loseReason = null, drinkAsked = false, on
     handKnife.current.visible = holdsKnife
     shelfKnife.current.visible = !holdsKnife
 
-    if (w.atSeat && P.sit > 0.8 && ikeaPhase === 'serve' && !w.seatedReported) {
+    if (w.atSeat && P.sit > 0.5 && ikeaPhase === 'serve' && !w.seatedReported) {
       w.seatedReported = true
       onSeated?.()
     }

@@ -197,6 +197,25 @@ test.describe('ikea-serving', () => {
 })
 
 test.describe('ikea-outcomes', () => {
+  test('early order (progress ~0.2): Rasmus still reaches his seat and reports it before the 4 s fallback', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await toOrdering(page)
+    await ADVANCE(page, 3) // the kiosk flow below steps the clock up to ~5 s more (loading screens)
+    await orderMeatballs(page)
+    const width = await page.getByTestId('ikea-rasmus-bar').evaluate((el) => parseFloat(el.style.width))
+    expect(width, 'the order finishes early, Rasmus far down the path').toBeLessThanOrEqual(25)
+    await page.getByTestId('ikea-pay').click()
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
+    await useAt(page, AT_TRAY) // <= 0.6 s of the clock
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait')
+    await ADVANCE(page, 3) // 3.1-3.6 s since 'serve': only Rasmus himself can have reported (fallback at 4 s)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+    const r = await positions(page)
+    expect(Math.hypot(r.x - RASMUS_SEAT_POS[0], r.z - RASMUS_SEAT_POS[2]), 'Rasmus is at RASMUS_SEAT_POS').toBeLessThan(0.1)
+    expectNoErrors(errors)
+  })
+
   test('win: order via the kiosk -> serve -> drink -> won -> level complete -> level 5 Selma', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -290,6 +309,7 @@ test.describe('ikea-kiosk', () => {
     await toOrdering(page)
     await page.getByTestId('ikea-start').click()
     await page.getByTestId('ikea-category-main').click()
+    await expect(page.getByTestId('ikea-dish-hotdog')).toBeVisible() // evaluateAll does not wait for the list to render
     const ids = await page.locator('[data-testid^="ikea-dish-"]').evaluateAll((els) => els.map((e) => e.dataset.testid))
     expect(ids).toEqual(['salmon', 'veggie', 'meatballs', 'chicken', 'hotdog'].map((d) => `ikea-dish-${d}`))
     // Side panel: the right ~40 % of the screen, the 3D view stays free on the left.

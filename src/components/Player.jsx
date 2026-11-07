@@ -13,7 +13,7 @@ function Player({
   lookBack = false, // view turned 180 degrees (yaw + PI); movement keys stay relative to the view
   bounds = null, // optional { minX, maxX, minZ, maxZ } rectangle the player stays inside (replaces the outdoor limits)
   pose = null, // optional { position: [x, y, z], yaw, locked }: while locked the camera eases to that pose and the player can only look around a little; unlocking eases back to where the player stood
-  frozen = false // movement stopped, the view still turns and the position is kept (unlike isLocked, which resets it)
+  lock = null // optional ref { current: { frozen } }, read every frame: frozen stops the movement, the view still turns and the position is kept (unlike isLocked, which resets it)
 }) {
   const { camera } = useThree()
   const velocity = useRef(new THREE.Vector3())
@@ -143,7 +143,7 @@ function Player({
 
     // Reset velocity
     velocity.current.set(0, 0, 0)
-    if (frozen) return
+    if (lock?.current.frozen) return
 
     // Get camera direction vectors
     const forward = new THREE.Vector3()
