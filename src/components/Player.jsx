@@ -125,6 +125,9 @@ function Player({
             rotation.current.yaw = pose.yaw + THREE.MathUtils.clamp(-swing, -UNDER_BED_YAW_RANGE, UNDER_BED_YAW_RANGE)
           }
           rotation.current.pitch = THREE.MathUtils.clamp(rotation.current.pitch, UNDER_BED_PITCH - UNDER_BED_PITCH_RANGE, UNDER_BED_PITCH + UNDER_BED_PITCH_RANGE)
+        } else {
+          // Crawling out: level the view out again while the camera rises.
+          rotation.current.pitch -= rotation.current.pitch * Math.min(1, delta * 8)
         }
         camera.position.set(
           THREE.MathUtils.lerp(stand.current.x, target[0], p),

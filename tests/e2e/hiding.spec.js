@@ -79,6 +79,36 @@ test.describe('hiding under the bed (level 2)', () => {
 
 })
 
+test.describe('hiding and Astrid\'s timer (level 2)', () => {
+  // Astrid wakes after 4 s and counts down 15 s; only isHiding at zero counts. Stepped in chunks so React keeps up.
+  const runTimer = async (page) => {
+    for (let i = 0; i < 20; i++) {
+      await ADVANCE(page, 1)
+      await page.waitForTimeout(50)
+    }
+  }
+
+  test('hiding under the bed when the timer runs out completes the level', async ({ page }) => {
+    const errors = trackErrors(page)
+    await openFrozen(page, { level: 2, inside: true })
+    await stand(page, NEAR, true)
+    await page.keyboard.press('KeyF')
+    await expect(underBed(page)).toBeVisible()
+    await runTimer(page)
+    await expect(page.locator('.victory-screen')).toBeVisible()
+    expectNoErrors(errors)
+  })
+
+  test('standing next to the bed without F is caught when the timer runs out', async ({ page }) => {
+    const errors = trackErrors(page)
+    await openFrozen(page, { level: 2, inside: true })
+    await stand(page, NEAR, true)
+    await runTimer(page)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    expectNoErrors(errors)
+  })
+})
+
 test.describe('hiding under the bed on a phone', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 740 } })
 
