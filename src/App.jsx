@@ -12,6 +12,7 @@ import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRec
 const IKEA_INTRO_MS = 8000
 const IKEA_WON_MS = 4000
 const IKEA_SEAT_FALLBACK_MS = 4000 // Rasmus counts as seated after this long even if his walk never reports it
+const RASMUS_LINE_MS = 3000 // how long the caption stays up
 const IKEA_TICK_MS = 250 // ikeaTimeLeft is counted down in quarter seconds (exact in binary)
 
 const INITIAL_STATE = {
@@ -57,6 +58,20 @@ function App() {
   const [showGomEr, setShowGomEr] = useState(false)
   const [showGunshotFlash, setShowGunshotFlash] = useState(false)
   const [showGunshotShake, setShowGunshotShake] = useState(false)
+
+  // Caption for Rasmus' clips ('kottbullar' | 'lingondryck' | null), so it also works with the sound off.
+  const [rasmusLine, setRasmusLine] = useState(null)
+  const rasmusLineTimerRef = useRef(null)
+  const sayRasmus = useCallback((action) => {
+    playVoiceRecording('Rasmus', action, languageRef.current)
+    setRasmusLine(action)
+    clearTimer(rasmusLineTimerRef.current)
+    rasmusLineTimerRef.current = setTimer(() => setRasmusLine(null), RASMUS_LINE_MS)
+  }, [])
+  useEffect(() => () => clearTimer(rasmusLineTimerRef.current), [])
+  useEffect(() => {
+    if (!gameState.isPlaying) { clearTimer(rasmusLineTimerRef.current); setRasmusLine(null) }
+  }, [gameState.isPlaying])
 
   const introTimersRef = useRef([])
   const introStartedRef = useRef(false)
@@ -155,7 +170,7 @@ function App() {
     }
 
     if (phase === 'ordering') {
-      playVoiceRecording('Rasmus', 'kottbullar', languageRef.current)
+      sayRasmus('kottbullar')
       const tick = setTimerInterval(() => {
         setGameState(prev => {
           if (prev.ikeaPhase !== 'ordering') return prev
@@ -177,7 +192,7 @@ function App() {
 
     if (phase === 'drink') {
       const t = setTimer(() => {
-        playVoiceRecording('Rasmus', 'lingondryck', languageRef.current)
+        sayRasmus('lingondryck')
         setGameState(prev => (prev.ikeaPhase === 'drink' ? { ...prev, ikeaDrinkAsked: true } : prev))
       }, IKEA_DRINK_ASK_MS)
       return () => clearTimer(t)
@@ -199,14 +214,14 @@ function App() {
     }
 
     return undefined
-  }, [gameState.isPlaying, gameState.ikeaPhase, gameState.ikeaLoseReason])
+  }, [gameState.isPlaying, gameState.ikeaPhase, gameState.ikeaLoseReason, sayRasmus])
 
   // Second "Köttbullar..." at 50 % progress
   useEffect(() => {
     if (gameState.ikeaPhase === 'ordering' && gameState.ikeaTimeLeft === IKEA_ORDER_SECONDS / 2) {
-      playVoiceRecording('Rasmus', 'kottbullar', language)
+      sayRasmus('kottbullar')
     }
-  }, [gameState.ikeaPhase, gameState.ikeaTimeLeft, language])
+  }, [gameState.ikeaPhase, gameState.ikeaTimeLeft, sayRasmus])
 
   // Rasmus reached the player (or got the wrong drink): existing jumpscare / game over path
   useEffect(() => {
@@ -414,6 +429,15 @@ function App() {
         onRestart={restartGame}
         onContinue={continueToNextLevel}
       />
+      {gameState.isPlaying && rasmusLine && (
+        <div
+          data-testid="ikea-subtitle"
+          role="status"
+          style={{ position: 'fixed', left: '50%', bottom: '12%', transform: 'translateX(-50%)', maxWidth: '90vw', padding: '8px 18px', borderRadius: '8px', background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '1.6rem', fontWeight: 'bold', textAlign: 'center', pointerEvents: 'none', zIndex: 50 }}
+        >
+          {getTranslation(language || 'en', rasmusLine === 'lingondryck' ? 'ikeaLineLingondryck' : 'ikeaLineKottbullar')}
+        </div>
+      )}
       {gameState.isPlaying && (
         <>
           <Game

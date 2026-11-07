@@ -24,6 +24,8 @@ export const translations = {
 
     // IKEA level
     ikeaOrderNow: 'BESTÄLL! SNABBT!',
+    ikeaLineKottbullar: 'Köttbullar…',
+    ikeaLineLingondryck: 'Lingondryck!',
     ikeaTimer: 'Tid kvar',
     ikeaRasmus: 'Rasmus',
     ikeaTouchToOrder: 'Tryck för att beställa',
@@ -141,6 +143,8 @@ export const translations = {
 
     // IKEA level
     ikeaOrderNow: 'ORDER! QUICK!',
+    ikeaLineKottbullar: 'Meatballs…',
+    ikeaLineLingondryck: 'Lingonberry drink!',
     ikeaTimer: 'Time left',
     ikeaRasmus: 'Rasmus',
     ikeaTouchToOrder: 'Touch to order',
