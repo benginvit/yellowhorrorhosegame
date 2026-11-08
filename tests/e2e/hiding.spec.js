@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera } from './helpers.js'
+import { HOUSE_FURNITURE, FURNITURE_FOOTPRINT } from '../../src/levels/houseLayout.js'
+import { BED_FRONT, BED_REACH } from '../../src/levels/astridLayout.js'
 
 // Hiding under Astrid's bed (level 2, ?inside=1) on the frozen clock. Only the "test" project matches this file.
 // The bed's foot end is at (5, -19.5) (levels/astridLayout.js, from houseLayout.js); the button shows within 1.2 of it.
@@ -46,6 +48,18 @@ async function stand(page, [x, z], visible) {
   await expect(prompt(page)).toBeVisible({ visible })
 }
 
+/**
+ * Stands at a spot where the prompt must be hidden. The prompt is already hidden at the start pose, so stand(.., false) alone
+ * would never move the player: go to the bed first (prompt up), then to the spot, and check that the camera really is there.
+ */
+async function standAwayFromBed(page, [x, z]) {
+  await stand(page, NEAR, true)
+  await stand(page, [x, z], false)
+  const p = await page.evaluate(() => ({ x: window.__YHH_TEST_MODE__.camera.position.x, z: window.__YHH_TEST_MODE__.camera.position.z }))
+  expect(Math.abs(p.x - x), `camera x ${p.x} at ${x}`).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(p.z - z), `camera z ${p.z} at ${z}`).toBeLessThanOrEqual(0.01)
+}
+
 test.describe('hiding under the bed (level 2)', () => {
   test.beforeEach(async ({ page }) => {
     await replayCdnFonts(page)
@@ -56,7 +70,7 @@ test.describe('hiding under the bed (level 2)', () => {
     await openFrozen(page, { level: 2, inside: true })
     await ADVANCE(page, 4.5) // Astrid wakes: the generic "hide" text appears
     await expect(page.locator('body')).not.toContainText(/s[aä]ng|bed/i)
-    await stand(page, FAR, false)
+    await standAwayFromBed(page, FAR)
     await expect(prompt(page)).toBeHidden()
     await stand(page, NEAR, true)
     await expect(prompt(page)).toHaveText('Krypa in (F)')
@@ -82,12 +96,15 @@ test.describe('hiding under the bed (level 2)', () => {
     expectNoErrors(errors)
   })
 
-  // Furniture away from the bed (houseLayout.js): sofa (-3, -22), bookshelf = the wardrobe (3, -24), table (0, -28). BED_REACH is 1.2.
-  for (const [name, spot] of [['the sofa', [-3, -20.8]], ['the table', [0, -26.4]], ['the wardrobe (bookshelf)', [3, -23.2]], ['just out of reach of the bed', [3.9, -18.6]]]) {
+  // A spot in front of a piece of furniture (its +z face plus `gap`), from houseLayout.js. The wardrobe is the bookshelf.
+  const inFrontOf = (type, gap) => [HOUSE_FURNITURE[type][0], HOUSE_FURNITURE[type][2] + FURNITURE_FOOTPRINT[type].d / 2 + gap]
+  // Just outside the bed's reach: BED_REACH * 1.18 from the middle of the foot end, diagonally in front of the bed.
+  const OUT_OF_REACH = [BED_FRONT[0] - BED_REACH * 0.92, BED_FRONT[1] + BED_REACH * 0.75]
+  for (const [name, spot] of [['the sofa', inFrontOf('sofa', 0.6)], ['the table', inFrontOf('table', 0.85)], ['the wardrobe (bookshelf)', inFrontOf('bookshelf', 0.55)], ['just out of reach of the bed', OUT_OF_REACH]]) {
     test(`next to ${name}: no button, and F does not hide`, async ({ page }) => {
       const errors = trackErrors(page)
       await openFrozen(page, { level: 2, inside: true })
-      await stand(page, spot, false)
+      await standAwayFromBed(page, spot)
       await page.keyboard.press('KeyF')
       await ADVANCE(page, 1)
       await expect(underBed(page)).toBeHidden()
@@ -121,7 +138,6 @@ test.describe('hiding under the bed (level 2)', () => {
     await expect(page.locator('.victory-screen')).toHaveCount(0)
     expectNoErrors(errors)
   })
-
 })
 
 test.describe('hiding under the bed on a phone', () => {
