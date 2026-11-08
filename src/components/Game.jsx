@@ -34,6 +34,7 @@ import { HOUSE_FURNITURE } from '../levels/houseLayout'
 import { OUTDOOR_COLLIDERS } from '../levels/colliders/outdoor'
 import { HOUSE_INTERIOR_COLLIDERS } from '../levels/colliders/houseInterior'
 import { CLASSROOM_COLLIDERS } from '../levels/colliders/classroom'
+import { IKEA_COLLIDERS } from '../levels/colliders/ikea'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
@@ -177,9 +178,11 @@ function Game({
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}
                 bounds={IKEA_BOUNDS}
+                colliders={IKEA_COLLIDERS}
                 lock={ikeaLive}
               />
             )}
+            <ColliderDebug colliders={IKEA_COLLIDERS} />
             <TestModeProbe />
           </Suspense>
           <HorrorEffects />

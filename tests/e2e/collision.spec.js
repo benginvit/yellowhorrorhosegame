@@ -21,7 +21,7 @@ import { openFrozen, setCamera, startGame, waitReady, replayCdnFonts, trackError
 // enters without a key, so the door tests use level 1 away from the cat's start)
 // and 2 inside (the hide timer runs: every test stays under Astrid's 4 s wake-up),
 // 3 (classroom, 'seated' intro: the shots come after 7 s of test time).
-// IKEA has no colliders yet (BENG-109).
+// and 4 (IKEA, phase 'serve': the player is free to walk and the walls, tables and drink station block).
 
 const RADIUS = 0.35 // PLAYER_RADIUS
 const FPS = 20
@@ -254,6 +254,50 @@ test.describe('collision: classroom', () => {
     const p = await position(page)
     near(p.x, 8.8 - RADIUS) // the door, not the 8.5 clamp of inClassroom
     near(p.z, 4)
+    expectNoErrors(errors)
+  })
+})
+
+test.describe('collision: IKEA', () => {
+  // IkeaStore.jsx: side walls on x = 14 and z = 12 (0.2 thick, planes at the room edge); the table at (9, 6) is 2.2 wide with its
+  // chairs (x 7.9..10.1) and z 4.8..7.2; Rasmus' table (4.25, 1.2) is z 0.4..2.0; the drink station cabinet block ends at x = -2.5.
+  // IKEA_BOUNDS (x -9..13, z 1.8..11) clamps the player first on the +x and +z sides, so the outer walls are covered by the unit tests.
+  const open = async (page) => {
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'serve' })
+  }
+
+  test('a restaurant table blocks, with its chairs', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 9, 3.2)
+    await walk(page, ['KeyS'], 0.5) // 2.5 units: would end at z = 5.7, on the table
+    const p = await position(page)
+    near(p.z, 4.8 - RADIUS)
+    near(p.x, 9)
+    expectNoErrors(errors)
+  })
+
+  test("Rasmus' table blocks, and can be reached from its end", async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 4.25, 3.5)
+    await walk(page, ['KeyW'], 0.5)
+    const p = await position(page)
+    near(p.z, 2.0 + RADIUS)
+    near(p.x, 4.25)
+    expect(Math.hypot(p.x - 4.25, p.z - 1.2), 'within the interaction range (1.5) of the table').toBeLessThan(1.5)
+    expectNoErrors(errors)
+  })
+
+  test('the drink station blocks from the side its screen faces', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 0, 6)
+    await walk(page, ['KeyA'], 0.5)
+    const p = await position(page)
+    near(p.x, -2.5 + RADIUS)
+    near(p.z, 6)
     expectNoErrors(errors)
   })
 })

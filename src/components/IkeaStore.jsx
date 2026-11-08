@@ -2,7 +2,10 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Text } from '@react-three/drei'
-import { KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, RASMUS_SEAT_POS, RASMUS_TABLE_OFFSET_X, KNIFE_SHELF_POS } from '../levels/ikeaLayout'
+import {
+  KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, KNIFE_SHELF_POS, IKEA_ROOM, IKEA_TABLES, IKEA_CHAIRS, TABLE_DEPTH, TABLE_HEIGHT,
+  CHAIR_SIZE, COUNTER, TRAY_RACK, KITCHEN_UNITS, KITCHEN_ISLANDS, KNIFE_SHELF,
+} from '../levels/ikeaLayout'
 
 // Room bounds (world units). Floor y = 0. The player starts at z = 3 and the kitchen
 // department is at the far (-x, -z) end. These corridors must stay free of tables, chairs and racks:
@@ -15,10 +18,7 @@ import { KIOSK_POS, KIOSK_SIZE, KIOSK_FACING, TRAY_POS, ASTRID_POS, RASMUS_SEAT_
 //    the chair at (3.4, 2.0) of Rasmus' own table and the table at (5, 6), both > 0.4 clear of the lines.
 // Restaurant tables stand at x = 5 and 9 (z <= -1 and z = 6) and the drink station alone at (-3, 6): the area
 // x -2..3 / z 1.8..6 between the counter, the tables and the station is open floor.
-const X_MIN = -26
-const X_MAX = 14
-const Z_MIN = -24
-const Z_MAX = 12
+const { minX: X_MIN, maxX: X_MAX, minZ: Z_MIN, maxZ: Z_MAX } = IKEA_ROOM
 const CEILING_Y = 4.5
 
 const BLUE = '#0058a3'
@@ -35,13 +35,13 @@ function box(w, h, d, x, y, z) {
 // Chairs and tables are merged into one geometry each and drawn instanced:
 // ~60 pieces of furniture cost 2 draw calls.
 function makeChairGeometry() {
-  const parts = [box(0.5, 0.06, 0.5, 0, 0.46, 0), box(0.5, 0.5, 0.06, 0, 0.74, -0.22)]
+  const parts = [box(CHAIR_SIZE, 0.06, CHAIR_SIZE, 0, 0.46, 0), box(CHAIR_SIZE, 0.5, 0.06, 0, 0.74, -0.22)]
   for (const sx of [-0.21, 0.21]) for (const sz of [-0.21, 0.21]) parts.push(box(0.05, 0.43, 0.05, sx, 0.215, sz))
   return mergeGeometries(parts)
 }
 
 function makeTableGeometry(length) {
-  const parts = [box(length, 0.06, 0.9, 0, 0.75, 0)]
+  const parts = [box(length, 0.06, TABLE_DEPTH, 0, TABLE_HEIGHT, 0)]
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(box(0.07, 0.72, 0.07, sx * (length / 2 - 0.1), 0.36, sz * 0.35))
   return mergeGeometries(parts)
 }
@@ -67,23 +67,12 @@ function Instanced({ geometry, placements, color, castShadow = false }) {
   )
 }
 
-const TABLE_LENGTH = 2.4
-// Long tables in rows on the restaurant side (x > 2), each with chairs on both long sides.
-const TABLE_SPOTS = []
-for (const x of [5, 9]) for (const z of [-13, -9, -5, -1, 6]) if (!(x === 5 && z === -1)) TABLE_SPOTS.push([x, z]) // (5, -1) would touch Rasmus' table
-// Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is RASMUS_TABLE_OFFSET_X to the right of the seat,
-// and the chair placed at the seat itself (x - 0.85 of that table spot, facing +x) is the one he sits on.
-TABLE_SPOTS.push([RASMUS_SEAT_POS[0] + RASMUS_TABLE_OFFSET_X, RASMUS_SEAT_POS[2]])
-// Tables run along z; chairs sit on both sides in x.
-const TABLES = TABLE_SPOTS.map(([x, z]) => [x, z, Math.PI / 2])
-const CHAIRS = TABLE_SPOTS.flatMap(([x, z]) => {
-  const out = []
-  for (const dz of [-0.8, 0, 0.8]) {
-    out.push([x - 0.85, z + dz, Math.PI / 2]) // left of the table, back away from it, faces +x
-    out.push([x + 0.85, z + dz, -Math.PI / 2])
-  }
-  return out
-})
+// Tables run along z (hence the quarter turn); the table and chair spots come from ikeaLayout.js, like the collision boxes.
+const TABLE_LENGTHS = [...new Set(IKEA_TABLES.map((t) => t.length))]
+const TABLES_BY_LENGTH = TABLE_LENGTHS.map((length) => ({
+  length,
+  placements: IKEA_TABLES.filter((t) => t.length === length).map(({ x, z }) => [x, z, Math.PI / 2]),
+}))
 
 function Sign({ position, rotation = [0, 0, 0], width, height = 0.7, text, bg = BLUE, fg = YELLOW, size = 0.4 }) {
   return (
@@ -135,7 +124,7 @@ function ServingCounter() {
   return (
     <group position={[0, 0, TRAY_POS[2]]}>
       <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
-        <boxGeometry args={[3.2, 1, 0.9]} />
+        <boxGeometry args={[COUNTER.w, 1, COUNTER.d]} />
         <meshStandardMaterial color={BLUE} />
       </mesh>
       <mesh position={[0, 1.02, 0]} receiveShadow>
@@ -157,13 +146,13 @@ function TrayRack({ position }) {
     <group position={position}>
       {[0.5, 1, 1.5].map((y) => (
         <mesh key={y} position={[0, y, 0]} castShadow>
-          <boxGeometry args={[1.4, 0.04, 0.7]} />
+          <boxGeometry args={[TRAY_RACK.w, 0.04, TRAY_RACK.d]} />
           <meshStandardMaterial color={STEEL} metalness={0.5} roughness={0.5} />
         </mesh>
       ))}
-      {[-0.68, 0.68].map((x) => (
+      {[-TRAY_RACK.w / 2 + 0.02, TRAY_RACK.w / 2 - 0.02].map((x) => (
         <mesh key={x} position={[x, 0.8, 0]}>
-          <boxGeometry args={[0.04, 1.6, 0.7]} />
+          <boxGeometry args={[0.04, 1.6, TRAY_RACK.d]} />
           <meshStandardMaterial color={STEEL} />
         </mesh>
       ))}
@@ -213,9 +202,9 @@ function Astrid() {
 function KnifeShelf() {
   const knives = useMemo(() => [-0.8, -0.5, -0.2, 0.1, 0.4, 0.7], [])
   return (
-    <group position={[KNIFE_SHELF_POS[0], 0, KNIFE_SHELF_POS[2] - 0.8]}>
+    <group position={[KNIFE_SHELF_POS[0], 0, KNIFE_SHELF_POS[2] + KNIFE_SHELF.offsetZ]}>
       <mesh position={[0, 1, -0.05]} castShadow>
-        <boxGeometry args={[2.4, 2, 0.1]} />
+        <boxGeometry args={[KNIFE_SHELF.w, 2, 0.1]} />
         <meshStandardMaterial color={WOOD} />
       </mesh>
       {[0.6, 1.2, 1.8].map((y) => (
@@ -258,14 +247,14 @@ function KitchenDepartment() {
       </mesh>
       <KnifeShelf />
       {/* Fitted kitchens along the back wall */}
-      {[-24, -20.5, -13, -9.5].map((x) => (
+      {KITCHEN_UNITS.xs.map((x) => (
         <group key={x} position={[x, 0, Z_MIN + 0.45]}>
           <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
             <boxGeometry args={[3, 0.9, 0.8]} />
             <meshStandardMaterial color={x < -15 ? YELLOW : '#e9e6df'} />
           </mesh>
           <mesh position={[0, 0.92, 0]}>
-            <boxGeometry args={[3.05, 0.05, 0.85]} />
+            <boxGeometry args={[KITCHEN_UNITS.w, 0.05, KITCHEN_UNITS.d]} />
             <meshStandardMaterial color="#555" />
           </mesh>
           <mesh position={[0, 2.5, -0.1]}>
@@ -275,18 +264,14 @@ function KitchenDepartment() {
         </group>
       ))}
       {/* Display islands on both sides of Rasmus' corridor (x = -16) */}
-      {[
-        [-21.5, -13],
-        [-11, -17.5],
-        [-21.5, -7],
-      ].map(([x, z]) => (
+      {KITCHEN_ISLANDS.positions.map(([x, z]) => (
         <group key={`${x}_${z}`} position={[x, 0, z]}>
           <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
             <boxGeometry args={[3, 0.9, 1.2]} />
             <meshStandardMaterial color={BLUE} />
           </mesh>
           <mesh position={[0, 0.92, 0]}>
-            <boxGeometry args={[3.1, 0.05, 1.3]} />
+            <boxGeometry args={[KITCHEN_ISLANDS.w, 0.05, KITCHEN_ISLANDS.d]} />
             <meshStandardMaterial color={WOOD} />
           </mesh>
         </group>
@@ -305,7 +290,7 @@ function KitchenDepartment() {
  */
 function IkeaStore() {
   const chairGeo = useMemo(makeChairGeometry, [])
-  const tableGeo = useMemo(() => makeTableGeometry(TABLE_LENGTH), [])
+  const tableGeos = useMemo(() => TABLE_LENGTHS.map(makeTableGeometry), [])
   const cx = (X_MIN + X_MAX) / 2
   const cz = (Z_MIN + Z_MAX) / 2
   const w = X_MAX - X_MIN
@@ -350,11 +335,13 @@ function IkeaStore() {
         )),
       )}
 
-      <Instanced geometry={tableGeo} placements={TABLES} color={WOOD} castShadow />
-      <Instanced geometry={chairGeo} placements={CHAIRS} color={YELLOW} />
+      {TABLES_BY_LENGTH.map(({ length, placements }, i) => (
+        <Instanced key={length} geometry={tableGeos[i]} placements={placements} color={WOOD} castShadow />
+      ))}
+      <Instanced geometry={chairGeo} placements={IKEA_CHAIRS} color={YELLOW} />
 
       <ServingCounter />
-      <TrayRack position={[-3.2, 0, 0.8]} />
+      <TrayRack position={TRAY_RACK.position} />
       <Kiosk />
       <Astrid />
       <KitchenDepartment />

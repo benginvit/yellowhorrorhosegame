@@ -271,10 +271,10 @@ const advance = async (page, seconds, dt = 1 / 20) => {
 }
 
 // Spots inside IKEA_BOUNDS within 1.5 of the interactables (ikeaLayout.js): the tray at (0, 0.9), Rasmus' table at
-// (4.25, 1.2), the drink station at (-3, 6).
+// (4.25, 1.2), the drink station at (-3, 6). All are clear of the collision boxes (levels/colliders/ikea.js).
 export const AT_TRAY = [0, 2.2]
 export const AT_TABLE = [4.25, 2.4]
-export const AT_STATION = [-3, 5.2]
+export const AT_STATION = [-2, 6]
 
 /** Walks to a spot, lets the game see it (state commits between steps) and presses F once the hint is up. */
 export async function useAt(page, [x, z], { tap = false } = {}) {
