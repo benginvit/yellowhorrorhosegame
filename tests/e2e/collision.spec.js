@@ -215,6 +215,39 @@ test.describe("collision: Astrid's house", () => {
     expectNoErrors(errors)
   })
 
+  test('the sofa blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -3, -20.4) // sofa (-3, -22) 3 x 1.2: front face z = -21.4
+    await walk(page, ['KeyW'], 0.5)
+    const p = await position(page)
+    near(p.z, -21.4 + RADIUS)
+    near(p.x, -3)
+    expectNoErrors(errors)
+  })
+
+  test('the bookshelf blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 3, -22.5) // bookshelf (3, -24) 2 x 0.5: front face z = -23.75
+    await walk(page, ['KeyW'], 0.5)
+    const p = await position(page)
+    near(p.z, -23.75 + RADIUS)
+    near(p.x, 3)
+    expectNoErrors(errors)
+  })
+
+  test('a diagonal move into the side wall slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -5.5, -26) // left wall inner face x = -6.9
+    await walk(page, ['KeyW', 'KeyA'], 0.6) // -x blocked after 0.23 s, -z keeps going (3 units)
+    const p = await position(page)
+    near(p.x, -6.9 + RADIUS)
+    near(p.z, -29)
+    expectNoErrors(errors)
+  })
+
   test('an inside corner stops the player, who can walk back out', async ({ page }) => {
     const errors = trackErrors(page)
     await open(page)
@@ -280,6 +313,42 @@ test.describe('collision: classroom', () => {
     near(p.z, 4)
     expectNoErrors(errors)
   })
+  test('the west wall blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -4.5, 0.5) // the aisle between the desk rows z = -1 and z = 2
+    await walk(page, ['KeyA'], 1.2)
+    const p = await position(page)
+    near(p.x, -8.5) // Player.jsx clamps to the room 0.5 inside the wall plane, ahead of the wall (inner face -8.9)
+    near(p.z, 0.5)
+    expectNoErrors(errors)
+  })
+
+  test('a diagonal move into the front wall slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 3, -6.5) // beside the teacher's desk (x in [-1.25, 1.25]); front wall plane z = -8
+    await walk(page, ['KeyW', 'KeyD'], 0.6)
+    const p = await position(page)
+    near(p.z, -7.5) // the front wall again, behind the room clamp (-7.5)
+    near(p.x, 6)
+    expectNoErrors(errors)
+  })
+
+  test('a corner stops the player, who can walk back out', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 7, -6) // towards the front-right corner
+    await walk(page, ['KeyW', 'KeyD'], 0.6)
+    const corner = await position(page)
+    near(corner.x, 8.5) // both stops are the room clamp (Player.jsx), 0.5 inside the wall planes
+    near(corner.z, -7.5)
+    await walk(page, ['KeyS', 'KeyA'], 0.3)
+    const out = await position(page)
+    near(out.x, corner.x - 1.5)
+    near(out.z, corner.z + 1.5)
+    expectNoErrors(errors)
+  })
 })
 
 test.describe('collision: IKEA', () => {
@@ -324,6 +393,28 @@ test.describe('collision: IKEA', () => {
     near(p.z, 6)
     expectNoErrors(errors)
   })
+  test('a diagonal move into a table slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 8, 3.2) // table (9, 6): z from 4.8
+    await walk(page, ['KeyS', 'KeyD'], 0.4) // +z blocked after 0.25 s, +x keeps going (2 units)
+    const p = await position(page)
+    near(p.z, 4.8 - RADIUS)
+    near(p.x, 10)
+    expectNoErrors(errors)
+  })
+
+  test('the east edge of the room stops the player', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 11, 9)
+    await walk(page, ['KeyD'], 0.6) // 3 units: would pass x = 13
+    const p = await position(page)
+    expect(p.x, 'inside IKEA_BOUNDS and the wall (x = 14)').toBeLessThanOrEqual(13.01)
+    expect(p.x, 'moved up to the edge').toBeGreaterThan(12.5)
+    expectNoErrors(errors)
+  })
+
 })
 
 test.describe('collision: ?colliders=1 debug wireframes', () => {
