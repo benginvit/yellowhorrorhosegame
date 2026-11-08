@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera, useAt, serveAndDrink, AT_TRAY, AT_TABLE, AT_STATION } from './helpers.js'
+import { rasmusPositionAt, RASMUS_SEAT_POS, IKEA_ORDER_SECONDS } from '../../src/levels/ikeaLayout.js'
 
 // IKEA level (level 4, Rasmus) on the frozen clock. Only the "test" project matches this file (playwright.config.js).
 // The kiosk is driven through its data-testid hooks (see OrderKiosk.jsx). The IKEA
@@ -56,7 +57,61 @@ async function orderMeatballs(page, { sausage = false, tap = false } = {}) {
   await expect(page.getByTestId('ikea-cart')).toBeVisible()
 }
 
+/** World position of the visual Rasmus (the group named "rasmus") and of the camera. */
+const positions = (page) =>
+  page.evaluate(() => {
+    const api = window.__YHH_TEST_MODE__
+    const r = api.scene.getObjectByName('rasmus')
+    return { x: r.position.x, z: r.position.z, camX: api.camera.position.x, camZ: api.camera.position.z }
+  })
+
 test.describe('ikea-serving', () => {
+  test('ordering: Rasmus walks toward the player in view, in front of the camera at progress 0.5', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'ordering' })
+    // The whole walk (RASMUS_PATH) seen from the kiosk pose: his head is inside the view frustum for >= 80 % of it.
+    const samples = Array.from({ length: 51 }, (_, i) => rasmusPositionAt(i / 50))
+    const inView = await page.evaluate((points) => {
+      const cam = window.__YHH_TEST_MODE__.camera
+      cam.updateMatrixWorld()
+      let n = 0
+      for (const [x, , z] of points) {
+        const v = cam.position.clone().set(x, 1.5, z).project(cam)
+        if (v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1) n++
+      }
+      return n / points.length
+    }, samples)
+    expect(inView, 'share of RASMUS_PATH inside the view from the kiosk').toBeGreaterThanOrEqual(0.8)
+
+    await ADVANCE(page, IKEA_ORDER_SECONDS / 2) // ikeaTimeLeft 40 -> 20: progress 0.5
+    await ADVANCE(page, 0.5, 1 / 60) // the visual Rasmus eases onto the logical position
+    const r = await positions(page)
+    const expected = rasmusPositionAt(0.5)
+    expect(r.z, 'Rasmus is in front of the player (z < camera z)').toBeLessThan(r.camZ)
+    expect(Math.hypot(r.x - expected[0], r.z - expected[2]), 'visual Rasmus sits on the logical path position').toBeLessThan(0.5)
+    const onScreen = await page.evaluate(([x, z]) => {
+      const cam = window.__YHH_TEST_MODE__.camera
+      const v = cam.position.clone().set(x, 1.5, z).project(cam)
+      return v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1
+    }, [r.x, r.z])
+    expect(onScreen, 'Rasmus is on screen at progress 0.5').toBe(true)
+    expectNoErrors(errors)
+  })
+
+  test('serve: Rasmus walks to his seat and reports it (onIkeaRasmusSeated) before the fallback timer', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'serve' })
+    await useAt(page, AT_TRAY) // tray in hand; he is still walking (ikeaObjServeWait)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait')
+    await ADVANCE(page, 2.5) // well before App's 4 s fallback: only Rasmus himself can have reported the seat
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+    const r = await positions(page)
+    expect(Math.hypot(r.x - RASMUS_SEAT_POS[0], r.z - RASMUS_SEAT_POS[2]), 'Rasmus is at RASMUS_SEAT_POS').toBeLessThan(0.1)
+    expectNoErrors(errors)
+  })
+
   test('drink phase: lingonberry -> deliverDrink -> glass on the table -> level complete', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -103,7 +158,15 @@ test.describe('ikea-serving', () => {
     await openFrozen(page, { level: 4, phase: 'drink' })
     await useAt(page, AT_STATION)
     await page.getByTestId('ikea-drink-cola').click()
-    await ADVANCE(page, 2) // Rasmus is still running at the player
+    // The player cannot walk away while he runs (movement stopped, position kept: not teleported to PLAYER_START).
+    const before = await positions(page)
+    await page.keyboard.down('KeyW')
+    await ADVANCE(page, 1)
+    await page.keyboard.up('KeyW')
+    await ADVANCE(page, 1) // Rasmus is still running at the player
+    const after = await positions(page)
+    expect([after.camX, after.camZ], 'the player did not move with W held').toEqual([before.camX, before.camZ])
+    expect(Math.hypot(after.x - after.camX, after.z - after.camZ), 'Rasmus has reached the player').toBeLessThan(1.5)
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
     await ADVANCE(page, 1)
     await expect(page.locator('.game-over-screen')).toBeVisible()
@@ -134,6 +197,25 @@ test.describe('ikea-serving', () => {
 })
 
 test.describe('ikea-outcomes', () => {
+  test('early order (progress ~0.2): Rasmus still reaches his seat and reports it before the 4 s fallback', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await toOrdering(page)
+    await ADVANCE(page, 3) // the kiosk flow below steps the clock up to ~5 s more (loading screens)
+    await orderMeatballs(page)
+    const width = await page.getByTestId('ikea-rasmus-bar').evaluate((el) => parseFloat(el.style.width))
+    expect(width, 'the order finishes early, Rasmus far down the path').toBeLessThanOrEqual(25)
+    await page.getByTestId('ikea-pay').click()
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
+    await useAt(page, AT_TRAY) // <= 0.6 s of the clock
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait')
+    await ADVANCE(page, 3) // 3.1-3.6 s since 'serve': only Rasmus himself can have reported (fallback at 4 s)
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+    const r = await positions(page)
+    expect(Math.hypot(r.x - RASMUS_SEAT_POS[0], r.z - RASMUS_SEAT_POS[2]), 'Rasmus is at RASMUS_SEAT_POS').toBeLessThan(0.1)
+    expectNoErrors(errors)
+  })
+
   test('win: order via the kiosk -> serve -> drink -> won -> level complete -> level 5 Selma', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
@@ -227,6 +309,7 @@ test.describe('ikea-kiosk', () => {
     await toOrdering(page)
     await page.getByTestId('ikea-start').click()
     await page.getByTestId('ikea-category-main').click()
+    await expect(page.getByTestId('ikea-dish-hotdog')).toBeVisible() // evaluateAll does not wait for the list to render
     const ids = await page.locator('[data-testid^="ikea-dish-"]').evaluateAll((els) => els.map((e) => e.dataset.testid))
     expect(ids).toEqual(['salmon', 'veggie', 'meatballs', 'chicken', 'hotdog'].map((d) => `ikea-dish-${d}`))
     // Side panel: the right ~40 % of the screen, the 3D view stays free on the left.

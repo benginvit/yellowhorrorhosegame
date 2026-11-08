@@ -74,6 +74,25 @@ function Game({
   const classroomIntroPhase = gameState.classroomIntroPhase
   const isIntroActive = false
 
+  // IKEA state that the scene reads every frame (Rasmus' phase, progress, lose reason, drinkAsked; the player's
+  // movement lock after the wrong drink). It goes through this ref, not through props: props reach the Canvas'
+  // children only with the Canvas' own React root's commit, which R3F schedules asynchronously and which can land a
+  // frame or more after this render (on the frozen test clock a whole advance() later, so Rasmus' attack started late
+  // in CI). The mirror is written during this render, before any child mounts or any later frame, and holds plain
+  // values only; the object identity never changes.
+  const ikeaLive = useRef({ ikeaPhase: null, progress: 0, loseReason: null, drinkAsked: false, frozen: false })
+  if (isIkeaLevel) {
+    Object.assign(ikeaLive.current, {
+      ikeaPhase: gameState.ikeaPhase,
+      progress: 1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS,
+      loseReason: gameState.ikeaLoseReason,
+      drinkAsked: gameState.ikeaDrinkAsked,
+      // After the wrong drink Rasmus runs at the player and the player cannot walk away (the view still turns;
+      // isLocked would reset the position).
+      frozen: gameState.ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink',
+    })
+  }
+
   // Spawn candy 10s after level start (3s after shots fire at 7s)
   // Timer stored in ref so phase changes don't cancel it
   useEffect(() => {
@@ -129,13 +148,7 @@ function Game({
           <Lighting variant="ikea" />
           <Suspense fallback={null}>
             <IkeaStore />
-            <Rasmus
-              ikeaPhase={ikeaPhase}
-              progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
-              loseReason={gameState.ikeaLoseReason}
-              drinkAsked={gameState.ikeaDrinkAsked}
-              onSeated={onIkeaRasmusSeated}
-            />
+            <Rasmus live={ikeaLive} onSeated={onIkeaRasmusSeated} />
             <DrinkStation active={ikeaPhase === 'drink'} drinkAsked={gameState.ikeaDrinkAsked} />
             <IkeaServing ikeaPhase={ikeaPhase} carrying={gameState.ikeaCarrying} />
             <CarriedItem carrying={gameState.ikeaCarrying} />
@@ -159,6 +172,7 @@ function Game({
                 startYaw={PLAYER_START_YAW}
                 lookBack={gameState.ikeaLookingBack}
                 bounds={IKEA_BOUNDS}
+                lock={ikeaLive}
               />
             )}
             <TestModeProbe />
