@@ -45,3 +45,21 @@ export const FURNITURE_FOOTPRINT = {
   bookshelf: { w: 2, d: 0.5 },
   bed: { w: 2.5, d: 4 },
 }
+
+/**
+ * Where the player stands when entering the house (isInsideHouse turns true):
+ * just inside the front doorway, in line with the door, looking into the room
+ * (yaw 0 = toward -z). The proximity trigger fires outside the front wall, so
+ * without this the player would stand on the grass behind the wall's far side.
+ * z is the wall's inner face plus ENTRY_MARGIN (more than the player's radius,
+ * 0.35); it clears every box in colliders/houseInterior.js.
+ */
+const ENTRY_MARGIN = 0.9
+export const HOUSE_ENTRY_POSE = {
+  position: [
+    HOUSE_POSITION[0],
+    1.6,
+    HOUSE_POSITION[2] + INTERIOR_WALL_AT - INTERIOR_WALL / 2 - ENTRY_MARGIN,
+  ],
+  yaw: 0,
+}
