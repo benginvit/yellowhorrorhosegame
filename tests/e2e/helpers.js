@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect } from '@playwright/test'
+import { RASMUS_TABLE_POS } from '../../src/levels/ikeaLayout.js'
 
 /** The react-three-fiber canvas (other <canvas> elements exist for overlays). */
 export const GAME_CANVAS = 'canvas[data-engine]'
@@ -291,20 +292,85 @@ export async function useAt(page, [x, z], { tap = false } = {}) {
   else await page.keyboard.press('KeyF')
 }
 
+/**
+ * World position of a named scene object (a group the IKEA scene mounts conditionally), or null when it is not in the
+ * scene. `visible` is false when the object or any ancestor is hidden.
+ */
+export function sceneObject(page, name) {
+  return page.evaluate((n) => {
+    const o = window.__YHH_TEST_MODE__.scene.getObjectByName(n)
+    if (!o) return null
+    o.updateWorldMatrix(true, false)
+    const p = o.getWorldPosition(o.position.clone())
+    let visible = true
+    for (let a = o; a; a = a.parent) visible = visible && a.visible
+    return { x: p.x, y: p.y, z: p.z, visible }
+  }, name)
+}
+
+/** Horizontal distance from a scene object to a [x, , z] point. */
+export async function distanceTo(page, name, [x, , z]) {
+  const o = await sceneObject(page, name)
+  expect(o, `"${name}" is in the scene`).not.toBeNull()
+  return Math.hypot(o.x - x, o.z - z)
+}
+
+/** The tray/glass in hand: the scene group "carried-item" sits in front of the camera, or is absent when nothing is carried. */
+export async function expectCarrying(page, carrying, { inView = true } = {}) {
+  // The group is placed in front of the camera by a frame (not on mount) and removed by React a commit after the use.
+  await advance(page, 0.1)
+  if (!carrying) {
+    for (let i = 0; i < 5 && (await sceneObject(page, 'carried-item')); i++) await advance(page, 0.1)
+    expect(await sceneObject(page, 'carried-item'), 'nothing carried: no "carried-item" in the scene').toBeNull()
+    return
+  }
+  // Mounting (a React commit after the use) and placing (the next frame) can land in different steps: a few extra frames, bounded.
+  const measure = () => page.evaluate(() => {
+    const api = window.__YHH_TEST_MODE__
+    const o = api.scene.getObjectByName('carried-item')
+    if (!o) return null
+    const cam = api.camera
+    cam.updateMatrixWorld()
+    const p = o.getWorldPosition(cam.position.clone())
+    let visible = true
+    for (let a = o; a; a = a.parent) visible = visible && a.visible
+    const v = p.clone().project(cam)
+    return { visible, dist: cam.position.distanceTo(p), onScreen: v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 }
+  })
+  let m = await measure()
+  for (let i = 0; i < 5 && !(m && m.dist < 1.5); i++) { await advance(page, 0.1); m = await measure() }
+  expect(m, `"carried-item" (${carrying}) is in the scene`).not.toBeNull()
+  expect(m.visible).toBe(true)
+  expect(m.dist, 'the carried item is held close to the camera').toBeLessThan(1.5)
+  if (inView) expect(m.onScreen, 'the carried item is in view').toBe(true)
+}
+
 /** From 'serve' (Rasmus walking to his seat) through tray, table, lingonberry drink to level complete. */
 export async function serveAndDrink(page, { tap = false } = {}) {
+  await expectCarrying(page, null)
+  expect(await sceneObject(page, 'tray-pickup'), 'the tray waits on the counter').not.toBeNull()
   await useAt(page, AT_TRAY, { tap })
+  await expectCarrying(page, 'tray')
+  expect(await sceneObject(page, 'tray-pickup'), 'the picked-up tray is gone from the counter').toBeNull()
   await advance(page, 4.5) // he is seated (walk or fallback timer)
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
   await useAt(page, AT_TABLE, { tap })
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+  await expectCarrying(page, null)
+  expect(await distanceTo(page, 'tray-on-table', RASMUS_TABLE_POS), 'the tray stands on Rasmus\' table').toBeLessThan(0.3)
+  expect(await sceneObject(page, 'glass-on-table'), 'no glass yet').toBeNull()
   await advance(page, 4) // the station opens once Rasmus has said "Lingondryck" (ikeaDrinkAsked)
   await useAt(page, AT_STATION, { tap })
   if (tap) await page.getByTestId('ikea-drink-lingon').tap()
   else await page.getByTestId('ikea-drink-lingon').click()
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink')
+  // Portrait phone (390x740): the glass' offset puts it just outside the view (BENG-96 comment), so only its distance is checked there.
+  await expectCarrying(page, 'drink', { inView: !tap })
+  expect(await sceneObject(page, 'glass-on-table'), 'the glass is still in hand, not on the table').toBeNull()
   await useAt(page, AT_TABLE, { tap })
+  await expectCarrying(page, null)
+  expect(await distanceTo(page, 'glass-on-table', RASMUS_TABLE_POS), 'the glass stands on Rasmus\' table').toBeLessThan(0.6)
+  expect(await sceneObject(page, 'tray-on-table'), 'the tray is still on the table').not.toBeNull()
   await advance(page, 4.5)
   await expect(page.locator('.victory-screen')).toBeVisible()
 }
-

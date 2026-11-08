@@ -1,3 +1,5 @@
+import { IKEA_ORDER_SECONDS } from '../../src/levels/ikeaLayout.js'
+
 // Fixed camera poses for the screenshot diffs (frozen, seed=1).
 // level 1 = outdoors with the house (z = -25), level 3 = classroom ("seated" intro phase), level 4 = IKEA ("phase": ordering = fixed player pose, default intro = the kitchen intro shot).
 // yaw: radians, + = turn left (0 = facing -z).
@@ -8,6 +10,8 @@ export const VIEWS = [
   { name: 'classroom-start', level: 3, x: 0, z: 2, yaw: 0 },
   { name: 'classroom-left', level: 3, x: -6, z: 4, yaw: -0.5 },
   { name: 'ikea-kiosk', level: 4, phase: 'ordering', x: 0, z: 3, yaw: 0 },
+  // Ordering at progress 0.5 (20 s of the 40 s walked, `advance` in clock seconds): Rasmus is in the 3D view, the HTML side panel is kept (keepHud).
+  { name: 'ikea-ordering-rasmus', level: 4, phase: 'ordering', advance: IKEA_ORDER_SECONDS / 2, keepHud: true, x: 0, z: 3, yaw: 0 },
   { name: 'ikea-kitchen', level: 4, x: -8, z: -6, yaw: 0 }, // intro phase: the camera is the fixed intro shot
 ]
 

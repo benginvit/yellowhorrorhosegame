@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera, useAt, serveAndDrink, AT_TRAY, AT_TABLE, AT_STATION } from './helpers.js'
-import { rasmusPositionAt, RASMUS_SEAT_POS, IKEA_ORDER_SECONDS } from '../../src/levels/ikeaLayout.js'
+import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera, useAt, serveAndDrink, expectCarrying, AT_TRAY, AT_TABLE, AT_STATION } from './helpers.js'
+import { rasmusPositionAt, RASMUS_SEAT_POS, IKEA_ORDER_SECONDS, IKEA_BOUNDS, IKEA_DRINK_ASK_MS, IKEA_WRONG_DRINK_MS, DRINKS, CORRECT_DRINK } from '../../src/levels/ikeaLayout.js'
 
 // IKEA level (level 4, Rasmus) on the frozen clock. Only the "test" project matches this file (playwright.config.js).
 // The kiosk is driven through its data-testid hooks (see OrderKiosk.jsx). The IKEA
@@ -10,25 +10,28 @@ import { rasmusPositionAt, RASMUS_SEAT_POS, IKEA_ORDER_SECONDS } from '../../src
 
 test.setTimeout(240_000)
 
+const IKEA_WRONG_DRINK_SECONDS = IKEA_WRONG_DRINK_MS / 1000
+
 const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
 
 /**
- * Steps the clock through the 8 s intro until the kiosk is up. The intro effect can register its
- * timer on the frozen clock only after the next advance(), so the last bit is a few small steps (capped).
+ * Steps the frozen clock through the 8 s intro until the kiosk is up (only for the intro itself and the level chain;
+ * every other test starts in 'ordering' with ?phase=). The intro effect registers its timer on the frozen clock only
+ * after the next advance(), so after the 8 s the clock goes on in small steps. The loop is bounded by clock time
+ * (10 s of steps), never by wall-clock time.
  */
 async function waitForOrdering(page) {
   await ADVANCE(page, 7)
   const start = page.getByTestId('ikea-start')
-  for (let i = 0; i < 6 && !(await start.isVisible()); i++) await ADVANCE(page, 0.25)
+  for (let i = 0; i < 40 && !(await start.isVisible()); i++) await ADVANCE(page, 0.25)
   await expect(start).toBeVisible()
 }
 
-/** Opens level 4 and steps the clock until the kiosk is up. */
+/** Opens level 4 straight in 'ordering' (kiosk up, 40 s countdown started). */
 async function toOrdering(page) {
-  await openFrozen(page, { level: 4 })
-  await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible()
-  await waitForOrdering(page)
+  await openFrozen(page, { level: 4, phase: 'ordering' })
+  await expect(page.getByTestId('ikea-start')).toBeVisible()
 }
 
 /**
@@ -152,25 +155,63 @@ test.describe('ikea-serving', () => {
     expectNoErrors(errors)
   })
 
-  test('drink phase: the wrong drink (cola) -> lost -> game over "Fel dryck!"', async ({ page }) => {
+  // Every wrong drink ends the same way; cola (the neighbour of the right row) and raspberry (the look-alike) are the two the task names.
+  for (const drink of ['cola', 'raspberry']) {
+    test(`drink phase: the wrong drink (${drink}) -> lost -> Rasmus runs and stabs -> game over "Fel dryck!"`, async ({ page }) => {
+      expect(DRINKS).toContain(drink)
+      expect(drink).not.toBe(CORRECT_DRINK)
+      const errors = trackErrors(page)
+      await replayCdnFonts(page)
+      await openFrozen(page, { level: 4, phase: 'drink' })
+      await useAt(page, AT_STATION)
+      await page.getByTestId(`ikea-drink-${drink}`).click()
+      await expect(page.getByTestId('ikea-drink-menu')).toHaveCount(0)
+      await expectCarrying(page, null) // a wrong drink is not handed over
+      // The player cannot walk away while he runs (movement stopped, position kept: not teleported to PLAYER_START).
+      const before = await positions(page)
+      await page.keyboard.down('KeyW')
+      await ADVANCE(page, 1)
+      await page.keyboard.up('KeyW')
+      await ADVANCE(page, 1) // Rasmus is still running at the player
+      const after = await positions(page)
+      expect([after.camX, after.camZ], 'the player did not move with W held').toEqual([before.camX, before.camZ])
+      expect(Math.hypot(after.x - after.camX, after.z - after.camZ), 'Rasmus has reached the player').toBeLessThan(1.5)
+      await expect(page.locator('.game-over-screen')).toHaveCount(0)
+      await expect(page.locator('.victory-screen')).toHaveCount(0)
+      await ADVANCE(page, 1)
+      await expect(page.locator('.game-over-screen')).toBeVisible()
+      await expect(page.getByTestId('ikea-lose-reason')).toHaveText('Fel dryck!') // loseReason 'wrongDrink'
+      await expect(page.locator('.victory-screen')).toHaveCount(0)
+      expectNoErrors(errors)
+    })
+  }
+
+  test('the drink station is not usable until Rasmus has said "Lingondryck" (ikeaDrinkAsked)', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
-    await openFrozen(page, { level: 4, phase: 'drink' })
-    await useAt(page, AT_STATION)
-    await page.getByTestId('ikea-drink-cola').click()
-    // The player cannot walk away while he runs (movement stopped, position kept: not teleported to PLAYER_START).
-    const before = await positions(page)
-    await page.keyboard.down('KeyW')
-    await ADVANCE(page, 1)
-    await page.keyboard.up('KeyW')
-    await ADVANCE(page, 1) // Rasmus is still running at the player
-    const after = await positions(page)
-    expect([after.camX, after.camZ], 'the player did not move with W held').toEqual([before.camX, before.camZ])
-    expect(Math.hypot(after.x - after.camX, after.z - after.camZ), 'Rasmus has reached the player').toBeLessThan(1.5)
-    await expect(page.locator('.game-over-screen')).toHaveCount(0)
-    await ADVANCE(page, 1)
-    await expect(page.locator('.game-over-screen')).toBeVisible()
-    await expect(page.getByTestId('ikea-lose-reason')).toHaveText('Fel dryck!')
+    // ?phase=drink presets ikeaDrinkAsked, so the gate is reached through the real serve -> drink hand-off.
+    await openFrozen(page, { level: 4, phase: 'serve' })
+    await useAt(page, AT_TRAY)
+    await ADVANCE(page, 4.5) // he is seated
+    await useAt(page, AT_TABLE) // tray served: 'drink' starts, the clip is ~2 s away
+    await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+    await expect(page.getByTestId('ikea-subtitle')).toHaveCount(0)
+
+    await setCamera(page, ...AT_STATION)
+    await ADVANCE(page, 0.2)
+    await expect(page.getByTestId('ikea-use-hint'), 'no target at the station before he has asked').toHaveCount(0)
+    await page.keyboard.press('KeyF')
+    await ADVANCE(page, 0.1)
+    await expect(page.getByTestId('ikea-drink-menu')).toHaveCount(0)
+    await expect(page.getByTestId('ikea-subtitle')).toHaveCount(0) // still before the ask
+
+    await ADVANCE(page, IKEA_DRINK_ASK_MS / 1000) // he says "Lingondryck"
+    await expect(page.getByTestId('ikea-subtitle')).toHaveText('Lingondryck!')
+    await setCamera(page, ...AT_STATION)
+    await ADVANCE(page, 0.1)
+    await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
+    await page.keyboard.press('KeyF')
+    await expect(page.getByTestId('ikea-drink-menu')).toBeVisible()
     expectNoErrors(errors)
   })
 
@@ -188,10 +229,56 @@ test.describe('ikea-serving', () => {
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeWait') // still 'serve'
     await ADVANCE(page, 4.5) // he sits down
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
-    await ADVANCE(page, 0.1) // the next frame sees the table as a target
+    await ADVANCE(page, 0.1) // the table was already the near target (ikeaNearTarget is reported whatever the state); seated makes it usable, a frame lets React commit the hint
     await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
     await page.keyboard.press('KeyF')
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink') // 'drink'
+    expectNoErrors(errors)
+  })
+})
+
+test.describe('ikea-serving bounds', () => {
+  // The player is clamped to IKEA_BOUNDS every frame (Player.jsx). Each case starts ~1.2 units inside one edge,
+  // walks at it with a held key (yaw 0 faces -z: W = -z, S = +z, A = -x, D = +x) and must stop exactly on the edge.
+  const EDGES = [
+    { name: 'north (the counter side)', key: 'KeyW', from: [-6, IKEA_BOUNDS.minZ + 1.2], axis: 'z', edge: IKEA_BOUNDS.minZ, side: 'min' },
+    { name: 'south', key: 'KeyS', from: [-6, IKEA_BOUNDS.maxZ - 1.2], axis: 'z', edge: IKEA_BOUNDS.maxZ, side: 'max' },
+    { name: 'west', key: 'KeyA', from: [IKEA_BOUNDS.minX + 1.2, 6], axis: 'x', edge: IKEA_BOUNDS.minX, side: 'min' },
+    { name: 'east', key: 'KeyD', from: [IKEA_BOUNDS.maxX - 1.2, 6], axis: 'x', edge: IKEA_BOUNDS.maxX, side: 'max' },
+  ]
+  for (const e of EDGES) {
+    test(`the player cannot walk out of the restaurant: ${e.name} edge`, async ({ page }) => {
+      const errors = trackErrors(page)
+      await replayCdnFonts(page)
+      await openFrozen(page, { level: 4, phase: 'drink' })
+      await setCamera(page, ...e.from)
+      await ADVANCE(page, 0.1)
+      await page.keyboard.down(e.key)
+      await ADVANCE(page, 4) // far more than the 1.2 units to the edge
+      await page.keyboard.up(e.key)
+      await ADVANCE(page, 0.1)
+      const r = await positions(page)
+      const got = e.axis === 'x' ? r.camX : r.camZ
+      const start = e.axis === 'x' ? e.from[0] : e.from[1]
+      expect(Math.abs(got - start), 'the player walked').toBeGreaterThan(1)
+      expect(got, `stopped on the ${e.name} edge`).toBeCloseTo(e.edge, 1)
+      expectNoErrors(errors)
+    })
+  }
+
+  test('a position far outside the restaurant is pulled back inside on the next frame', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    for (const [x, z] of [[-40, -40], [40, 40], [-40, 40], [40, -40]]) {
+      await setCamera(page, x, z)
+      await ADVANCE(page, 0.1)
+      const r = await positions(page)
+      expect(r.camX).toBeGreaterThanOrEqual(IKEA_BOUNDS.minX - 1e-6)
+      expect(r.camX).toBeLessThanOrEqual(IKEA_BOUNDS.maxX + 1e-6)
+      expect(r.camZ).toBeGreaterThanOrEqual(IKEA_BOUNDS.minZ - 1e-6)
+      expect(r.camZ).toBeLessThanOrEqual(IKEA_BOUNDS.maxZ + 1e-6)
+    }
     expectNoErrors(errors)
   })
 })
@@ -234,12 +321,10 @@ test.describe('ikea-outcomes', () => {
   test('loss: Rasmus arrives after 40 s -> game over; looking back does not stop the countdown', async ({ page }) => {
     const errors = trackErrors(page)
     await replayCdnFonts(page)
-    await openFrozen(page, { level: 4 })
+    await openFrozen(page, { level: 4, phase: 'ordering' })
     await expect(page.locator('.hud-item').first()).toContainText('Rasmus')
-    await expect(page.getByText('BESTÄLL! SNABBT!')).toBeVisible() // intro
-    await expect(page.getByTestId('ikea-start')).toHaveCount(0)
-    await waitForOrdering(page)
-    await expect(page.getByTestId('ikea-rasmus-bar')).toHaveAttribute('style', /width: [0-2]%/) // the 40 s start here (the intro polling may overshoot by a tick)
+    await expect(page.getByTestId('ikea-start')).toBeVisible()
+    await expect(page.getByTestId('ikea-rasmus-bar')).toHaveAttribute('style', /width: 0%/) // the 40 s start here
     await expect(page.locator('.game-over-screen')).toHaveCount(0)
 
     await page.getByTestId('ikea-look-back').click() // looking back pauses the order, not the countdown
@@ -351,6 +436,25 @@ test.describe('ikea-mobile (touch)', () => {
     await page.getByTestId('ikea-pay').tap()
     await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', /ikeaObjServe/)
     await serveAndDrink(page, { tap: true }) // incl. the "Use" button instead of F
+    expectNoErrors(errors)
+  })
+})
+
+test.describe('ikea-mobile drink (touch)', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 740 } })
+
+  test('"Use" button and drink menu work with touch: every drink is reachable, the wrong one loses', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 4, phase: 'drink' })
+    await useAt(page, AT_STATION, { tap: true }) // the on-screen "Use" button
+    await expect(page.getByTestId('ikea-drink-menu')).toBeVisible()
+    for (const d of DRINKS) await expect(page.getByTestId(`ikea-drink-${d}`), `${d} is on screen without scrolling`).toBeInViewport()
+    await page.getByTestId('ikea-drink-raspberry').tap()
+    await expect(page.getByTestId('ikea-drink-menu')).toHaveCount(0)
+    await ADVANCE(page, IKEA_WRONG_DRINK_SECONDS + 1)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    await expect(page.getByTestId('ikea-lose-reason')).toHaveText('Fel dryck!')
     expectNoErrors(errors)
   })
 })
