@@ -30,7 +30,7 @@ import BedInteraction from './BedInteraction'
 import { UNDER_BED_POSE } from '../levels/astridLayout'
 import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS, IKEA_BOUNDS } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
-import { HOUSE_FURNITURE } from '../levels/houseLayout'
+import { HOUSE_FURNITURE, HOUSE_ENTRY_POSE } from '../levels/houseLayout'
 import { OUTDOOR_COLLIDERS } from '../levels/colliders/outdoor'
 import { HOUSE_INTERIOR_COLLIDERS } from '../levels/colliders/houseInterior'
 import { CLASSROOM_COLLIDERS } from '../levels/colliders/classroom'
@@ -251,7 +251,8 @@ function Game({
   }
 
   // Outdoor levels. Inside Astrid's house the interior walls and furniture are solid, outside the house itself is.
-  const outdoorColliders = isAstridLevel && gameState.isInsideHouse ? HOUSE_INTERIOR_COLLIDERS : OUTDOOR_COLLIDERS
+  const insideAstridHouse = isAstridLevel && gameState.isInsideHouse
+  const outdoorColliders = insideAstridHouse ? HOUSE_INTERIOR_COLLIDERS : OUTDOOR_COLLIDERS
   return (
     <Canvas
       shadows
@@ -313,8 +314,11 @@ function Game({
         )}
 
         <Player
+          key={insideAstridHouse ? 'house' : 'outdoors'} // remount on entering: Player sets its start pose once per mount
           mobileMovement={mobileMovement}
           mobileRotation={mobileRotation}
+          startPosition={insideAstridHouse ? HOUSE_ENTRY_POSE.position : null}
+          startYaw={insideAstridHouse ? HOUSE_ENTRY_POSE.yaw : 0}
           pose={isAstridLevel && gameState.isInsideHouse && gameState.isHiding ? { ...UNDER_BED_POSE, locked: true } : null}
           colliders={outdoorColliders}
         />

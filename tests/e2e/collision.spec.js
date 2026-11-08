@@ -146,6 +146,30 @@ test.describe("collision: Astrid's house", () => {
     expectNoErrors(errors)
   })
 
+  test('walking in through the door puts the player inside the room, facing in', async ({ page }) => {
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await openFrozen(page, { level: 2 }) // outside
+    await waitSnoreText(page)
+    await placeAt(page, 0, -15) // 2.4 from the door: inside the entry trigger
+    await advance(page, 5)
+    await page.waitForFunction(() => { window.__YHH_TEST_MODE__.advance(1, 0); return window.__YHH_TEST_MODE__.camera.position.z < -18.5 }, null, { timeout: 30_000, polling: 100 })
+    await waitSnoreText(page)
+    const entry = await position(page)
+    expect(entry.z, 'inside the front wall (inner face z = -18.1)').toBeLessThan(-18.1 - RADIUS)
+    near(entry.x, 0)
+    const facing = await page.evaluate(() => {
+      const { x, y, z, w } = window.__YHH_TEST_MODE__.camera.quaternion // forward = q * (0, 0, -1)
+      return { x: -2 * (x * z + w * y), z: -(1 - 2 * (x * x + y * y)) }
+    })
+    near(facing.x, 0, 0.05) // yaw 0: looking straight into the room (-z)
+    near(facing.z, -1, 0.05)
+    await walk(page, ['KeyW'], 0.5)
+    const moved = await position(page)
+    expect(moved.z, 'free to walk on into the room').toBeLessThan(entry.z - 1)
+    expectNoErrors(errors)
+  })
+
   test('the wall beside the doorway blocks', async ({ page }) => {
     const errors = trackErrors(page)
     await open(page)

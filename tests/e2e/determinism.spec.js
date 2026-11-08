@@ -126,7 +126,10 @@ test.describe('game timers follow the frozen clock', () => {
     await advance(page, 4.2) // first wake-up
     await waitFrames(page)
     await expect(page.locator(jumpscare)).toHaveCount(1)
-    await advance(page, 20) // the hide timer runs out: game over, the Canvas unmounts
+    // The hide timer runs out: game over, the Canvas unmounts. The countdown only sums dt (Character.jsx), so
+    // 400 frames of 1/20 s reach the same frozen time as 1200 of 1/60 s with a third of the (software-GL) frames.
+    // The view is the room seen from HOUSE_ENTRY_POSE, which costs more per frame than the old start outside.
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(400, 1 / 20))
     await waitFrames(page)
     await page.locator('.restart-btn').click()
     await page.locator('.start-btn').click() // new Canvas, new R3F clock at 0
