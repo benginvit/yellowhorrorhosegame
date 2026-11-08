@@ -326,7 +326,7 @@ export async function distanceTo(page, name, [x, , z]) {
 }
 
 /** The tray/glass in hand: the scene group "carried-item" sits in front of the camera, or is absent when nothing is carried. */
-export async function expectCarrying(page, carrying, { inView = true } = {}) {
+export async function expectCarrying(page, carrying) {
   await waitSceneObject(page, 'carried-item', Boolean(carrying))
   if (!carrying) return
   // The group is placed in front of the camera by a frame, not on mount.
@@ -348,7 +348,7 @@ export async function expectCarrying(page, carrying, { inView = true } = {}) {
   expect(m, `"carried-item" (${carrying}) is in the scene`).not.toBeNull()
   expect(m.visible).toBe(true)
   expect(m.dist, 'the carried item is held close to the camera').toBeLessThan(1.5)
-  if (inView) expect(m.onScreen, 'the carried item is in view').toBe(true)
+  expect(m.onScreen, 'the carried item is in view').toBe(true)
 }
 
 /** From 'serve' (Rasmus walking to his seat) through tray, table, lingonberry drink to level complete. */
@@ -371,8 +371,7 @@ export async function serveAndDrink(page, { tap = false } = {}) {
   if (tap) await page.getByTestId('ikea-drink-lingon').tap()
   else await page.getByTestId('ikea-drink-lingon').click()
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink')
-  // Portrait phone (390x740): the glass' offset puts it just outside the view (BENG-96 comment), so only its distance is checked there.
-  await expectCarrying(page, 'drink', { inView: !tap })
+  await expectCarrying(page, 'drink')
   expect(await sceneObject(page, 'glass-on-table'), 'the glass is still in hand, not on the table').toBeNull()
   await useAt(page, AT_TABLE, { tap })
   await expectCarrying(page, null)
