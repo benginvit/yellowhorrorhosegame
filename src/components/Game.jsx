@@ -11,6 +11,7 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
+import ColliderDebug from './ColliderDebug'
 import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
 import Dust from './particles/Dust'
 import Ash from './particles/Ash'
@@ -26,9 +27,13 @@ import CarriedItem from './CarriedItem'
 import IkeaServing from './IkeaServing'
 import IkeaInteraction from './IkeaInteraction'
 import BedInteraction from './BedInteraction'
-import { UNDER_BED_POSE, BED_POS } from '../levels/astridLayout'
+import { UNDER_BED_POSE } from '../levels/astridLayout'
 import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS, IKEA_BOUNDS } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
+import { HOUSE_FURNITURE } from '../levels/houseLayout'
+import { OUTDOOR_COLLIDERS } from '../levels/colliders/outdoor'
+import { HOUSE_INTERIOR_COLLIDERS } from '../levels/colliders/houseInterior'
+import { CLASSROOM_COLLIDERS } from '../levels/colliders/classroom'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
@@ -232,7 +237,9 @@ function Game({
             startPosition={CLASSROOM_START}
             startYaw={CLASSROOM_START_YAW}
             inClassroom={true}
+            colliders={CLASSROOM_COLLIDERS}
           />
+          <ColliderDebug colliders={CLASSROOM_COLLIDERS} />
           <TestModeProbe />
         </Suspense>
         <HorrorEffects />
@@ -240,7 +247,8 @@ function Game({
     )
   }
 
-  // Outdoor levels
+  // Outdoor levels. Inside Astrid's house the interior walls and furniture are solid, outside the house itself is.
+  const outdoorColliders = isAstridLevel && gameState.isInsideHouse ? HOUSE_INTERIOR_COLLIDERS : OUTDOOR_COLLIDERS
   return (
     <Canvas
       shadows
@@ -261,10 +269,10 @@ function Game({
         {isAstridLevel && gameState.isInsideHouse ? (
           <>
             <HouseInterior />
-            <Furniture position={[-3, 0, -22]} type="sofa" />
-            <Furniture position={[3, 0, -24]} type="bookshelf" />
-            <Furniture position={[0, 0, -28]} type="table" />
-            <Furniture position={BED_POS} type="bed" />
+            <Furniture position={HOUSE_FURNITURE.sofa} type="sofa" />
+            <Furniture position={HOUSE_FURNITURE.bookshelf} type="bookshelf" />
+            <Furniture position={HOUSE_FURNITURE.table} type="table" />
+            <Furniture position={HOUSE_FURNITURE.bed} type="bed" />
             <BedInteraction hiding={gameState.isHiding} onNear={onSetBedNear} onToggle={onToggleHide} />
             <Character
               level={level}
@@ -305,7 +313,9 @@ function Game({
           mobileMovement={mobileMovement}
           mobileRotation={mobileRotation}
           pose={isAstridLevel && gameState.isInsideHouse && gameState.isHiding ? { ...UNDER_BED_POSE, locked: true } : null}
+          colliders={outdoorColliders}
         />
+        <ColliderDebug colliders={outdoorColliders} />
         <TestModeProbe />
       </Suspense>
       <HorrorEffects />

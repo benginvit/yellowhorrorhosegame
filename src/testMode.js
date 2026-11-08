@@ -16,6 +16,8 @@
 //               (serve: Rasmus walks to his seat, nothing carried; drink: he sits; deliverDrink: he sits and
 //               the player carries the lingonberry glass; drink and deliverDrink also start with
 //               ikeaDrinkAsked: true, i.e. "Lingondryck" already said; see getStartOverrides)
+//   ?colliders=1  draw the level's collision boxes (utils/collision.js) as magenta
+//               wireframes (ColliderDebug.jsx). Test builds only; never IKEA (no colliders yet).
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -110,6 +112,8 @@ function mulberry32(seed) {
 let source = Math.random
 let frameloop = 'always'
 let frozen = false
+// ?colliders=1 (test builds only): ColliderDebug draws the collision boxes.
+let showColliders = false
 // Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
 let virtualTimers = null
 // Level start requested in the URL (?level=N, ?inside=1), read in test builds and
@@ -136,6 +140,7 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
   const phase = params.get('phase')
+  showColliders = params.get('colliders') === '1'
   if (['ordering', 'serve', 'drink', 'deliverDrink'].includes(phase)) ikeaStartPhase = phase
   source = mulberry32(seed)
 
@@ -336,6 +341,9 @@ export const CANVAS_GL = {
 
 /** True only in a test build with ?freeze=1 (always false in prod). */
 export const IS_FROZEN = frozen
+
+/** True only in a test build with ?colliders=1 (always false in prod): draw the collision boxes. */
+export const SHOW_COLLIDERS = showColliders
 
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
