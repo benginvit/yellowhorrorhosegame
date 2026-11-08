@@ -134,11 +134,15 @@ jobs:
             baselines: true
             retries: 1
             args: --project=test visual.spec.js lighting.spec.js lighting-baseline.spec.js smoke.spec.js dust.spec.js ash.spec.js particles.spec.js
-          # IKEA level flows (frozen clock, software-GL frames), split in two shards by describe title (-g) to stay well under 10 min.
+          # IKEA level flows (frozen clock, software-GL frames), split in three shards by describe title (-g) to stay well under 10 min.
           - name: ikea-flow
             baselines: false
             retries: 0
-            args: --project=test ikea.spec.js -g "ikea-outcomes|ikea-mobile|ikea-serving"
+            args: --project=test ikea.spec.js -g "ikea-mobile|ikea-serving"
+          - name: ikea-outcomes
+            baselines: false
+            retries: 0
+            args: --project=test ikea.spec.js -g "ikea-outcomes"
           - name: ikea-kiosk
             baselines: false
             retries: 0

@@ -8,10 +8,15 @@ import { VIEWS } from './views.js'
 async function capture(page, view) {
   await replayCdnFonts(page)
   await openFrozen(page, { level: view.level, phase: view.phase })
+  // The frozen clock only moves with advance(): `advance` (seconds) walks the game timers, then ~0.5 s lets visuals ease onto them.
+  if (view.advance) {
+    await page.evaluate((s) => window.__YHH_TEST_MODE__.advance(Math.round(s * 2), 1 / 2), view.advance)
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(30, 1 / 60))
+  }
   await setView(page, view)
   await waitTextSynced(page)
   await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 1 / 60)) // render with text
-  await hideHud(page)
+  if (!view.keepHud) await hideHud(page) // keepHud: the HTML side panel is part of the view
 }
 
 test.describe('screenshot diff (?seed=1&freeze=1)', () => {
