@@ -23,7 +23,7 @@ export const INTERIOR_WALL_AT = 7
 /**
  * Furniture positions (world, y = 0), as rendered in Game.jsx. The bed's foot
  * end (its front, +z, where the player crawls under it - levels/astridLayout.js)
- * is 1.9 from the front wall's inner face: room enough to stand in front of it
+ * is 1.4 from the front wall's inner face: room enough to stand in front of it
  * within BED_REACH (1.2). Against the wall (z = -20) the foot end was inside
  * the wall plane and could only be reached from outside the house.
  */
