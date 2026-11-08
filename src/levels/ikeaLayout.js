@@ -31,6 +31,47 @@ export const DRINK_STATION_FACING = [1, 0, 0]
 // Rectangle the player is kept inside while serving (the restaurant side; the counter at the kiosk is outside it).
 export const IKEA_BOUNDS = { minX: -9, maxX: 13, minZ: 1.8, maxZ: 11 }
 
+// The store's shell: the centre planes of the four walls (the meshes are positioned on them; the floor and ceiling span the
+// same rectangle). IKEA_BOUNDS keeps the player well inside it while serving.
+export const IKEA_ROOM = { minX: -26, maxX: 14, minZ: -24, maxZ: 12 }
+export const IKEA_WALL = 0.2
+
+// Restaurant tables (IkeaStore.jsx draws them, levels/colliders/ikea.js blocks them). Tables run along z, `length` long and
+// TABLE_DEPTH wide, with a chair on both long sides at CHAIR_OFFSET_X from the table's centre for every entry of `chairDz`.
+export const TABLE_DEPTH = 0.9
+export const TABLE_HEIGHT = 0.75
+export const CHAIR_SIZE = 0.5
+export const CHAIR_OFFSET_X = 0.85
+const LONG_TABLE = { length: 2.4, chairDz: [-0.8, 0, 0.8] }
+// Rasmus' table is shorter: the player uses it from the end facing the counter, and its centre (RASMUS_TABLE_POS) must be
+// within INTERACT_RANGE of a spot just outside the furniture, a circle's radius (0.35) off the end of the table.
+const RASMUS_TABLE = { length: 1.6, chairDz: [-0.5, 0, 0.5] }
+export const IKEA_TABLES = [
+  // Rows at x = 5 and 9; (5, -1) would touch Rasmus' table.
+  ...[5, 9].flatMap((x) => [-13, -9, -5, -1, 6].filter((z) => !(x === 5 && z === -1)).map((z) => ({ x, z, ...LONG_TABLE }))),
+  // Rasmus sits at RASMUS_SEAT_POS when the order is complete: his table is RASMUS_TABLE_OFFSET_X to the right of the seat,
+  // and the chair at the seat itself (facing +x) is the one he sits on.
+  { x: RASMUS_TABLE_POS[0], z: RASMUS_TABLE_POS[2], ...RASMUS_TABLE },
+]
+// [x, z, rotY] of every chair: left of the table, facing +x, and right of it, facing -x.
+export const IKEA_CHAIRS = IKEA_TABLES.flatMap(({ x, z, chairDz }) =>
+  chairDz.flatMap((dz) => [[x - CHAIR_OFFSET_X, z + dz, Math.PI / 2], [x + CHAIR_OFFSET_X, z + dz, -Math.PI / 2]]),
+)
+
+// Serving counter by the kiosk (centred on x = 0 and TRAY_POS z) and the tray rack beside it. w is along x, d along z.
+export const COUNTER = { w: 3.2, d: 0.9 }
+export const TRAY_RACK = { position: [-3.2, 0, 0.8], w: 1.4, d: 0.7 }
+
+// Drink station footprint relative to DRINK_STATION_POS in the station's own frame (+z = the way its screen faces): the
+// cabinet, the drip tray in front and the cup shelf at its side (+x).
+export const DRINK_STATION_FOOTPRINT = { minX: -0.61, maxX: 0.96, minZ: -0.31, maxZ: 0.5 }
+
+// Kitchen department: fitted kitchens along the back wall, display islands and the knife shelf. w is along x, d along z.
+export const KITCHEN_UNITS = { xs: [-24, -20.5, -13, -9.5], w: 3.05, d: 0.85, z: IKEA_ROOM.minZ + 0.45 }
+export const KITCHEN_ISLANDS = { positions: [[-21.5, -13], [-11, -17.5], [-21.5, -7]], w: 3.1, d: 1.3 }
+// The shelf's group sits offsetZ from KNIFE_SHELF_POS (just behind it); minZ/maxZ span the back panel and the shelves in it.
+export const KNIFE_SHELF = { w: 2.4, offsetZ: -0.8, minZ: -0.1, maxZ: 0.45 }
+
 // Drink menu, in the order shown. Only CORRECT_DRINK delivers; every other choice is a loss ('wrongDrink').
 export const DRINKS = ['water', 'sparkling', 'lemonade', 'elderflower', 'lingon', 'raspberry', 'cola', 'colaLight']
 export const CORRECT_DRINK = 'lingon'
