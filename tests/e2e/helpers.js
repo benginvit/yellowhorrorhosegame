@@ -308,6 +308,16 @@ export function sceneObject(page, name) {
   }, name)
 }
 
+/**
+ * Steps the frozen clock in small bounded steps (10 x 0.1 s of clock time) until the named object is in the scene
+ * (`present`) or gone from it. React state (the UI, e.g. data-objective) commits before the R3F scene mounts or
+ * unmounts the matching group, so a UI check does not sync the scene. Fails with the last state if it never settles.
+ */
+export async function waitSceneObject(page, name, present = true) {
+  for (let i = 0; i < 10 && Boolean(await sceneObject(page, name)) !== present; i++) await advance(page, 0.1)
+  expect(Boolean(await sceneObject(page, name)), `"${name}" is ${present ? 'in' : 'gone from'} the scene`).toBe(present)
+}
+
 /** Horizontal distance from a scene object to a [x, , z] point. */
 export async function distanceTo(page, name, [x, , z]) {
   const o = await sceneObject(page, name)
@@ -317,13 +327,9 @@ export async function distanceTo(page, name, [x, , z]) {
 
 /** The tray/glass in hand: the scene group "carried-item" sits in front of the camera, or is absent when nothing is carried. */
 export async function expectCarrying(page, carrying, { inView = true } = {}) {
-  // The group is placed in front of the camera by a frame (not on mount) and removed by React a commit after the use.
-  await advance(page, 0.1)
-  if (!carrying) {
-    for (let i = 0; i < 5 && (await sceneObject(page, 'carried-item')); i++) await advance(page, 0.1)
-    expect(await sceneObject(page, 'carried-item'), 'nothing carried: no "carried-item" in the scene').toBeNull()
-    return
-  }
+  await waitSceneObject(page, 'carried-item', Boolean(carrying))
+  if (!carrying) return
+  // The group is placed in front of the camera by a frame, not on mount.
   // Mounting (a React commit after the use) and placing (the next frame) can land in different steps: a few extra frames, bounded.
   const measure = () => page.evaluate(() => {
     const api = window.__YHH_TEST_MODE__
@@ -347,16 +353,17 @@ export async function expectCarrying(page, carrying, { inView = true } = {}) {
 
 /** From 'serve' (Rasmus walking to his seat) through tray, table, lingonberry drink to level complete. */
 export async function serveAndDrink(page, { tap = false } = {}) {
+  await waitSceneObject(page, 'tray-pickup', true) // the tray waits on the counter
   await expectCarrying(page, null)
-  expect(await sceneObject(page, 'tray-pickup'), 'the tray waits on the counter').not.toBeNull()
   await useAt(page, AT_TRAY, { tap })
   await expectCarrying(page, 'tray')
-  expect(await sceneObject(page, 'tray-pickup'), 'the picked-up tray is gone from the counter').toBeNull()
+  await waitSceneObject(page, 'tray-pickup', false) // the picked-up tray is gone from the counter
   await advance(page, 4.5) // he is seated (walk or fallback timer)
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
   await useAt(page, AT_TABLE, { tap })
   await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
   await expectCarrying(page, null)
+  await waitSceneObject(page, 'tray-on-table', true)
   expect(await distanceTo(page, 'tray-on-table', RASMUS_TABLE_POS), 'the tray stands on Rasmus\' table').toBeLessThan(0.3)
   expect(await sceneObject(page, 'glass-on-table'), 'no glass yet').toBeNull()
   await advance(page, 4) // the station opens once Rasmus has said "Lingondryck" (ikeaDrinkAsked)
@@ -369,6 +376,7 @@ export async function serveAndDrink(page, { tap = false } = {}) {
   expect(await sceneObject(page, 'glass-on-table'), 'the glass is still in hand, not on the table').toBeNull()
   await useAt(page, AT_TABLE, { tap })
   await expectCarrying(page, null)
+  await waitSceneObject(page, 'glass-on-table', true)
   expect(await distanceTo(page, 'glass-on-table', RASMUS_TABLE_POS), 'the glass stands on Rasmus\' table').toBeLessThan(0.6)
   expect(await sceneObject(page, 'tray-on-table'), 'the tray is still on the table').not.toBeNull()
   await advance(page, 4.5)

@@ -16,7 +16,7 @@ const ADVANCE = (page, seconds, dt = 1 / 20) =>
   page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
 
 /**
- * Steps the frozen clock through the 8 s intro until the kiosk is up (only for the intro itself and the level chain;
+ * Steps the frozen clock through the 8 s intro until the kiosk is up (the level chain only;
  * every other test starts in 'ordering' with ?phase=). The intro effect registers its timer on the frozen clock only
  * after the next advance(), so after the 8 s the clock goes on in small steps. The loop is bounded by clock time
  * (10 s of steps), never by wall-clock time.
@@ -172,13 +172,13 @@ test.describe('ikea-serving', () => {
       await page.keyboard.down('KeyW')
       await ADVANCE(page, 1)
       await page.keyboard.up('KeyW')
-      await ADVANCE(page, 1) // Rasmus is still running at the player
+      await ADVANCE(page, IKEA_WRONG_DRINK_SECONDS - 1.5) // Rasmus is still running at the player, 0.5 s before the stab
       const after = await positions(page)
       expect([after.camX, after.camZ], 'the player did not move with W held').toEqual([before.camX, before.camZ])
       expect(Math.hypot(after.x - after.camX, after.z - after.camZ), 'Rasmus has reached the player').toBeLessThan(1.5)
       await expect(page.locator('.game-over-screen')).toHaveCount(0)
       await expect(page.locator('.victory-screen')).toHaveCount(0)
-      await ADVANCE(page, 1)
+      await ADVANCE(page, 1.5) // past IKEA_WRONG_DRINK_MS in total: the stab and the game over
       await expect(page.locator('.game-over-screen')).toBeVisible()
       await expect(page.getByTestId('ikea-lose-reason')).toHaveText('Fel dryck!') // loseReason 'wrongDrink'
       await expect(page.locator('.victory-screen')).toHaveCount(0)
