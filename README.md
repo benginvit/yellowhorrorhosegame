@@ -4,16 +4,17 @@ Ett webbaserat 3D horror-överlevnadsspel byggt med React och Three.js, inspirer
 
 ## 🎮 Spelbeskrivning
 
-Navigera genom 6 successivt svårare nivåer i ett gult tegelhus med orange tak. Hitta nyckeln i varje nivå och nå dörren innan karaktären hinner fånga dig!
+Navigera genom 7 successivt svårare nivåer i ett gult tegelhus med orange tak. Hitta nyckeln i varje nivå och nå dörren innan karaktären hinner fånga dig!
 
 ## 📊 Nivåer
 
 1. **Level 1: Molltas** - Vit katt (Hastighet: 1.5)
 2. **Level 2: Astrid** - 13 år (Hastighet: 1.8)
-3. **Level 3: Selma** - 11 år (Hastighet: 2.0)
-4. **Level 4: Kerstin** - 13 år (Hastighet: 2.3)
-5. **Level 5: Mamma** - 46 år (Hastighet: 2.6)
-6. **Level 6: Pappa** - 48 år (Hastighet: 3.0)
+3. **Level 3: Kerstin** - Klassrummet, 13 år (Hastighet: 2.3)
+4. **Level 4: Rasmus** - IKEA, beställ 16 köttbullar innan han hinner fram (40 s)
+5. **Level 5: Selma** - 11 år (Hastighet: 2.0)
+6. **Level 6: Maria** - 46 år (Hastighet: 2.6)
+7. **Level 7: Pappa** - 48 år (Hastighet: 3.0)
 
 ## 🎯 Spelets Mål
 
@@ -58,9 +59,11 @@ npm run build
 3. Benjamin godkänner och öppnar PR `staging` → `main`.
 4. Push till `main` deployar till prod (https://yellowhorrorhouse.benom.nu) via `deploy.yml`.
 
+**Hoppa direkt till en nivå på staging:** staging byggs med `VITE_LEVEL_SELECT=1` (build-arg i `deploy-staging.yml`), vilket slår på `?level=N` (t.ex. https://staging-yellowhorrorhouse.benom.nu/?level=4 för IKEA-nivån, `&inside=1` för Astrids hus) och en rad nivåknappar "STAGING – hoppa till nivå" på startskärmen. Bara nivåhoppet aktiveras: ingen seed, ingen fryst klocka, inget test-API – staging spelas som prod. Lokalt: `VITE_LEVEL_SELECT=1 npm run build && npx vite preview`. Prod får aldrig flaggan; `scripts/check-prod-bundle.sh` fallerar prodbygget om markören `__YHH_LEVEL_SELECT__` finns (`--level-select` verifierar i stället ett stagingbygge).
+
 Staging-bygget använder image-taggen `:staging` (och `:staging-<sha>`), bara `linux/amd64`, och körs på servern via `staging/docker-compose.yml` (kopieras till `~/yellowhorrorhosegame-staging/`) på `127.0.0.1:3004`. Cloudflare-tunneln pekar `staging-yellowhorrorhouse.benom.nu` dit. Tunneln är user-tjänsten `cloudflare-mcp` (`~/.cloudflared/config.yml`) och startas om med `systemctl --user restart cloudflare-mcp`. Det är inte systemtjänsten `cloudflared` / `/etc/cloudflared`. Förslag: lägg Cloudflare Access framför staging.
 
-Kontrollera att testläge-markören inte läckt in i prod-bygget (exit 1 om den finns):
+Kontrollera att varken testläge- eller nivåväljarmarkören läckt in i prod-bygget (exit 1 om någon finns):
 
 ```bash
 bash scripts/check-prod-bundle.sh
@@ -77,6 +80,14 @@ docker run -d -p 127.0.0.1:3003:80 yellowhorrorhose:test
 
 Prod-imagen bygger du som vanligt med `docker build -t yellowhorrorhose .`.
 
+### Enhetstester (node --test)
+
+```bash
+npm run test:unit                 # tests/unit/*.test.mjs, ingen webbläsare
+```
+
+Rena moduler utan DOM testas med Nodes inbyggda testrunner (`node --test`, inga extra beroenden). I dag: `src/utils/collision.js` (`tests/unit/collision.test.mjs`). Körs i CI som jobbet `unit tests` i `pr-check.yml`.
+
 ### End-to-end-tester (Playwright)
 
 Playwright-sviten i `tests/e2e` kör headless Chromium med SwiftShader (mjukvaru-WebGL), viewport 1280x720, dpr 1, endast desktop.
@@ -86,15 +97,17 @@ npx playwright install chromium   # en gång
 npm run test:e2e                  # bygger test- och prod-variant, startar vite preview, kör allt
 ```
 
-`npm run test:e2e` bygger lokalt motsvarigheten till de två imagerna (`dist-e2e/prod` och `dist-e2e/test` med `VITE_TEST_MODE=1`) och kör `scripts/check-prod-bundle.sh` mot prod-bygget. För att köra mot redan körande servrar (t.ex. docker-containrar eller live-prod) sätt `E2E_TEST_URL=http://127.0.0.1:3003` och/eller `E2E_PROD_URL=https://…`.
+`npm run test:e2e` bygger lokalt motsvarigheten till de tre imagerna (`dist-e2e/prod`, `dist-e2e/test` med `VITE_TEST_MODE=1` och `dist-e2e/staging` med `VITE_LEVEL_SELECT=1`) och kör `scripts/check-prod-bundle.sh` mot varje bygge. För att köra mot redan körande servrar (t.ex. docker-containrar, live-prod eller staging) sätt `E2E_TEST_URL=http://127.0.0.1:3003`, `E2E_PROD_URL=https://…` och/eller `E2E_STAGING_URL=https://…`.
 
 | Spec | Projekt | Vad |
 |------|---------|-----|
-| `smoke.spec.js` | test + prod | Canvas renderar (inte blank), inga konsolfel/page errors; klassrum (test) |
+| `smoke.spec.js` | test + prod + staging | Canvas renderar (inte blank), inga konsolfel/page errors; klassrum och IKEA (test) |
 | `visual.spec.js` | test | Screenshot-diff med `?seed=1&freeze=1` från 5 fasta kamerapositioner (`views.js`: 3 hus, 2 klassrum) + determinismtest (två laddningar av house-front resp. classroom-start ger samma bild; klassrummet kan avvika några dussin pixlar, gräns 0,1 %) |
 | `perf.spec.js` | test | p95 frametid (rAF) och `renderer.info` (calls/triangles) via `window.__YHH_TEST_MODE__.gl`, loggas per körning |
-| `prod-check.spec.js` | prod | `?seed=1&freeze=1&level=3` mot prod: `window.__YHH_TEST_MODE__` är `undefined`, parametrarna är verkningslösa |
+| `prod-check.spec.js` | prod | `?seed=1&freeze=1&level=3` mot prod: `window.__YHH_TEST_MODE__` är `undefined`, parametrarna är verkningslösa, ingen nivåväljare |
+| `level-select.spec.js` | staging | `?level=N`/`&inside=1` och nivåknapparna hoppar till rätt nivå (startfas efter nivånamn), ogiltiga värden ignoreras, inget test-API, riktig klocka, fungerar i mobilviewport |
 | `lighting.spec.js` | test | Ljuskontroller (se nedan): ljusstyrka per kamerapose, läsbarhet kring nyckel/dörr, max 2 skuggkastare, inget flimmer när scenen är frusen |
+| `collision.spec.js` | test | Spelarkollision (se "Kollision" nedan) i fryst läge: väggar, stängda dörrar och möbler blockerar, dörröppningen i Astrids hus går att passera, glidning längs vägg, runt ytterhörn och ut ur innerhörn, `?colliders=1` ritar lådorna |
 
 - **Baslinjer** för screenshots (`tests/e2e/__baselines__/`) och frametid (`tests/e2e/perf-baseline.json`) genereras i den miljö som kör testerna och checkas **inte** in (SwiftShader ger olika pixlar/tider per maskin). Första körningen skriver baslinjerna och passerar (lokalt, med varning); kör `npm run test:e2e` igen för att faktiskt jämföra. **Med `CI` satt är det fail-closed:** saknad screenshot-baslinje (`updateSnapshots: 'none'`) och saknad frametidsbaslinje får testerna att *fela* i stället för att tyst skriva en ny – en färsk CI-miljö kan alltså inte passera utan jämförelse (frametidsbaslinje kan ändå skrivas med `E2E_SET_BASELINE=1`). Ny baslinje efter medvetna visuella ändringar: `npm run test:e2e:update` (screenshots) resp. `E2E_SET_BASELINE=1 npm run test:e2e` (frametid). När en baslinje skrivs lokalt skrivs en varning i konsolen och en annotation (`baseline-written`) läggs i rapporten.
 - **Diffens känslighet (viktigt):** screenshot-diffen (`threshold: 0.2`, `maxDiffPixelRatio: 0.01`) fångar grova regressioner (saknade objekt, trasig rendering, fel kamera) men **inte subtila ljus- eller färgändringar**. Vid granskning ändrade ambient-ljus 0,25 → 0,3 51–67 % av husets pixlar och passerade ändå. Lita alltså inte på diffen som skydd för ljus-/färgarbete; granska sådana ändringar visuellt.
@@ -103,9 +116,14 @@ npm run test:e2e                  # bygger test- och prod-variant, startar vite 
 - **Frametidsbudget:** p95 < 16,7 ms rapporteras alltid. Utan baslinje kan testet inte fela lokalt (men felar med `CI` satt); med baslinje felar det vid regression (p95 > max(1,5x, +40 ms) av baslinjen, calls/triangles > 1,1x). Den absoluta 16,7 ms-gränsen kräver riktig GPU och slås på med `E2E_ENFORCE_BUDGET=1` – på SwiftShader ligger p95 runt 70–130 ms.
 - **Typsnitt:** drei `<Text>` hämtar glyfdata från cdn.jsdelivr.net vid körning. Svaren är incheckade i `tests/e2e/fixtures/jsdelivr-fonts.har.zip` och spelas upp så att testerna är offline-säkra. Spela in på nytt: `E2E_RECORD_FONTS=1 npx playwright test -c tests/e2e/playwright.config.js --project=test -g "classroom \(level 3\)"`.
 - **Klassrumsintrot** har timers (skott efter 7 s) som inte kan frysas utifrån; visual-testerna avbryts om en capture tar > 6 s.
-- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-6` (och `&inside=1` för Astrids hus) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget.
+- Testläget har utöver `?seed`/`?freeze` stöd för `?level=1-N` (och `&inside=1` för Astrids hus), `?colliders=1` (ritar kollisionslådorna som magenta wireframes, `ColliderDebug.jsx`) samt `window.__YHH_TEST_MODE__.camera/scene`; allt ligger bakom `VITE_TEST_MODE=1` och finns inte i prod-bygget. `?level`/`&inside` finns även i stagingbygget (`VITE_LEVEL_SELECT=1`, se ovan), men inget annat av testläget.
 - Rapport: `playwright-report/` (öppna med `npx playwright show-report playwright-report`).
-- CI-integration av e2e ingår inte (separat uppgift).
+- **CI (`.github/workflows/pr-check.yml`, ADR `docs/adr/0001-ci-e2e-baselines.md`):** e2e körs på PR:er mot `main` och `staging`, uppdelat i shards. Baslinjer tas från PR:ens basbranch. Tre PR-etiketter styr körningen (en ny körning startar när etiketten läggs till eller tas bort):
+  - **`visual-change-approved`** – avsiktlig visuell ändring (och release-PR:er `staging` → `main` med visuell ändring). Screenshot-baslinjerna spelas in från PR:ens merge-commit, så screenshot-diffen är inte en grind; övriga e2e-kontroller körs som vanligt, och perf-baslinjen tas fortfarande alltid från basen. Granska diffen först. **Etiketten sätts av en människa eller reviewern, aldrig av PR:ens författare (gäller även agenter), och måste bedömas på nytt efter nya commits** (en push med etiketten satt ger `::warning::`).
+  - **`e2e-perf`** – tar med `perf.spec.js` (p95 frametid, draw calls, trianglar). Använd på PR:er som ändrar renderingskostnaden, t.ex. partikel-PR:erna (BENG-27, BENG-28, BENG-29), nya ljus/skuggor/postprocessing. Av som standard eftersom p95 är brusig på delade runners.
+  - Inga etiketter – standardkörning.
+- **Retries:** `determinism-*`-shardsen har inga retries (ett test som bara går igenom efter omkörning är icke-determinism och ska vara rött); `visual`, `prod` och `staging` har `--retries=1` mot skärmdumpstimeout.
+- **Shard-vakt:** `node scripts/check-e2e-shards.mjs` (jobbet `e2e-shard-guard`) failar om ett test eller en ny `tests/e2e/*.spec.js` inte körs av något shard. Lägg nya specfiler i ett projekts `testMatch` och i ett shards `args`.
 
 #### Ljuskontroller (`lighting.spec.js`)
 
@@ -113,7 +131,7 @@ Screenshot-diffen fångar inte subtila ljusändringar, så ljuset mäts direkt p
 
 | Kontroll | Pose(r) | Gräns | Uppmätt nu |
 |----------|---------|-------|------------|
-| Ljusstyrka, hela bilden | outdoor-front/-door/-key, classroom-start, house-interior | medel 40–110, median ≥ 30, p95 60–220, svart (luma < 8) ≤ 10 %, vitt (luma > 247) ≤ 2 % | medel 57–67, median 59–75, p95 80–158, svart 0–4,6 %, vitt ≤ 0,16 % |
+| Ljusstyrka, hela bilden | outdoor-front/-door/-key, classroom-start, house-interior | medel 40–110, median ≥ 30, p95 60–220, svart (luma < 8) ≤ 10 %, vitt (luma > 247) ≤ 2 % | medel 57–69, median 59–76, p95 80–158, svart 0–3,9 %, vitt ≤ 0,16 % |
 | Läsbarhet nyckel | outdoor-key, ±70 px runt nyckeln (`[8, 1, -10]`) | kontrast (p95 − p5) ≥ 50, p95 ≥ 65 | 59 / 73 |
 | Läsbarhet dörr | outdoor-key, ±100 px runt dörren (`[0, 2, -17.4]`) | kontrast ≥ 48, p95 ≥ 52 | 53 / 58 |
 | Skuggkastare | outdoor, classroom, house interior | högst 2 ljus med `castShadow` i `scene` | 2 / 1 / 1 |
@@ -121,9 +139,12 @@ Screenshot-diffen fångar inte subtila ljusändringar, så ljuset mäts direkt p
 
 - Poserna renderas först när scenen har innehåll (≥ 20 draw calls): innehållet ligger i `<Suspense>`, och direkt efter `ready` kan en bild bestå av bara himmel och ljus (1 draw call).
 - Bildjämförelsen för flimmer förutsätter att inget animeras mellan frames: under `?freeze=1` vrider sig nyckeln exakt `1,2 * dt` rad per `advance()`-frame (inget vid `dt = 0`) och startpose-timers (klassrumsintro, Astrids väckning, snarkbubblor, godis) går på den frusna klockan. Det som fortfarande går på väggklockan är händelsestyrt eller bara ljud och syns inte i någon startpose: blodstänk (`App.jsx`, `BloodSplatter.jsx`), ljudet vid lyckat gömställe, `Jumpscare.jsx` och kattjamandet (`Character.jsx`, med `Math.random`). Ska ett fruset test trigga skada måste `BloodSplatter`/`Jumpscare` gå över till `setTimer`.
-- Verifierat negativt: ambient = 0 gör `classroom-start`, `house-interior` och dörr-läsbarheten röda; ett tredje skuggkastande ljus gör skuggräkningen röd. Utomhusbilden domineras av himlen, så ambient = 0 syns där bara i dörrregionen.
+- Verifierat negativt: ambient = 0 gör `classroom-start`, `house-interior` (medel 28, svart 38 %) och dörr-läsbarheten röda; ett tredje skuggkastande ljus gör skuggräkningen röd. Utomhusbilden domineras av himlen, så ambient = 0 syns där bara i dörrregionen.
+- Posen `house-interior` står inne i rummet, innanför dörröppningen i frontväggen (x −3, z −19,5, fritt från sängen) och tittar mot soffan och bakväggen (medel 69, svart 3,9 %). Rakt in i rummet från x = 0 hamnar den dimmiga bakväggen och taket i bild och svartandelen över 10 %. Posen har yaw 0: på level 2 kan `setView`:s tangentvridning gå förlorad medan Astrids första snarkbubbla (`<Text>`) suspenderar scenen tills typsnittet laddats (se `collision.spec.js`).
 - Dörren är mörk (42 % av regionen svart, p95 58) trots att kontrasten klarar gränsen; stramas gränsen åt för mer läsbar dörr, höj `door.p95Min`.
 - **Timers under `?freeze=1`:** speltimers använder `setTimer`/`setTimerInterval` (`src/testMode.js`) i stället för `setTimeout`/`setInterval`. I prod och utan freeze är de de vanliga webbläsartimrarna; med freeze löses de ut av `advance()`/`setTime()` när den ackumulerade testtiden (summan av framåtsteg: `dt` i `advance()` och framåtflytt i `setTime()`, så `setTime` bakåt och sedan framåt räknas två gånger; monoton även när en Canvas remountas och R3F-klockan börjar om på 0) passerat deras tid, aldrig av väggklockan. En timer som startas i en React-effekt (t.ex. godiset) börjar räknas först när React har committat, alltså efter att `evaluate`-anropet släppt tråden; stega därför i delar och vänta in React mellan dem. Klassrumsintrot skjuter alltså vid 7 s *testtid* och Astrid vaknar vid 4 s *testtid*. `determinism.spec.js` testar det, samt att canvas-hashen är stabil mellan sidladdningar och över 8 s väggklocka, att timers klarar ett Canvas-remount, att godiset kommer vid 10 s, och att nyckeln vrider sig exakt 1,2 rad per testsekund vid både 60 och 144 Hz. Mätningen i riktiga loopen med CPU-throttle är opt-in (`E2E_KEY_THROTTLE=1`), ingen CI-grind. **Hash-testet fångar väggklocke-beroende men inte frame-count-beroende** (t.ex. `rotation.y += 0.02` per frame ger samma hash för samma antal frames); det täcker nyckel- och timertesterna.
+- **Mjukvaru-GL och den frusna klockan (BENG-91):** e2e renderar på SwiftShader, som utför GPU-arbetet asynkront och mycket långsammare än `advance()` kan skicka frames (~40 ms per frame i huset på en 16-kärnig maskin, ~100 ms på CI-runnern, mot ~1 ms JS). Utan synkpunkt staplas GPU-arbetet upp (1452 frames lämnar tiotals sekunder), och varje senare väntan på GPU:n står still tills högen är avbetad: R3F:s forcerade context-loss 500 ms efter att en Canvas avmonterats (synkront anrop som blockerar huvudtråden under hela återstående högen: 13–23 s här, ≥ 52 s på CI-runnern där testet gick på timeout, ~4 s på en snabbare maskin), kompositörens nästa frame (inga rAF) och sidstängningen (nästa test i samma worker startade 5–10 s sent). `advance()` läser därför tillbaka en pixel var 16:e frame, vilket väntar in frames hittills: högen är begränsad (~0,3 s här, några sekunder på CI) och GPU-tiden betalas inuti `advance()` i stället för som ett stall någon annanstans; totalen växer inte. Testbygget hoppar dessutom över den forcerade context-lossen, så huvudtråden väntar aldrig på den gamla contexten (GC frigör den asynkront); `trackErrors` räknar Chromes varning `Too many active WebGL contexts` som fel. Prod är oförändrat.
+- **Canvas-remount i testläget** (game over → omstart, klassrum → IKEA, IKEA → Selma): `__YHH_TEST_MODE__.gl/camera/scene` tillhör alltid den levande Canvasen. `ready` blir `false` i samma stund som den gamla Canvasen avmonteras (tidigare låg den kvar på `true`, så `waitReady()` efter en omstart gick igenom på den gamla), och tills nästa Canvas är redo renderar `advance()` ingenting och returnerar `false`, men den frusna testklockan är global och flyttas ändå (timers löses ut): vid nivåbyte kan nästa Canvas `onCreated` landa ett ögonblick efter att den gamla pensionerats, och ett test som stegar klockan rakt igenom bytet (nivåkedjan i `ikea.spec.js`) behöver att nästa nivås starttimers räknar även då. `setTime(t)` är absolut på den levande Canvasens R3F-klocka, som inte finns mellan två Canvasar, så den gör inget då (`false`). Se `src/testMode.js` och BENG-91.
 - **`lighting-baseline.spec.js` (opt-in):** kör bara när `E2E_BASELINE_URL` är satt, annars skippas den. Den jämför md5 av den frusna klassrumsbilden (`?level=3&seed=1&freeze=1`) mellan nuvarande testbygge och ett baslinjebygge utan flimmerkoden (t.ex. `feat/lighting`) som serveras separat, två gånger vardera: `E2E_BASELINE_URL=http://127.0.0.1:4181 npx playwright test -c tests/e2e/playwright.config.js lighting-baseline.spec.js --project=test`.
 - Efter medvetet ljusarbete: kör `npm run test:e2e -- --project=test lighting.spec.js`, läs raderna `[lighting] …` och justera `LIGHT_LIMITS` i samma PR.
 
@@ -147,7 +168,14 @@ yellowhorrorhosegame/
 │   │   ├── Character.jsx      # Jagande karaktärer
 │   │   ├── Key.jsx            # Insamlingsbar nyckel
 │   │   ├── Ground.jsx         # Markplan
-│   │   └── Player.jsx         # Spelarens kontroller
+│   │   ├── Player.jsx         # Spelarens kontroller (rörelse via utils/collision.js)
+│   │   └── ColliderDebug.jsx  # ?colliders=1 (testbygge): kollisionslådor som wireframe
+│   ├── levels/
+│   │   ├── houseLayout.js     # Husets/möblernas konstanter (mesh + kollision)
+│   │   ├── classroomLayout.js # Klassrummets konstanter (mesh + kollision)
+│   │   └── colliders/         # Kollisionslådor per scen (outdoor, houseInterior, classroom)
+│   ├── utils/
+│   │   └── collision.js       # resolveMovement: cirkel mot AABB, per axel
 │   ├── App.jsx                # Huvudapp med spellogik
 │   ├── main.jsx               # React entry point
 │   └── index.css              # Styles
@@ -171,7 +199,14 @@ yellowhorrorhosegame/
 2. **Dörr-interaktion**: Närma dig dörren med nyckeln för att gå vidare
 3. **Fiendeförföljelse**: Karaktärer följer alltid spelaren och blir snabbare för varje nivå
 4. **Hälsosystem**: Tar skada när du är nära karaktären, Game Over vid 0 hälsa
-5. **Level-progression**: 6 nivåer med ökande svårighetsgrad
+5. **Level-progression**: 7 nivåer med ökande svårighetsgrad
+6. **Kollision**: Spelaren går inte igenom väggar eller möbler, bara genom dörrar (se nedan)
+
+### Kollision
+
+Spelaren är en cirkel (radie 0,35, `PLAYER_RADIUS`) som löses mot axel-parallella lådor `{ minX, maxX, minZ, maxZ }` i XZ-planet, utan fysikmotor: `resolveMovement(pos, delta, colliders, radius)` i `src/utils/collision.js` är ren och deterministisk. x och z löses var för sig, så en rörelse snett in i en vägg behåller komponenten längs väggen (man glider). Hörnen är rundade (cirkelns räckvidd krymper mot lådans hörn) och en rörelse rakt mot ett hörn knuffas runt det, så man fastnar inte vid dörrposter. En spelare som börjar inne i en låda (klassrummets egna bänk vid start) får alltid gå ut, men inte in igen. `Player.jsx` tar listan som prop `colliders` och kör den före `bounds` och nivågränserna.
+
+Lådorna ligger i `src/levels/colliders/` (`outdoor.js`, `houseInterior.js`, `classroom.js`) och räknas fram från samma konstanter som mesharna (`src/levels/houseLayout.js`, `src/levels/classroomLayout.js`), så mesh och kollision inte glider isär. Stängda dörrar (husets ytterdörr, klassrummets utgång) är egna lådor i dörröppningen: att "gå igenom" dem är som förut närhetstriggern (`House.jsx`, `ClassroomExit.jsx`), som slår till innan man nuddar dörren; utan nyckel blockerar dörren. Astrids hus har en frontvägg med dörröppning (samma bredd som ytterdörren) som går att passera. Sängen är solid; man når den från fotändan (framsidan, mot ytterdörren – knappen för gömstället, BENG-108) eller den fria långsidan. Fotändan står 1,4 från frontväggens insida så att den går att nå inifrån huset. IKEA har ingen kollision ännu (BENG-109). I testbygget ritar `?colliders=1` lådorna som magenta wireframes.
 
 ## 🐛 Kända Problem
 

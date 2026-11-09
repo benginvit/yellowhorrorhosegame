@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 import { playDeathSound } from '../utils/sounds'
 import { getTranslation } from '../translations'
+import { IKEA_ORDER_SECONDS } from '../levels/ikeaLayout'
+import IkeaObjective from './IkeaObjective'
+import IkeaHud from './IkeaHud'
 
 function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart, onContinue }) {
   const currentLevel = levels[gameState.currentLevel - 1]
@@ -46,9 +49,24 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           <h1>{t('gameTitle')}</h1>
           <p>{t('gameDescription1')}</p>
           <p>{t('gameDescription2')}</p>
-          <button className="start-btn" onClick={onStart}>
+          <button className="start-btn" onClick={() => onStart()}>
             {t('startButton')}
           </button>
+          {/* Staging only (VITE_LEVEL_SELECT=1): jump straight to a level. The gate must
+              stay an inline import.meta.env check so prod builds drop this block and
+              its __YHH_LEVEL_SELECT__ marker (scripts/check-prod-bundle.sh). */}
+          {import.meta.env.VITE_LEVEL_SELECT === '1' && (
+            <div className="level-select" data-marker="__YHH_LEVEL_SELECT__">
+              <div className="level-select-label">STAGING – hoppa till nivå:</div>
+              <div className="level-select-buttons">
+                {levels.map((lvl, i) => (
+                  <button key={lvl.name} type="button" className="level-select-btn" onClick={() => onStart(i + 1)}>
+                    {i + 1}. {lvl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -61,6 +79,11 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
 
             {currentLevel.name === 'Astrid' && gameState.isInsideHouse ? (
               <>
+                {gameState.bedNear && (
+                  <div className="hud-item" data-testid="hide-prompt">
+                    {gameState.isHiding ? t('hideExitHint') : t('hideEnterHint')}
+                  </div>
+                )}
                 {!gameState.astridAwake ? (
                   <div className="hud-item">
                     {t('astridSleeping')}
@@ -83,6 +106,34 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               <div className="hud-item">
                 {t('enterHouseQuietly')}
               </div>
+            ) : currentLevel.name === 'Rasmus' ? (
+              <>
+                {(gameState.ikeaPhase === 'intro' || gameState.ikeaPhase === 'ordering') && (
+                  <div className="hud-item low-health">{t('ikeaOrderNow')}</div>
+                )}
+                {gameState.ikeaPhase === 'ordering' && (
+                  <div className={`hud-item ${gameState.ikeaTimeLeft <= 10 ? 'low-health' : ''}`}>
+                    {t('ikeaTimer')}: {Math.ceil(gameState.ikeaTimeLeft)}s
+                  </div>
+                )}
+                {gameState.ikeaPhase === 'ordering' && (
+                  <div className="hud-item" data-testid="ikea-rasmus-meter">
+                    {t('ikeaRasmus')}
+                    <div style={{ width: '160px', height: '12px', background: '#333', borderRadius: '6px', overflow: 'hidden', marginTop: '4px' }}>
+                      <div
+                        data-testid="ikea-rasmus-bar"
+                        style={{ width: `${Math.round((1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS) * 100)}%`, height: '100%', background: '#e53935' }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <IkeaObjective gameState={gameState} language={language} />
+                <IkeaHud
+                  active={gameState.ikeaPhase === 'ordering'}
+                  progress={1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS}
+                  timeLeft={gameState.ikeaTimeLeft}
+                />
+              </>
             ) : (
               <>
                 <div className={`hud-item ${gameState.hasKey ? 'has-key' : ''}`}>
@@ -96,9 +147,13 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           </div>
           <div className="instructions">
             {t('instructionsMove')} | {t('instructionsLook')}
-            {currentLevel.name === 'Astrid' && gameState.isInsideHouse && gameState.astridAwake && ` | ${t('instructionsHide')}`}
           </div>
         </>
+      )}
+
+      {/* Lying under the bed: darkened edges, faded in over the camera move */}
+      {gameState.isPlaying && gameState.isHiding && (
+        <div className="hide-vignette" data-testid="hide-vignette" />
       )}
 
       {gameState.levelComplete && (
@@ -108,6 +163,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               {currentLevel.name === 'Astrid' && t('levelCompleteAstrid')}
               {currentLevel.name === 'Selma' && t('levelCompleteSelma')}
               {currentLevel.name === 'Kerstin' && t('levelCompleteKerstin')}
+              {currentLevel.name === 'Rasmus' && t('levelCompleteRasmus')}
               {currentLevel.name === 'Maria' && t('levelCompleteMaria')}
               {currentLevel.name === 'Pappa' && t('levelCompletePappa')}
             </h2>
@@ -116,6 +172,7 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
               {currentLevel.name === 'Astrid' && t('levelCompleteDescAstrid')}
               {currentLevel.name === 'Selma' && t('levelCompleteDescSelma')}
               {currentLevel.name === 'Kerstin' && t('levelCompleteDescKerstin')}
+              {currentLevel.name === 'Rasmus' && t('levelCompleteDescRasmus')}
               {currentLevel.name === 'Maria' && t('levelCompleteDescMaria')}
               {currentLevel.name === 'Pappa' && t('levelCompleteDescPappa')}
             </p>
@@ -147,6 +204,9 @@ function UI({ gameState, levels, language, onSelectLanguage, onStart, onRestart,
           <p style={{ fontSize: '24px', color: '#ffaaaa' }}>
             {currentLevel.name} {t('gameOverCaught')}
           </p>
+          {gameState.ikeaLoseReason === 'wrongDrink' && (
+            <p style={{ fontSize: '24px', color: '#ffaaaa' }} data-testid="ikea-lose-reason">{t('ikeaWrongDrink')}</p>
+          )}
           <p style={{ fontSize: '20px', color: '#ffcccc' }}>
             {t('gameOverReached')} {gameState.currentLevel}
           </p>

@@ -1,11 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Game from './components/Game'
-import { getStartOverrides, setTimer, clearTimer } from './testMode'
+import { IKEA_ORDER_SECONDS, CORRECT_DRINK, IKEA_DRINK_ASK_MS, IKEA_WRONG_DRINK_MS, validInteractTarget } from './levels/ikeaLayout'
+import { getStartOverrides, setTimer, clearTimer, setTimerInterval, clearTimerInterval } from './testMode'
 import UI from './components/UI'
+import { getTranslation } from './translations'
 import Jumpscare from './components/Jumpscare'
 import BloodSplatter from './components/BloodSplatter'
 import MobileControls from './components/MobileControls'
 import { createHorrorMusic, stopAllSounds, initAudio, fadeOutMusic, playVoiceRecording, playJumpscareSound, stopVoiceRecordings, stopSnoring, preloadAudioFiles, playGunshotSound, playMachineGunSound, playScreamSound, emitSoundEvent } from './utils/sounds'
+
+const IKEA_INTRO_MS = 8000
+const IKEA_WON_MS = 4000
+const IKEA_SEAT_FALLBACK_MS = 4000 // Rasmus counts as seated after this long even if his walk never reports it
+const RASMUS_LINE_MS = 3000 // how long the caption stays up
+const IKEA_TICK_MS = 250 // ikeaTimeLeft is counted down in quarter seconds (exact in binary)
 
 const INITIAL_STATE = {
   isPlaying: false,
@@ -15,11 +23,22 @@ const INITIAL_STATE = {
   gameOver: false,
   victory: false,
   isInsideHouse: false,
-  isHiding: false,
+  isHiding: false, // lying under Astrid's bed (toggled with F / the button, never just by standing near)
+  bedNear: false, // within reach of the bed's foot end (BedInteraction)
   astridAwake: false,
   hideTimer: 15,
   levelComplete: false,
-  classroomIntroPhase: null // null | 'seated' | 'shots' | 'panic' | 'active'
+  classroomIntroPhase: null, // null | 'seated' | 'shots' | 'panic' | 'active'
+  ikeaPhase: null, // null | 'intro' | 'ordering' | 'serve' | 'drink' | 'deliverDrink' | 'won' | 'lost'
+  ikeaTimeLeft: IKEA_ORDER_SECONDS,
+  ikeaLookingBack: false, // the player looks back at Rasmus (order paused, countdown continues)
+  ikeaCarrying: null, // null | 'tray' | 'drink'
+  ikeaRasmusSeated: false,
+  ikeaDrinkChoice: null, // null | drink id (DRINKS in ikeaLayout.js)
+  ikeaLoseReason: null, // null | 'timeout' | 'wrongDrink'
+  ikeaNearTarget: null, // null | 'tray' | 'table' | 'drinkStation': closest interactable within reach, whatever the state
+  ikeaDrinkAsked: false, // Rasmus has said "Lingondryck" (set with the voice clip)
+  ikeaMenuOpen: false // the drink menu at the drink station
 }
 
 function App() {
@@ -27,6 +46,14 @@ function App() {
   const [mobileMovement, setMobileMovement] = useState({ x: 0, y: 0 })
   const [mobileRotation, setMobileRotation] = useState({ x: 0, y: 0 })
   const [gameState, setGameState] = useState(INITIAL_STATE)
+  // What the player can use right now (ikeaNearTarget checked against the phase / carrying / seated). Exposed to UI and Game.
+  const ikeaInteractTarget = validInteractTarget(gameState.ikeaNearTarget, gameState)
+  // The bed prompt / button: bedNear is only ever set by BedInteraction, which exists only inside Astrid's house.
+  const bedInteract = gameState.bedNear
+  const viewState = { ...gameState, ikeaInteractTarget }
+  // Read by timers, so a language change does not restart the IKEA phase effect (and replay its clip).
+  const languageRef = useRef(language)
+  languageRef.current = language
 
   const [showJumpscare, setShowJumpscare] = useState(false)
   const [showBloodSplatter, setShowBloodSplatter] = useState(false)
@@ -35,6 +62,23 @@ function App() {
   const [showGunshotFlash, setShowGunshotFlash] = useState(false)
   const [showGunshotShake, setShowGunshotShake] = useState(false)
 
+  // Caption for Rasmus' clips ('kottbullar' | 'lingondryck' | null), so it also works with the sound off.
+  const [rasmusLine, setRasmusLine] = useState(null)
+  const rasmusLineTimerRef = useRef(null)
+  const sayRasmus = useCallback((action) => {
+    playVoiceRecording('Rasmus', action, languageRef.current)
+    setRasmusLine(action)
+    clearTimer(rasmusLineTimerRef.current)
+    rasmusLineTimerRef.current = setTimer(() => setRasmusLine(null), RASMUS_LINE_MS)
+  }, [])
+  useEffect(() => () => clearTimer(rasmusLineTimerRef.current), [])
+  useEffect(() => {
+    if (!gameState.isPlaying) { clearTimer(rasmusLineTimerRef.current); setRasmusLine(null) }
+  }, [gameState.isPlaying])
+  useEffect(() => {
+    if (gameState.ikeaPhase !== 'drink' && gameState.ikeaPhase !== 'ordering') { clearTimer(rasmusLineTimerRef.current); setRasmusLine(null) }
+  }, [gameState.ikeaPhase])
+
   const introTimersRef = useRef([])
   const introStartedRef = useRef(false)
 
@@ -42,6 +86,7 @@ function App() {
     { name: 'Molltas', description: 'White Cat', speed: 2.0 },
     { name: 'Astrid', description: '13 years old', speed: 1.8 },
     { name: 'Kerstin', description: '13 years old', speed: 2.3 },
+    { name: 'Rasmus', description: 'Hungry, with a knife', speed: 0 },
     { name: 'Selma', description: '11 years old', speed: 2.0 },
     { name: 'Maria', description: '46 years old', speed: 2.6 },
     { name: 'Pappa', description: '48 years old', speed: 3.0 }
@@ -117,13 +162,89 @@ function App() {
     }
   }, [gameState.isPlaying, gameState.currentLevel])
 
-  const startGame = () => {
+  // IKEA level phases: intro -> ordering (countdown) -> won | lost. Every timer is
+  // cleaned up by the effect cleanup when the phase, level or play state changes.
+  useEffect(() => {
+    if (!gameState.isPlaying) return undefined
+    const phase = gameState.ikeaPhase
+
+    if (phase === 'intro') {
+      const t = setTimer(() => {
+        setGameState(prev => (prev.ikeaPhase === 'intro' ? { ...prev, ikeaPhase: 'ordering' } : prev))
+      }, IKEA_INTRO_MS)
+      return () => clearTimer(t)
+    }
+
+    if (phase === 'ordering') {
+      sayRasmus('kottbullar')
+      const tick = setTimerInterval(() => {
+        setGameState(prev => {
+          if (prev.ikeaPhase !== 'ordering') return prev
+          const left = Math.max(0, prev.ikeaTimeLeft - IKEA_TICK_MS / 1000)
+          if (left > 0) return { ...prev, ikeaTimeLeft: left }
+          return { ...prev, ikeaTimeLeft: 0, ikeaPhase: 'lost', ikeaLoseReason: 'timeout', health: 0, gameOver: true, isPlaying: false }
+        })
+      }, IKEA_TICK_MS)
+      return () => clearTimerInterval(tick)
+    }
+
+    if (phase === 'serve') {
+      // Rasmus reports he has sat down; the timer makes the flow deterministic even if he never does.
+      const t = setTimer(() => {
+        setGameState(prev => (prev.ikeaPhase === 'serve' && !prev.ikeaRasmusSeated ? { ...prev, ikeaRasmusSeated: true } : prev))
+      }, IKEA_SEAT_FALLBACK_MS)
+      return () => clearTimer(t)
+    }
+
+    if (phase === 'drink') {
+      const t = setTimer(() => {
+        sayRasmus('lingondryck')
+        setGameState(prev => (prev.ikeaPhase === 'drink' ? { ...prev, ikeaDrinkAsked: true } : prev))
+      }, IKEA_DRINK_ASK_MS)
+      return () => clearTimer(t)
+    }
+
+    if (phase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink') {
+      // Rasmus runs at the player first; then the usual jumpscare and game over.
+      const t = setTimer(() => {
+        setGameState(prev => (prev.ikeaPhase === 'lost' ? { ...prev, health: 0, gameOver: true, isPlaying: false } : prev))
+      }, IKEA_WRONG_DRINK_MS)
+      return () => clearTimer(t)
+    }
+
+    if (phase === 'won') {
+      const t = setTimer(() => {
+        setGameState(prev => (prev.ikeaPhase === 'won' ? { ...prev, levelComplete: true } : prev))
+      }, IKEA_WON_MS)
+      return () => clearTimer(t)
+    }
+
+    return undefined
+  }, [gameState.isPlaying, gameState.ikeaPhase, gameState.ikeaLoseReason, sayRasmus])
+
+  // Second "Köttbullar..." at 50 % progress
+  useEffect(() => {
+    if (gameState.ikeaPhase === 'ordering' && gameState.ikeaTimeLeft === IKEA_ORDER_SECONDS / 2) {
+      sayRasmus('kottbullar')
+    }
+  }, [gameState.ikeaPhase, gameState.ikeaTimeLeft, sayRasmus])
+
+  // Rasmus reached the player (or got the wrong drink): existing jumpscare / game over path
+  useEffect(() => {
+    if (gameState.ikeaPhase === 'lost' && gameState.gameOver) {
+      setShowJumpscare(true) // Jumpscare plays the sound and emits the 'jumpscare' event
+    }
+  }, [gameState.ikeaPhase, gameState.gameOver])
+
+  // `level` comes from the staging level buttons (UI.jsx); without it the URL's
+  // ?level=N applies (test / level-select builds) or the game starts on level 1.
+  const startGame = (level) => {
     initAudio()
     if (language) preloadAudioFiles(language)
 
     setGameState({
       ...INITIAL_STATE,
-      ...getStartOverrides(),
+      ...getStartOverrides(levels, level),
       isPlaying: true,
     })
   }
@@ -141,6 +262,7 @@ function App() {
     const nextLevel = prev.currentLevel + 1
     const nextLevelData = levels[nextLevel - 1]
     const isKerstinNext = nextLevelData?.name === 'Kerstin'
+    const isRasmusNext = nextLevelData?.name === 'Rasmus'
 
     return {
       ...prev,
@@ -150,10 +272,21 @@ function App() {
       gameOver: false,
       isInsideHouse: false,
       isHiding: false,
+      bedNear: false,
       astridAwake: false,
       hideTimer: 15,
       levelComplete: false,
-      classroomIntroPhase: isKerstinNext ? 'seated' : null
+      classroomIntroPhase: isKerstinNext ? 'seated' : null,
+      ikeaPhase: isRasmusNext ? 'intro' : null,
+      ikeaTimeLeft: IKEA_ORDER_SECONDS,
+      ikeaLookingBack: false,
+      ikeaCarrying: null,
+      ikeaRasmusSeated: false,
+      ikeaDrinkChoice: null,
+      ikeaLoseReason: null,
+      ikeaNearTarget: null,
+      ikeaDrinkAsked: false,
+      ikeaMenuOpen: false
     }
   }
 
@@ -164,6 +297,50 @@ function App() {
       setGameState(prev => ({ ...prev, victory: true, isPlaying: false }))
     }
   }
+
+  const completeIkeaOrder = useCallback(() => {
+    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaPhase: 'serve', ikeaLookingBack: false } : prev))
+  }, [])
+
+  const ikeaRasmusSeated = useCallback(() => {
+    setGameState(prev => (prev.ikeaPhase === 'serve' && !prev.ikeaRasmusSeated ? { ...prev, ikeaRasmusSeated: true } : prev))
+  }, [])
+
+  // The closest interactable changed (reported by IkeaInteraction). Walking away from the drink station closes its menu.
+  const setIkeaNear = useCallback((near) => {
+    setGameState(prev => {
+      if (prev.ikeaNearTarget === near) return prev
+      return { ...prev, ikeaNearTarget: near, ikeaMenuOpen: near === 'drinkStation' && prev.ikeaMenuOpen }
+    })
+  }, [])
+
+  // F / "Use": act on the target in reach. Serving needs Rasmus seated (validInteractTarget).
+  const ikeaInteract = useCallback(() => {
+    setGameState(prev => {
+      const { ikeaPhase } = prev
+      const target = validInteractTarget(prev.ikeaNearTarget, prev)
+      if (target === 'tray') return { ...prev, ikeaCarrying: 'tray' }
+      if (target === 'table' && ikeaPhase === 'serve') return { ...prev, ikeaPhase: 'drink', ikeaCarrying: null }
+      if (target === 'table' && ikeaPhase === 'deliverDrink') return { ...prev, ikeaPhase: 'won', ikeaCarrying: null }
+      if (target === 'drinkStation') return { ...prev, ikeaMenuOpen: true }
+      return prev
+    })
+  }, [])
+
+  const ikeaChooseDrink = useCallback((id) => {
+    setGameState(prev => {
+      if (prev.ikeaPhase !== 'drink') return prev
+      const chosen = { ...prev, ikeaDrinkChoice: id, ikeaMenuOpen: false }
+      if (id === CORRECT_DRINK) return { ...chosen, ikeaPhase: 'deliverDrink', ikeaCarrying: 'drink' }
+      return { ...chosen, ikeaPhase: 'lost', ikeaLoseReason: 'wrongDrink' }
+    })
+  }, [])
+
+  const setIkeaLookingBack = useCallback((looking) => {
+    setGameState(prev => (prev.ikeaPhase === 'ordering' ? { ...prev, ikeaLookingBack: looking } : prev))
+  }, [])
+
+  const hideJumpscare = useCallback(() => setShowJumpscare(false), [])
 
   const collectKey = useCallback(() => {
     setGameState(prev => ({ ...prev, hasKey: true }))
@@ -187,8 +364,17 @@ function App() {
     setGameState(prev => ({ ...prev, isInsideHouse: true }))
   }, [])
 
-  const setHiding = useCallback((hiding) => {
-    setGameState(prev => ({ ...prev, isHiding: hiding }))
+  const setBedNear = useCallback((near) => {
+    setGameState(prev => (prev.bedNear === near ? prev : { ...prev, bedNear: near }))
+  }, [])
+
+  // F / the on-screen button: crawl in when within reach of the bed, crawl out when lying under it.
+  const toggleHide = useCallback(() => {
+    setGameState(prev => {
+      if (prev.gameOver || prev.levelComplete) return prev
+      if (prev.isHiding) return { ...prev, isHiding: false }
+      return prev.bedNear ? { ...prev, isHiding: true } : prev
+    })
   }, [])
 
   const wakeAstrid = useCallback(() => {
@@ -198,6 +384,7 @@ function App() {
     setShowAstridJumpscare(true)
     playJumpscareSound()
     setTimer(() => setShowAstridJumpscare(false), 1500)
+    setTimer(() => emitSoundEvent('astrid'), 1100) // particle puff once the overlay is nearly gone; no sound
 
     setTimer(() => {
       playVoiceRecording('Astrid', 'wake', language)
@@ -250,7 +437,7 @@ function App() {
   return (
     <>
       <UI
-        gameState={gameState}
+        gameState={viewState}
         levels={levels}
         language={language}
         onSelectLanguage={setLanguage}
@@ -258,17 +445,33 @@ function App() {
         onRestart={restartGame}
         onContinue={continueToNextLevel}
       />
+      {gameState.isPlaying && rasmusLine && (
+        <div
+          data-testid="ikea-subtitle"
+          role="status"
+          className="ikea-subtitle"
+        >
+          {getTranslation(language || 'en', rasmusLine === 'lingondryck' ? 'ikeaLineLingondryck' : 'ikeaLineKottbullar')}
+        </div>
+      )}
       {gameState.isPlaying && (
         <>
           <Game
-            gameState={gameState}
+            gameState={viewState}
             level={currentLevel}
             language={language}
             onCollectKey={collectKey}
             onNextLevel={nextLevel}
             onTakeDamage={takeDamage}
             onEnterHouse={enterHouse}
-            onSetHiding={setHiding}
+            onSetBedNear={setBedNear}
+            onToggleHide={toggleHide}
+            onIkeaOrderComplete={completeIkeaOrder}
+            onIkeaLookBack={setIkeaLookingBack}
+            onIkeaRasmusSeated={ikeaRasmusSeated}
+            onIkeaNear={setIkeaNear}
+            onIkeaInteract={ikeaInteract}
+            onIkeaChooseDrink={ikeaChooseDrink}
             onWakeAstrid={wakeAstrid}
             onUpdateHideTimer={updateHideTimer}
             mobileMovement={mobileMovement}
@@ -277,6 +480,10 @@ function App() {
           <MobileControls
             onMove={setMobileMovement}
             onRotate={setMobileRotation}
+            interactTarget={bedInteract ? 'bed' : ikeaInteractTarget}
+            testId={bedInteract ? 'hide-use' : 'ikea-use'}
+            onInteract={bedInteract ? toggleHide : ikeaInteract}
+            interactLabel={getTranslation(language || 'en', bedInteract ? (gameState.isHiding ? 'hideExitButton' : 'hideEnterButton') : 'ikeaUse')}
           />
         </>
       )}
@@ -499,7 +706,7 @@ function App() {
       {showJumpscare && (
         <Jumpscare
           characterName={currentLevel?.name}
-          onComplete={() => setShowJumpscare(false)}
+          onComplete={hideJumpscare}
         />
       )}
 

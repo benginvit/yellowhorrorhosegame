@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect } from '@playwright/test'
+import { RASMUS_TABLE_POS } from '../../src/levels/ikeaLayout.js'
 
 /** The react-three-fiber canvas (other <canvas> elements exist for overlays). */
 export const GAME_CANVAS = 'canvas[data-engine]'
@@ -11,6 +12,9 @@ export function trackErrors(page) {
   const errors = []
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`)
+    // Chrome loses the oldest WebGL context once ~16 are alive. The test build leaves
+    // unmounted Canvases to garbage collection (testMode.js), so count this as an error.
+    if (msg.type() === 'warning' && /Too many active WebGL contexts/.test(msg.text())) errors.push(`console.warning: ${msg.text()}`)
   })
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`))
   return errors
@@ -55,9 +59,10 @@ export function expectNoErrors(errors) {
 }
 
 /** Opens the test build frozen/seeded, starts the game at `level` and waits for the first frame. */
-export async function openFrozen(page, { level = 1, inside = false } = {}) {
+export async function openFrozen(page, { level = 1, inside = false, phase } = {}) {
   const q = new URLSearchParams({ seed: '1', freeze: '1', level: String(level) })
   if (inside) q.set('inside', '1')
+  if (phase) q.set('phase', phase)
   await page.goto(`/?${q}`)
   await startGame(page)
   await waitReady(page)
@@ -253,4 +258,126 @@ export async function waitSceneContent(page, minCalls = 20) {
     api.advance(1, 0)
     return api.gl.info.render.calls >= min
   }, minCalls, { timeout: 20_000, polling: 100 })
+}
+
+/** Test build only: puts the (frozen) camera at (x, 1.6, z); the player moves by velocity only, so the pose stays. */
+export function setCamera(page, x, z) {
+  return page.evaluate(([px, pz]) => window.__YHH_TEST_MODE__.camera.position.set(px, 1.6, pz), [x, z])
+}
+
+// Throws when there is no live Canvas: advance() then renders nothing and the game's frame logic does not run.
+const advance = async (page, seconds, dt = 1 / 20) => {
+  const live = await page.evaluate(([s, step]) => window.__YHH_TEST_MODE__.advance(Math.round(s / step), step), [seconds, dt])
+  if (!live) throw new Error('advance(): no live Canvas, the frames did not run')
+}
+
+// Spots inside IKEA_BOUNDS within 1.5 of the interactables (ikeaLayout.js): the tray at (0, 0.9), Rasmus' table at
+// (4.25, 1.2), the drink station at (-3, 6). All are clear of the collision boxes (levels/colliders/ikea.js).
+export const AT_TRAY = [0, 2.2]
+export const AT_TABLE = [4.25, 2.4]
+export const AT_STATION = [-2, 6]
+
+/** Walks to a spot, lets the game see it (state commits between steps) and presses F once the hint is up. */
+export async function useAt(page, [x, z], { tap = false } = {}) {
+  // The pose is set again on every retry: the game may still be moving the camera (Rasmus' scene, phase changes).
+  await setCamera(page, x, z)
+  await advance(page, 0.1)
+  // A few more frames if React has not committed the target yet (bounded; the failure is the expect below).
+  for (let i = 0; i < 5 && !(await page.getByTestId('ikea-use-hint').isVisible()); i++) {
+    await setCamera(page, x, z)
+    await advance(page, 0.1)
+  }
+  await expect(page.getByTestId('ikea-use-hint')).toBeVisible()
+  if (tap) await page.getByTestId('ikea-use').tap() // the on-screen "Use" button
+  else await page.keyboard.press('KeyF')
+}
+
+/**
+ * World position of a named scene object (a group the IKEA scene mounts conditionally), or null when it is not in the
+ * scene. `visible` is false when the object or any ancestor is hidden.
+ */
+export function sceneObject(page, name) {
+  return page.evaluate((n) => {
+    const o = window.__YHH_TEST_MODE__.scene.getObjectByName(n)
+    if (!o) return null
+    o.updateWorldMatrix(true, false)
+    const p = o.getWorldPosition(o.position.clone())
+    let visible = true
+    for (let a = o; a; a = a.parent) visible = visible && a.visible
+    return { x: p.x, y: p.y, z: p.z, visible }
+  }, name)
+}
+
+/**
+ * Steps the frozen clock in small bounded steps (10 x 0.1 s of clock time) until the named object is in the scene
+ * (`present`) or gone from it. React state (the UI, e.g. data-objective) commits before the R3F scene mounts or
+ * unmounts the matching group, so a UI check does not sync the scene. Fails with the last state if it never settles.
+ */
+export async function waitSceneObject(page, name, present = true) {
+  for (let i = 0; i < 10 && Boolean(await sceneObject(page, name)) !== present; i++) await advance(page, 0.1)
+  expect(Boolean(await sceneObject(page, name)), `"${name}" is ${present ? 'in' : 'gone from'} the scene`).toBe(present)
+}
+
+/** Horizontal distance from a scene object to a [x, , z] point. */
+export async function distanceTo(page, name, [x, , z]) {
+  const o = await sceneObject(page, name)
+  expect(o, `"${name}" is in the scene`).not.toBeNull()
+  return Math.hypot(o.x - x, o.z - z)
+}
+
+/** The tray/glass in hand: the scene group "carried-item" sits in front of the camera, or is absent when nothing is carried. */
+export async function expectCarrying(page, carrying) {
+  await waitSceneObject(page, 'carried-item', Boolean(carrying))
+  if (!carrying) return
+  // The group is placed in front of the camera by a frame, not on mount.
+  // Mounting (a React commit after the use) and placing (the next frame) can land in different steps: a few extra frames, bounded.
+  const measure = () => page.evaluate(() => {
+    const api = window.__YHH_TEST_MODE__
+    const o = api.scene.getObjectByName('carried-item')
+    if (!o) return null
+    const cam = api.camera
+    cam.updateMatrixWorld()
+    const p = o.getWorldPosition(cam.position.clone())
+    let visible = true
+    for (let a = o; a; a = a.parent) visible = visible && a.visible
+    const v = p.clone().project(cam)
+    return { visible, dist: cam.position.distanceTo(p), onScreen: v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 }
+  })
+  let m = await measure()
+  for (let i = 0; i < 5 && !(m && m.dist < 1.5); i++) { await advance(page, 0.1); m = await measure() }
+  expect(m, `"carried-item" (${carrying}) is in the scene`).not.toBeNull()
+  expect(m.visible).toBe(true)
+  expect(m.dist, 'the carried item is held close to the camera').toBeLessThan(1.5)
+  expect(m.onScreen, 'the carried item is in view').toBe(true)
+}
+
+/** From 'serve' (Rasmus walking to his seat) through tray, table, lingonberry drink to level complete. */
+export async function serveAndDrink(page, { tap = false } = {}) {
+  await waitSceneObject(page, 'tray-pickup', true) // the tray waits on the counter
+  await expectCarrying(page, null)
+  await useAt(page, AT_TRAY, { tap })
+  await expectCarrying(page, 'tray')
+  await waitSceneObject(page, 'tray-pickup', false) // the picked-up tray is gone from the counter
+  await advance(page, 4.5) // he is seated (walk or fallback timer)
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjServeTable')
+  await useAt(page, AT_TABLE, { tap })
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDrink')
+  await expectCarrying(page, null)
+  await waitSceneObject(page, 'tray-on-table', true)
+  expect(await distanceTo(page, 'tray-on-table', RASMUS_TABLE_POS), 'the tray stands on Rasmus\' table').toBeLessThan(0.3)
+  expect(await sceneObject(page, 'glass-on-table'), 'no glass yet').toBeNull()
+  await advance(page, 4) // the station opens once Rasmus has said "Lingondryck" (ikeaDrinkAsked)
+  await useAt(page, AT_STATION, { tap })
+  if (tap) await page.getByTestId('ikea-drink-lingon').tap()
+  else await page.getByTestId('ikea-drink-lingon').click()
+  await expect(page.getByTestId('ikea-objective')).toHaveAttribute('data-objective', 'ikeaObjDeliverDrink')
+  await expectCarrying(page, 'drink')
+  expect(await sceneObject(page, 'glass-on-table'), 'the glass is still in hand, not on the table').toBeNull()
+  await useAt(page, AT_TABLE, { tap })
+  await expectCarrying(page, null)
+  await waitSceneObject(page, 'glass-on-table', true)
+  expect(await distanceTo(page, 'glass-on-table', RASMUS_TABLE_POS), 'the glass stands on Rasmus\' table').toBeLessThan(0.6)
+  expect(await sceneObject(page, 'tray-on-table'), 'the tray is still on the table').not.toBeNull()
+  await advance(page, 4.5)
+  await expect(page.locator('.victory-screen')).toBeVisible()
 }

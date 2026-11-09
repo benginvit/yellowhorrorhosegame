@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Sky } from '@react-three/drei'
 import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import Player from './Player'
@@ -11,13 +11,44 @@ import HouseInterior from './HouseInterior'
 import Classroom from './Classroom'
 import ClassroomNPCs from './ClassroomNPCs'
 import ClassroomExit from './ClassroomExit'
-import Lighting from './Lighting'
+import ColliderDebug from './ColliderDebug'
+import Lighting, { CLASSROOM_LIGHTING } from './Lighting'
+import Dust from './particles/Dust'
+import Ash from './particles/Ash'
+import Bursts from './particles/Bursts'
+import { PARTICLES_ENABLED } from './particles/common'
 import HorrorEffects from './HorrorEffects'
+import IkeaStore from './IkeaStore'
+import Rasmus from './Rasmus'
+import OrderKiosk from './OrderKiosk'
+import DrinkStation from './DrinkStation'
+import DrinkMenu from './DrinkMenu'
+import CarriedItem from './CarriedItem'
+import IkeaServing from './IkeaServing'
+import IkeaInteraction from './IkeaInteraction'
+import BedInteraction from './BedInteraction'
+import { UNDER_BED_POSE } from '../levels/astridLayout'
+import { PLAYER_START, PLAYER_START_YAW, INTRO_CAMERA, IKEA_ORDER_SECONDS, IKEA_BOUNDS } from '../levels/ikeaLayout'
 import Candy, { CANDY_POSITIONS } from './Candy'
+import { HOUSE_FURNITURE, HOUSE_ENTRY_POSE } from '../levels/houseLayout'
+import { OUTDOOR_COLLIDERS } from '../levels/colliders/outdoor'
+import { HOUSE_INTERIOR_COLLIDERS } from '../levels/colliders/houseInterior'
+import { CLASSROOM_COLLIDERS } from '../levels/colliders/classroom'
+import { IKEA_COLLIDERS } from '../levels/colliders/ikea'
 import { CANVAS_DPR, CANVAS_GL, CANVAS_FRAMELOOP, TestModeProbe, onCanvasCreated, setTimer, clearTimer } from '../testMode'
 
 const CLASSROOM_START = [0, 1.6, 2]
 const CLASSROOM_START_YAW = 0
+
+// Intro shot of the kitchen department (IKEA level). Stage 2 replaces the content, not the contract.
+function IkeaIntroCamera() {
+  const camera = useThree((s) => s.camera)
+  useFrame(() => {
+    camera.position.set(...INTRO_CAMERA.position)
+    camera.lookAt(...INTRO_CAMERA.target)
+  })
+  return null
+}
 
 function Game({
   gameState,
@@ -27,20 +58,46 @@ function Game({
   onNextLevel,
   onTakeDamage,
   onEnterHouse,
-  onSetHiding,
+  onSetBedNear,
+  onToggleHide,
+  onIkeaOrderComplete,
+  onIkeaLookBack,
+  onIkeaRasmusSeated,
+  onIkeaNear,
+  onIkeaInteract,
+  onIkeaChooseDrink,
   onWakeAstrid,
   onUpdateHideTimer,
   mobileMovement,
   mobileRotation
 }) {
-  const [nearFurniture, setNearFurniture] = useState({})
   const [candyPieces, setCandyPieces] = useState([])
   const candyTimerRef = useRef(null)
 
   const isAstridLevel = level.name === 'Astrid'
   const isKerstinLevel = level.name === 'Kerstin'
+  const isIkeaLevel = level.name === 'Rasmus'
   const classroomIntroPhase = gameState.classroomIntroPhase
   const isIntroActive = false
+
+  // IKEA state that the scene reads every frame (Rasmus' phase, progress, lose reason, drinkAsked; the player's
+  // movement lock after the wrong drink). It goes through this ref, not through props: props reach the Canvas'
+  // children only with the Canvas' own React root's commit, which R3F schedules asynchronously and which can land a
+  // frame or more after this render (on the frozen test clock a whole advance() later, so Rasmus' attack started late
+  // in CI). The mirror is written during this render, before any child mounts or any later frame, and holds plain
+  // values only; the object identity never changes.
+  const ikeaLive = useRef({ ikeaPhase: null, progress: 0, loseReason: null, drinkAsked: false, frozen: false })
+  if (isIkeaLevel) {
+    Object.assign(ikeaLive.current, {
+      ikeaPhase: gameState.ikeaPhase,
+      progress: 1 - gameState.ikeaTimeLeft / IKEA_ORDER_SECONDS,
+      loseReason: gameState.ikeaLoseReason,
+      drinkAsked: gameState.ikeaDrinkAsked,
+      // After the wrong drink Rasmus runs at the player and the player cannot walk away (the view still turns;
+      // isLocked would reset the position).
+      frozen: gameState.ikeaPhase === 'lost' && gameState.ikeaLoseReason === 'wrongDrink',
+    })
+  }
 
   // Spawn candy 10s after level start (3s after shots fire at 7s)
   // Timer stored in ref so phase changes don't cancel it
@@ -78,13 +135,61 @@ function Game({
     onCollectKey()
   }, [onCollectKey])
 
-  useEffect(() => {
-    const isHidingInSafeSpot = nearFurniture.bed === true
-    onSetHiding(isHidingInSafeSpot)
-  }, [nearFurniture, onSetHiding])
-
-  const handleFurnitureProximity = (furnitureId, isNear) => {
-    setNearFurniture(prev => ({ ...prev, [furnitureId]: isNear }))
+  // IKEA level (the serve / drink props are placeholders, see DrinkStation, DrinkMenu, CarriedItem, IkeaServing)
+  if (isIkeaLevel) {
+    const ikeaPhase = gameState.ikeaPhase
+    // The player is locked at the kiosk until the order is done, free to walk around afterwards.
+    const ikeaLocked = ikeaPhase === 'intro' || ikeaPhase === 'ordering'
+    const ikeaServing = ikeaPhase === 'serve' || ikeaPhase === 'drink' || ikeaPhase === 'deliverDrink'
+    return (
+      <>
+        <Canvas
+          shadows
+          dpr={CANVAS_DPR}
+          frameloop={CANVAS_FRAMELOOP}
+          gl={CANVAS_GL}
+          onCreated={onCanvasCreated}
+          camera={{ fov: 75, position: PLAYER_START }}
+        >
+          <Lighting variant="ikea" />
+          <Suspense fallback={null}>
+            <IkeaStore />
+            <Rasmus live={ikeaLive} onSeated={onIkeaRasmusSeated} />
+            <DrinkStation active={ikeaPhase === 'drink'} drinkAsked={gameState.ikeaDrinkAsked} />
+            <IkeaServing ikeaPhase={ikeaPhase} carrying={gameState.ikeaCarrying} />
+            <CarriedItem carrying={gameState.ikeaCarrying} />
+            {ikeaServing && <IkeaInteraction onNear={onIkeaNear} onInteract={onIkeaInteract} />}
+            <OrderKiosk
+              ikeaPhase={ikeaPhase}
+              ikeaTimeLeft={gameState.ikeaTimeLeft}
+              language={language}
+              lookingBack={gameState.ikeaLookingBack}
+              onOrderComplete={onIkeaOrderComplete}
+              onLookBack={onIkeaLookBack}
+            />
+            {ikeaPhase === 'intro' ? (
+              <IkeaIntroCamera />
+            ) : (
+              <Player
+                mobileMovement={mobileMovement}
+                mobileRotation={mobileRotation}
+                isLocked={ikeaLocked}
+                startPosition={PLAYER_START}
+                startYaw={PLAYER_START_YAW}
+                lookBack={gameState.ikeaLookingBack}
+                bounds={IKEA_BOUNDS}
+                colliders={IKEA_COLLIDERS}
+                lock={ikeaLive}
+              />
+            )}
+            <ColliderDebug colliders={IKEA_COLLIDERS} />
+            <TestModeProbe />
+          </Suspense>
+          <HorrorEffects />
+        </Canvas>
+        <DrinkMenu open={ikeaPhase === 'drink' && gameState.ikeaMenuOpen} language={language} onChoose={onIkeaChooseDrink} />
+      </>
+    )
   }
 
   // Classroom level
@@ -99,6 +204,8 @@ function Game({
         camera={{ fov: 75, position: CLASSROOM_START }}
       >
         <Lighting variant="classroom" />
+        {PARTICLES_ENABLED && <Dust flashlight={CLASSROOM_LIGHTING.flashlight} base={0.1} />}
+        {PARTICLES_ENABLED && <Bursts />}
 
         <Suspense fallback={null}>
           <Classroom />
@@ -133,7 +240,9 @@ function Game({
             startPosition={CLASSROOM_START}
             startYaw={CLASSROOM_START_YAW}
             inClassroom={true}
+            colliders={CLASSROOM_COLLIDERS}
           />
+          <ColliderDebug colliders={CLASSROOM_COLLIDERS} />
           <TestModeProbe />
         </Suspense>
         <HorrorEffects />
@@ -141,7 +250,9 @@ function Game({
     )
   }
 
-  // Outdoor levels
+  // Outdoor levels. Inside Astrid's house the interior walls and furniture are solid, outside the house itself is.
+  const insideAstridHouse = isAstridLevel && gameState.isInsideHouse
+  const outdoorColliders = insideAstridHouse ? HOUSE_INTERIOR_COLLIDERS : OUTDOOR_COLLIDERS
   return (
     <Canvas
       shadows
@@ -153,6 +264,8 @@ function Game({
     >
       <Sky sunPosition={[100, -10, 100]} turbidity={10} rayleigh={0.5} />
       <Lighting variant={gameState.isInsideHouse && isAstridLevel ? 'houseInterior' : 'outdoor'} />
+      {PARTICLES_ENABLED && gameState.isInsideHouse && isAstridLevel && <Dust />}
+      {PARTICLES_ENABLED && <Bursts />}
 
       <Suspense fallback={null}>
         <Ground />
@@ -160,10 +273,11 @@ function Game({
         {isAstridLevel && gameState.isInsideHouse ? (
           <>
             <HouseInterior />
-            <Furniture position={[-3, 0, -22]} type="sofa" onPlayerNear={(near) => handleFurnitureProximity('sofa', near)} />
-            <Furniture position={[3, 0, -24]} type="bookshelf" onPlayerNear={(near) => handleFurnitureProximity('bookshelf', near)} />
-            <Furniture position={[0, 0, -28]} type="table" onPlayerNear={(near) => handleFurnitureProximity('table', near)} />
-            <Furniture position={[5, 0, -20]} type="bed" onPlayerNear={(near) => handleFurnitureProximity('bed', near)} />
+            <Furniture position={HOUSE_FURNITURE.sofa} type="sofa" />
+            <Furniture position={HOUSE_FURNITURE.bookshelf} type="bookshelf" />
+            <Furniture position={HOUSE_FURNITURE.table} type="table" />
+            <Furniture position={HOUSE_FURNITURE.bed} type="bed" />
+            <BedInteraction hiding={gameState.isHiding} onNear={onSetBedNear} onToggle={onToggleHide} />
             <Character
               level={level}
               onCatchPlayer={onTakeDamage}
@@ -183,6 +297,7 @@ function Game({
               hasKey={gameState.hasKey}
               isAstridLevel={isAstridLevel}
             />
+            {PARTICLES_ENABLED && <Ash />}
             {!gameState.hasKey && !isAstridLevel && <Key onCollect={onCollectKey} />}
             {!isAstridLevel && <Character level={level} onCatchPlayer={onTakeDamage} language={language} />}
             {isAstridLevel && (
@@ -198,7 +313,16 @@ function Game({
           </>
         )}
 
-        <Player mobileMovement={mobileMovement} mobileRotation={mobileRotation} />
+        <Player
+          key={insideAstridHouse ? 'house' : 'outdoors'} // remount on entering: Player sets its start pose once per mount
+          mobileMovement={mobileMovement}
+          mobileRotation={mobileRotation}
+          startPosition={insideAstridHouse ? HOUSE_ENTRY_POSE.position : null}
+          startYaw={insideAstridHouse ? HOUSE_ENTRY_POSE.yaw : 0}
+          pose={isAstridLevel && gameState.isInsideHouse && gameState.isHiding ? { ...UNDER_BED_POSE, locked: true } : null}
+          colliders={outdoorColliders}
+        />
+        <ColliderDebug colliders={outdoorColliders} />
         <TestModeProbe />
       </Suspense>
       <HorrorEffects />

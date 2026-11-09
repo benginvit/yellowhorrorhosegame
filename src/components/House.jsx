@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { DOOR_FILL_LIGHT } from './Lighting'
+import { HOUSE_POSITION, HOUSE_SIZE, HOUSE_HEIGHT, HOUSE_DOOR, HOUSE_DOOR_FRAME } from '../levels/houseLayout'
 
 function House({ onEnter, hasKey, isAstridLevel = false }) {
   const doorRef = useRef()
@@ -34,10 +35,10 @@ function House({ onEnter, hasKey, isAstridLevel = false }) {
   })
 
   return (
-    <group position={[0, 0, -25]}>
-      {/* Main walls - yellow brick */}
-      <mesh position={[0, 4, 0]} castShadow receiveShadow>
-        <boxGeometry args={[15, 8, 15]} />
+    <group position={HOUSE_POSITION}>
+      {/* Main walls - yellow brick (the collision boxes come from the same layout, see levels/colliders/outdoor.js) */}
+      <mesh position={[0, HOUSE_HEIGHT / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[HOUSE_SIZE, HOUSE_HEIGHT, HOUSE_SIZE]} />
         <meshStandardMaterial color="#ffeb3b" />
       </mesh>
 
@@ -48,14 +49,14 @@ function House({ onEnter, hasKey, isAstridLevel = false }) {
       </mesh>
 
       {/* Door - brown */}
-      <mesh ref={doorRef} position={[0, 2, 7.6]} castShadow>
-        <boxGeometry args={[2.5, 4.5, 0.3]} />
+      <mesh ref={doorRef} position={[0, 2, HOUSE_DOOR.z]} castShadow>
+        <boxGeometry args={[HOUSE_DOOR.width, HOUSE_DOOR.height, HOUSE_DOOR.depth]} />
         <meshStandardMaterial color="#8B4513" />
       </mesh>
 
       {/* Door frame - darker */}
-      <mesh position={[0, 2, 7.8]} castShadow>
-        <boxGeometry args={[3, 5, 0.2]} />
+      <mesh position={[0, 2, HOUSE_DOOR_FRAME.z]} castShadow>
+        <boxGeometry args={[HOUSE_DOOR_FRAME.width, HOUSE_DOOR_FRAME.height, HOUSE_DOOR_FRAME.depth]} />
         <meshStandardMaterial color="#654321" />
       </mesh>
 

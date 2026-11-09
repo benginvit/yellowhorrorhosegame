@@ -6,8 +6,18 @@
 // __YHH_TEST_MODE__ marker string. Do NOT hoist the check into a variable or
 // reference test-only strings outside of such a block.
 //
+// Level start (?level=N, ?inside=1) is NOT test-only: it is also read in a build
+// with VITE_LEVEL_SELECT=1 (staging, see "Level select" below). Seed, freeze and
+// the test probes stay behind VITE_TEST_MODE.
+//
 // Query params (only read in test builds):
 //   ?seed=<n>   seed for the PRNG exposed as `rand()` (default 1)
+//   ?phase=ordering|serve|drink|deliverDrink  start the IKEA level in that phase instead of 'intro'
+//               (serve: Rasmus walks to his seat, nothing carried; drink: he sits; deliverDrink: he sits and
+//               the player carries the lingonberry glass; drink and deliverDrink also start with
+//               ikeaDrinkAsked: true, i.e. "Lingondryck" already said; see getStartOverrides)
+//   ?colliders=1  draw the level's collision boxes (utils/collision.js) as magenta
+//               wireframes (ColliderDebug.jsx). Test builds only; never IKEA (no colliders yet).
 //   ?freeze=1   freeze time: the Canvas runs with frameloop="never", so no
 //               useFrame callback runs and nothing animates on its own.
 //               Exactly one frame is rendered once the scene has mounted
@@ -26,10 +36,44 @@
 //                 scene without post-FX.
 //   camera        the Canvas' camera (tests set position/rotation, then advance())
 //   scene         the Canvas' THREE.Scene
-//   ready         true once the scene has mounted and a frame has been rendered
+//   ready         true once the scene has mounted and a frame has been rendered;
+//                 false again from the moment that Canvas unmounts (game over,
+//                 restart, level change) until the next Canvas is ready
 //   advance(frames = 1, dt = 1/60)  freeze only: render `frames` frames, each
-//                 advancing clock.elapsedTime by dt and passing dt to useFrame
-//   setTime(t)    freeze only: set clock.elapsedTime without rendering
+//                 advancing clock.elapsedTime by dt and passing dt to useFrame,
+//                 and move the frozen test clock (timers fire) by frames * dt.
+//                 Returns true. While no Canvas is live (ready false) it only
+//                 moves the test clock, renders nothing and returns false.
+//   setTime(t)    freeze only: set clock.elapsedTime without rendering (moves the
+//                 test clock forward by the difference); false and no effect
+//                 while no Canvas is live
+//   emit(type)    fire a sound event ('hit', 'jumpscare', 'astrid'): light dip, particle burst
+//
+// Software GL and the frozen clock (BENG-91): the e2e suite renders on
+// SwiftShader, which executes GPU work asynchronously and far slower than
+// advance() can issue frames (~40 ms per house-interior frame on a 16-core box,
+// ~100 ms on the CI runner, against ~1 ms of JS). Without a sync point the queued
+// GPU work piles up - 1452 frames leave tens of seconds of it - and every later
+// wait on the GPU stalls until the pile drains: R3F's forced context loss 500 ms
+// after a Canvas unmounts (a synchronous call: the page's main thread blocked for
+// the whole remaining backlog, 13-23 s here, >= 52 s on the CI runner where the
+// test timed out, ~4 s on a faster box), the compositor's next frame (no
+// requestAnimationFrame), the page close (so the NEXT test in the worker started
+// 5-10 s late). advance() therefore reads one pixel back every SYNC_EVERY_FRAMES
+// frames, which waits for the frames so far: the backlog is bounded (~0.3 s here,
+// a few seconds on CI) and the GPU time is paid inside advance() instead of as a
+// stall somewhere else - the total does not grow. Test builds additionally skip
+// the forced context loss, so the main thread never waits on the old context at
+// all; garbage collection releases it asynchronously. Prod builds are unchanged.
+//
+// Canvas remount (game over -> restart, classroom -> IKEA, IKEA -> Selma): gl,
+// camera and scene always belong to the live Canvas, which the probe's cleanup
+// retires. The frozen test clock is global: advance() keeps moving it (so the
+// next level's start-pose timers fire) even in the moment between the old Canvas
+// retiring and the next one's onCreated, which a test stepping through a level
+// change relies on. setTime(t) is absolute on the live Canvas' R3F clock, and
+// between Canvases there is no such clock, so it does nothing then; advance()
+// is a relative step and can move the global clock on its own.
 //
 // Timers: game code that must follow the test clock uses setTimer / clearTimer /
 // setTimerInterval instead of setTimeout / setInterval. In prod and in test builds
@@ -40,8 +84,18 @@
 // not in any start pose): blood splatter (App.jsx, BloodSplatter.jsx), the success
 // voice line (App.jsx), Jumpscare.jsx, cat meows (Character.jsx, Math.random).
 // IS_FROZEN is true only with ?freeze=1 (test builds).
+//
+// Level select (VITE_LEVEL_SELECT=1, staging builds only; never prod): enables
+// ?level=N (and ?inside=1) plus the level buttons on the start screen (UI.jsx),
+// nothing else: no seed, no frozen clock, no test API. The game plays like prod.
+// The __YHH_LEVEL_SELECT__ marker string lives only inside the
+// `if (import.meta.env.VITE_LEVEL_SELECT === '1')` gates (here and in UI.jsx) so a
+// prod build drops it; scripts/check-prod-bundle.sh fails the prod build otherwise.
+//   ?level=N    start at level N (1..levels.length) when "Start" is pressed
+//   ?inside=1   with Astrid's level: start inside the house
 
 import { useEffect } from 'react'
+import { emitSoundEvent } from './utils/sounds'
 import { addAfterEffect, addEffect, useThree } from '@react-three/fiber'
 
 function mulberry32(seed) {
@@ -58,30 +112,38 @@ function mulberry32(seed) {
 let source = Math.random
 let frameloop = 'always'
 let frozen = false
+// ?colliders=1 (test builds only): ColliderDebug draws the collision boxes.
+let showColliders = false
 // Frozen-clock timer scheduler (see "Timers" above). null unless ?freeze=1.
 let virtualTimers = null
-// Test-only start overrides merged into the game state when "Start" is pressed
-// (?level=<1-6>, ?inside=1 for the Astrid house interior). null in prod builds.
-let startOverrides = null
+// Level start requested in the URL (?level=N, ?inside=1), read in test builds and
+// level-select builds. null in prod builds and when ?level is absent/invalid; the
+// range check against the level list happens in getStartOverrides().
+let levelRequest = null
+// ?phase=ordering|serve|drink|deliverDrink (IKEA): skip the intro camera shot so e2e views can use fixed poses. Test builds only.
+let ikeaStartPhase = 'intro'
 let makeRand = () => Math.random
 // Replaced inside the gate below; stays a no-op component in prod builds.
 let TestModeProbe = () => null
+// Test builds only (see "Software GL and the frozen clock" above): unsubscribe of
+// the current Canvas' per-frame gl.info reset.
+let unsubscribeInfoReset = null
+// R3F state of the live Canvas (test builds, ?freeze=1): what advance()/setTime() drive.
+let liveState = null
+// GPU sync interval of advance() in frames (see above). 16 frames keep the backlog
+// at ~0.3 s here / a few seconds on CI; syncing every frame costs ~15 % more.
+const SYNC_EVERY_FRAMES = 16
 
 if (import.meta.env.VITE_TEST_MODE === '1') {
   const params = new URLSearchParams(window.location.search)
   const parsed = parseInt(params.get('seed') ?? '1', 10)
   const seed = Number.isNaN(parsed) ? 1 : parsed
   const freeze = params.get('freeze') === '1'
-
+  const phase = params.get('phase')
+  showColliders = params.get('colliders') === '1'
+  if (['ordering', 'serve', 'drink', 'deliverDrink'].includes(phase)) ikeaStartPhase = phase
   source = mulberry32(seed)
 
-  const level = parseInt(params.get('level') ?? '', 10)
-  if (level >= 1 && level <= 6) {
-    startOverrides = { currentLevel: level }
-    // Level 3 is the classroom; its intro starts in the 'seated' phase.
-    if (level === 3) startOverrides.classroomIntroPhase = 'seated'
-    if (level === 2 && params.get('inside') === '1') startOverrides.isInsideHouse = true
-  }
   if (freeze) {
     frameloop = 'never'
     frozen = true
@@ -133,19 +195,62 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
     ready: false,
     advance: () => {},
     setTime: () => {},
+    emit: emitSoundEvent, // fire a sound event ('hit', 'jumpscare', 'astrid') without playing the game
   }
   window.__YHH_TEST__ = window.__YHH_TEST_MODE__
+  if (freeze) {
+    // Render on the live Canvas (if any) and always move the frozen test clock: on a level
+    // change the next Canvas' onCreated can land a moment after the old one retired, and a
+    // test that steps the clock right through the change (ikea.spec.js level chain) needs
+    // the new level's start-pose timers to keep counting in that window.
+    const syncPixel = new Uint8Array(4)
+    let framesSinceSync = 0
+    // Waits for the frames issued so far (a readback is the only blocking GPU wait
+    // WebGL offers; finish() does not block in Chrome).
+    const syncGpu = (gl) => {
+      const ctx = gl.getContext()
+      ctx.readPixels(0, 0, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, syncPixel)
+    }
+    window.__YHH_TEST_MODE__.advance = (frames = 1, dt = 1 / 60) => {
+      for (let i = 0; i < frames; i++) {
+        if (liveState) {
+          liveState.advance(liveState.clock.elapsedTime + dt)
+          if (++framesSinceSync >= SYNC_EVERY_FRAMES) {
+            framesSinceSync = 0
+            syncGpu(liveState.gl)
+          }
+        }
+        virtualTimers.tick(dt * 1000)
+      }
+      return liveState !== null
+    }
+    window.__YHH_TEST_MODE__.setTime = (t) => {
+      if (!liveState) return false
+      virtualTimers.tick(Math.max(0, t - liveState.clock.elapsedTime) * 1000)
+      liveState.clock.elapsedTime = t
+      return true
+    }
+  }
 
   // Rendered inside <Canvas> after the scene content, so its effect runs once
-  // the content has been committed.
+  // the content has been committed. Its cleanup retires the Canvas from the API.
   TestModeProbe = function TestModeProbe() {
     const get = useThree((s) => s.get)
     useEffect(() => {
       const api = window.__YHH_TEST_MODE__
+      const gl = get().gl
+      // This Canvas is unmounting (game over, restart, level change). Guarded by
+      // renderer identity: on a level change the next Canvas' onCreated can run
+      // before this (passive) cleanup, and must not be undone.
+      const retire = () => {
+        if (api.gl !== gl) return
+        api.ready = false
+        liveState = null
+      }
       if (freeze) {
         get().advance(get().clock.elapsedTime)
         api.ready = true
-        return undefined
+        return retire
       }
       let frames = 0
       const unsubscribe = addAfterEffect(() => {
@@ -154,17 +259,58 @@ if (import.meta.env.VITE_TEST_MODE === '1') {
           unsubscribe()
         }
       })
-      return unsubscribe
+      return () => {
+        unsubscribe()
+        retire()
+      }
     }, [get])
     return null
   }
 }
 
+// Shared level start: test builds and level-select (staging) builds. Both operands
+// are build-time literals, so a prod build drops this block.
+if (import.meta.env.VITE_TEST_MODE === '1' || import.meta.env.VITE_LEVEL_SELECT === '1') {
+  const params = new URLSearchParams(window.location.search)
+  const level = parseInt(params.get('level') ?? '', 10)
+  if (level >= 1) levelRequest = { level, inside: params.get('inside') === '1' }
+}
+
+if (import.meta.env.VITE_LEVEL_SELECT === '1') {
+  // Marker for scripts/check-prod-bundle.sh; also lets e2e tell the build apart.
+  window.__YHH_LEVEL_SELECT__ = true
+}
+
 export { TestModeProbe }
 
-/** Extra game state applied on Start (test builds only, else {}). */
-export function getStartOverrides() {
-  return startOverrides ?? {}
+/**
+ * Game state applied on top of INITIAL_STATE when the game starts at a level:
+ * currentLevel plus that level's start phase, chosen by level NAME (Kerstin ->
+ * classroom intro 'seated', Rasmus -> IKEA 'intro'; Astrid + ?inside=1 -> inside
+ * the house). `level` defaults to the URL's ?level=N (test / level-select builds);
+ * the start-screen level buttons pass it explicitly. Values outside
+ * 1..levels.length (and prod builds, where ?level is never read) give {} so the
+ * game starts on level 1.
+ */
+export function getStartOverrides(levels, level = levelRequest?.level) {
+  if (!Number.isInteger(level) || level < 1 || level > levels.length) return {}
+  const overrides = { currentLevel: level }
+  const name = levels[level - 1]?.name
+  if (name === 'Kerstin') overrides.classroomIntroPhase = 'seated'
+  if (name === 'Rasmus') {
+    overrides.ikeaPhase = ikeaStartPhase
+    // Test starts straight into a later phase get the state that phase would normally have.
+    if (ikeaStartPhase === 'drink' || ikeaStartPhase === 'deliverDrink') {
+      overrides.ikeaRasmusSeated = true
+      overrides.ikeaDrinkAsked = true
+    }
+    if (ikeaStartPhase === 'deliverDrink') {
+      overrides.ikeaCarrying = 'drink'
+      overrides.ikeaDrinkChoice = 'lingon'
+    }
+  }
+  if (name === 'Astrid' && levelRequest?.inside && level === levelRequest.level) overrides.isInsideHouse = true
+  return overrides
 }
 
 /** Drop-in replacement for Math.random() where it affects visuals/animation. */
@@ -195,6 +341,9 @@ export const CANVAS_GL = {
 
 /** True only in a test build with ?freeze=1 (always false in prod). */
 export const IS_FROZEN = frozen
+
+/** True only in a test build with ?colliders=1 (always false in prod): draw the collision boxes. */
+export const SHOW_COLLIDERS = showColliders
 
 /** 'always' (R3F default) except in test mode with ?freeze=1. */
 export const CANVAS_FRAMELOOP = frameloop
@@ -230,23 +379,19 @@ export function onCanvasCreated(state) {
     api.scene = state.scene
     api.ready = false
 
+    // See "Software GL and the frozen clock" above: R3F calls this 500 ms after the
+    // Canvas unmounts and it blocks the main thread for as long as the GPU backlog
+    // takes to drain. The old context is left to garbage collection instead.
+    state.gl.forceContextLoss = () => {}
+
     // Post-FX is bypassed in test builds (HorrorEffects returns null), but keep
     // the per-frame reset: with the default autoReset only the last gl.render()
     // call would count if a frame ever has several. Reset once per frame instead.
+    // Only the live Canvas' reset stays subscribed (the effect list is global).
     state.gl.info.autoReset = false
-    addEffect(() => state.gl.info.reset())
+    unsubscribeInfoReset?.()
+    unsubscribeInfoReset = addEffect(() => state.gl.info.reset())
 
-    if (api.freeze) {
-      api.advance = (frames = 1, dt = 1 / 60) => {
-        for (let i = 0; i < frames; i++) {
-          state.advance(state.clock.elapsedTime + dt)
-          virtualTimers.tick(dt * 1000)
-        }
-      }
-      api.setTime = (t) => {
-        virtualTimers.tick(Math.max(0, t - state.clock.elapsedTime) * 1000)
-        state.clock.elapsedTime = t
-      }
-    }
+    if (api.freeze) liveState = state // advance()/setTime() are defined once, see the gate above
   }
 }

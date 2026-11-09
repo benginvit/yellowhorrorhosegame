@@ -116,13 +116,20 @@ test.describe('game timers follow the frozen clock', () => {
   })
 
   test('timers survive a Canvas remount (clock back to 0): Astrid wakes 4 s after the new start', async ({ page }) => {
-    test.setTimeout(150_000) // 20 s of advance() at 60 fps is slow on software rendering
+    // 24 s of advance() at 60 fps = ~1700 house-interior frames of software rendering. Since
+    // advance() syncs with the GPU (testMode.js), their full cost is paid inside the calls instead
+    // of as a stall later (that stall is what used to blow the 150 s budget), ~100 ms per frame
+    // on the CI runner: same budget as the other heavy frozen-clock tests and the shard's --timeout.
+    test.setTimeout(240_000)
     const errors = trackErrors(page)
     await openFrozen(page, { level: 2, inside: true })
     await advance(page, 4.2) // first wake-up
     await waitFrames(page)
     await expect(page.locator(jumpscare)).toHaveCount(1)
-    await advance(page, 20) // the hide timer runs out: game over, the Canvas unmounts
+    // The hide timer runs out: game over, the Canvas unmounts. The countdown only sums dt (Character.jsx), so
+    // 400 frames of 1/20 s reach the same frozen time as 1200 of 1/60 s with a third of the (software-GL) frames.
+    // The view is the room seen from HOUSE_ENTRY_POSE, which costs more per frame than the old start outside.
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(400, 1 / 20))
     await waitFrames(page)
     await page.locator('.restart-btn').click()
     await page.locator('.start-btn').click() // new Canvas, new R3F clock at 0
@@ -137,6 +144,65 @@ test.describe('game timers follow the frozen clock', () => {
     await waitFrames(page)
     await expect(page.locator(jumpscare)).toHaveCount(1)
     expectNoErrors(errors)
+  })
+
+  // Test-API contract across a Canvas remount (testMode.js, "Software GL and the frozen clock" and
+  // "Canvas remount"): `ready` must drop with the old Canvas (it used to stay true, so waitReady()
+  // after a restart passed on the disposed Canvas), advance() must not drive it (false), and the
+  // test build must not force-lose the old context (WEBGL_lose_context.loseContext, which R3F calls
+  // 500 ms after the unmount: on software GL it blocks the main thread until the GPU backlog has
+  // drained). The spy makes the last point deterministic; a wall-clock bound could not tell the fix
+  // from no fix (BENG-91 review).
+  test('Canvas remount after game over: ready drops with the old Canvas, no forced context loss, the API follows the new one', async ({ page }) => {
+    test.setTimeout(150_000)
+    const errors = trackErrors(page)
+    await replayCdnFonts(page)
+    await page.addInitScript(() => {
+      window.__loseContextCalls = 0
+      for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+        const getExtension = proto.getExtension
+        proto.getExtension = function (name) {
+          const ext = getExtension.call(this, name)
+          if (name === 'WEBGL_lose_context' && ext && !ext.__spied) {
+            ext.__spied = true
+            const loseContext = ext.loseContext
+            ext.loseContext = function () { window.__loseContextCalls++; return loseContext.call(this) }
+          }
+          return ext
+        }
+      }
+    })
+    await openFrozen(page, { level: 1 })
+    const ready = () => page.evaluate(() => window.__YHH_TEST_MODE__.ready)
+    const loseContextCalls = () => page.evaluate(() => window.__loseContextCalls)
+    // Molltas (Character.jsx) hits for 25 within 2 units, at most every 0.5 s of frozen time:
+    // stand next to her start position (-8, 1, -18) and let four hits land.
+    await page.evaluate(() => window.__YHH_TEST_MODE__.camera.position.set(-8, 1.6, -17))
+    await page.evaluate(() => window.__YHH_TEST_MODE__.advance(45, 1 / 20)) // 2.25 s: hits at 0.5, 1, 1.5, 2 s
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    await expect.poll(ready).toBe(false) // the probe's cleanup retires the unmounted Canvas
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 0))).toBe(false) // no Canvas to drive
+    expect(await ready()).toBe(false)
+    // R3F's forced loss is a 500 ms setTimeout after the unmount: wait past it (wall clock).
+    await page.waitForTimeout(1500)
+    expect(await loseContextCalls(), 'WEBGL_lose_context.loseContext calls after the old Canvas unmounted').toBe(0)
+
+    const t0 = Date.now()
+    await page.locator('.restart-btn').click()
+    await page.locator('.start-btn').click()
+    await waitReady(page) // now genuinely waits for the new Canvas
+    await waitSceneContent(page)
+    await waitFrames(page)
+    // Sanity bound only (the mechanism is covered by the spy above): a remount takes well under a
+    // second here and a few seconds on the CI runner.
+    expect(Date.now() - t0, 'time from restart to the first frames of the new Canvas').toBeLessThan(60_000)
+    expect(await ready()).toBe(true)
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.advance(1, 0))).toBe(true)
+    expect(await page.evaluate(() => window.__YHH_TEST_MODE__.gl.info.render.calls)).toBeGreaterThan(20)
+    await expect(page.locator('.hud-item').first()).toContainText('1: Molltas')
+    await page.waitForTimeout(1500) // past the forced-loss window of this Canvas' unmount, if any
+    expect(await loseContextCalls()).toBe(0)
+    expectNoErrors(errors) // includes Chrome's "Too many active WebGL contexts" warning (helpers.js)
   })
 })
 

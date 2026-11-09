@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Text } from '@react-three/drei'
 import { rand, setTimer, clearTimer, setTimerInterval, clearTimerInterval } from '../testMode'
+import { BED_POS } from '../levels/astridLayout'
 import { playHitSound, playJumpscareSound, playTickSound, playCatMeow, startSnoring, stopSnoring, playVoiceRecording } from '../utils/sounds'
 
 function Character({
@@ -36,7 +37,7 @@ function Character({
         characterRef.current.position.set(5, 0.5, -20)
       } else if (isAstridLevel && !isSleeping && !astridAwake) {
         // Sleeping in the bed inside the house
-        characterRef.current.position.set(5, 0.7, -20)
+        characterRef.current.position.set(BED_POS[0], 0.7, BED_POS[2])
       } else if (startPosition) {
         characterRef.current.position.set(startPosition[0], startPosition[1], startPosition[2])
       } else {
@@ -156,7 +157,7 @@ function Character({
         characterRef.current.rotation.y = 0
         characterRef.current.rotation.z = 0
         if (!hasRepositioned.current) {
-          characterRef.current.position.set(3, 1, -20)
+          characterRef.current.position.set(BED_POS[0] - 2, 1, BED_POS[2])
           hasRepositioned.current = true
         }
 

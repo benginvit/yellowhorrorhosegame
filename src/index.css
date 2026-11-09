@@ -75,6 +75,50 @@ canvas {
   box-shadow: 0 6px 25px rgba(255, 165, 0, 0.6);
 }
 
+/* Staging level picker (only rendered with VITE_LEVEL_SELECT=1) */
+.level-select {
+  margin-top: 28px;
+  padding: 12px 14px;
+  border: 2px dashed #ff5252;
+  border-radius: 8px;
+  background: rgba(255, 82, 82, 0.08);
+}
+
+.level-select-label {
+  color: #ff5252;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.level-select-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.level-select-btn {
+  background: #222;
+  color: #ffeb3b;
+  border: 1px solid #ffa500;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 44px; /* touch target */
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.level-select-btn:hover,
+.level-select-btn:active {
+  background: #ffa500;
+  color: #000;
+}
+
 .game-hud {
   position: absolute;
   top: 20px;
@@ -269,6 +313,20 @@ canvas {
     font-size: 18px;
   }
 
+  .level-select {
+    margin-top: 18px;
+    padding: 10px;
+  }
+
+  .level-select-label {
+    font-size: 12px;
+  }
+
+  .level-select-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
   .game-hud {
     top: 10px;
     left: 10px;
@@ -336,4 +394,87 @@ canvas {
     width: 40px;
     height: 40px;
   }
+}
+
+/* IKEA kiosk: side panel on the right (~40 % of the width) so Rasmus stays in view on the left;
+   on a portrait screen it takes the bottom half and the 3D view stays above it. */
+.ikea-side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+}
+.ikea-look-back {
+  position: absolute;
+  left: 3%;
+  bottom: 3%;
+  pointer-events: auto;
+}
+.ikea-subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: bold;
+  text-align: center;
+  pointer-events: none;
+  z-index: 50;
+}
+@media (max-aspect-ratio: 1/1) {
+  .ikea-subtitle {
+    bottom: calc(50% + 8px);
+  }
+  .ikea-side-panel {
+    top: 50%;
+    width: 100%;
+    border-left: none !important;
+    border-top: 6px solid #ffda1a;
+    justify-content: flex-start;
+  }
+  .ikea-look-back {
+    bottom: calc(50% + 8px);
+  }
+}
+
+/* IKEA stress effects (IkeaHud.jsx). Smooth, no flashes (BENG-11). */
+@keyframes ikeaVignettePulse {
+  0%, 100% { opacity: var(--ikea-vignette-low); }
+  50% { opacity: var(--ikea-vignette-high); }
+}
+@keyframes ikeaShake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-3px, 1px); }
+  50% { transform: translate(2px, -2px); }
+  75% { transform: translate(-1px, 2px); }
+}
+body.ikea-shake canvas {
+  animation: ikeaShake 0.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.ikea-shake canvas { animation: none; }
+}
+
+/* Under Astrid's bed: dark edges, fades in while the camera moves under it. */
+.hide-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 35%, rgba(0, 0, 0, 0.85) 100%);
+  animation: hideVignetteIn 0.5s ease-out;
+}
+
+@keyframes hideVignetteIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

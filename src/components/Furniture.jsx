@@ -1,47 +1,28 @@
-import { useRef } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
-import * as THREE from 'three'
+import { FURNITURE_FOOTPRINT as F } from '../levels/houseLayout'
 
-function Furniture({ position, type, onPlayerNear }) {
-  const furnitureRef = useRef()
-  const { camera } = useThree()
-
-  useFrame(() => {
-    if (furnitureRef.current) {
-      const furniturePos = furnitureRef.current.getWorldPosition(new THREE.Vector3())
-      const distance = camera.position.distanceTo(furniturePos)
-
-      // Check if player is hiding behind furniture
-      if (distance < 3) {
-        onPlayerNear(true)
-      } else {
-        onPlayerNear(false)
-      }
-    }
-  })
-
+function Furniture({ position, type }) {
   const getFurniture = () => {
     switch (type) {
       case 'sofa':
         return (
-          <group ref={furnitureRef} position={position}>
-            {/* Sofa base */}
+          <group position={position}>
+            {/* Sofa base (footprint shared with the collision box, see levels/houseLayout.js) */}
             <mesh position={[0, 0.4, 0]} castShadow>
-              <boxGeometry args={[3, 0.8, 1.2]} />
+              <boxGeometry args={[F.sofa.w, 0.8, F.sofa.d]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
             {/* Sofa back */}
             <mesh position={[0, 1, -0.4]} castShadow>
-              <boxGeometry args={[3, 1.2, 0.4]} />
+              <boxGeometry args={[F.sofa.w, 1.2, 0.4]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
             {/* Armrests */}
-            <mesh position={[-1.3, 0.7, 0]} castShadow>
-              <boxGeometry args={[0.4, 1, 1.2]} />
+            <mesh position={[-(F.sofa.w / 2 - 0.2), 0.7, 0]} castShadow>
+              <boxGeometry args={[0.4, 1, F.sofa.d]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
-            <mesh position={[1.3, 0.7, 0]} castShadow>
-              <boxGeometry args={[0.4, 1, 1.2]} />
+            <mesh position={[F.sofa.w / 2 - 0.2, 0.7, 0]} castShadow>
+              <boxGeometry args={[0.4, 1, F.sofa.d]} />
               <meshStandardMaterial color="#A0522D" />
             </mesh>
           </group>
@@ -49,10 +30,10 @@ function Furniture({ position, type, onPlayerNear }) {
 
       case 'table':
         return (
-          <group ref={furnitureRef} position={position}>
+          <group position={position}>
             {/* Table top */}
             <mesh position={[0, 0.8, 0]} castShadow>
-              <boxGeometry args={[2, 0.1, 1.5]} />
+              <boxGeometry args={[F.table.w, 0.1, F.table.d]} />
               <meshStandardMaterial color="#D2691E" />
             </mesh>
             {/* Legs */}
@@ -77,10 +58,10 @@ function Furniture({ position, type, onPlayerNear }) {
 
       case 'bookshelf':
         return (
-          <group ref={furnitureRef} position={position}>
+          <group position={position}>
             {/* Main shelf */}
             <mesh position={[0, 1.2, 0]} castShadow>
-              <boxGeometry args={[2, 2.4, 0.5]} />
+              <boxGeometry args={[F.bookshelf.w, 2.4, F.bookshelf.d]} />
               <meshStandardMaterial color="#654321" />
             </mesh>
             {/* Shelves */}
@@ -113,26 +94,54 @@ function Furniture({ position, type, onPlayerNear }) {
         )
 
       case 'bed':
+        // Raised frame: the player can lie under it (hide pose in levels/astridLayout.js, floor to frame 0.45).
         return (
-          <group ref={furnitureRef} position={position}>
-            {/* Bed frame */}
-            <mesh position={[0, 0.3, 0]} castShadow>
-              <boxGeometry args={[2.5, 0.3, 4]} />
+          <group position={position}>
+            {/* Legs */}
+            {[[-1.15, -1.9], [1.15, -1.9], [-1.15, 1.9], [1.15, 1.9]].map(([x, z]) => (
+              <mesh key={`${x}:${z}`} position={[x, 0.225, z]} castShadow>
+                <boxGeometry args={[0.15, 0.45, 0.15]} />
+                <meshStandardMaterial color="#5a3216" />
+              </mesh>
+            ))}
+            {/* Bed frame (footprint shared with the collision box) */}
+            <mesh position={[0, 0.55, 0]} castShadow>
+              <boxGeometry args={[F.bed.w, 0.2, F.bed.d]} />
               <meshStandardMaterial color="#8B4513" />
             </mesh>
+            {/* Slats under the frame */}
+            {[-1.5, -0.9, -0.3, 0.3, 0.9, 1.5].map((z) => (
+              <mesh key={z} position={[0, 0.42, z]}>
+                <boxGeometry args={[2.3, 0.06, 0.12]} />
+                <meshStandardMaterial color="#6b3a1a" />
+              </mesh>
+            ))}
             {/* Mattress */}
-            <mesh position={[0, 0.6, 0]} castShadow>
+            <mesh position={[0, 0.75, 0]} castShadow>
               <boxGeometry args={[2.3, 0.3, 3.8]} />
               <meshStandardMaterial color="#ffffff" />
             </mesh>
             {/* Pillow */}
-            <mesh position={[0, 0.8, -1.5]} castShadow>
+            <mesh position={[0, 0.98, -1.5]} castShadow>
               <boxGeometry args={[1, 0.2, 0.8]} />
               <meshStandardMaterial color="#f0f0f0" />
             </mesh>
             {/* Blanket */}
-            <mesh position={[0, 0.75, 0.5]} castShadow>
+            <mesh position={[0, 0.92, 0.5]} castShadow>
               <boxGeometry args={[2.2, 0.15, 3]} />
+              <meshStandardMaterial color="#4169E1" />
+            </mesh>
+            {/* Sheet hanging over the foot end and the sides, down to just above the floor */}
+            <mesh position={[0, 0.6, 1.95]}>
+              <boxGeometry args={[2.2, 0.55, 0.05]} />
+              <meshStandardMaterial color="#4169E1" />
+            </mesh>
+            <mesh position={[-1.17, 0.6, 0.5]}>
+              <boxGeometry args={[0.05, 0.55, 3]} />
+              <meshStandardMaterial color="#4169E1" />
+            </mesh>
+            <mesh position={[1.17, 0.6, 0.5]}>
+              <boxGeometry args={[0.05, 0.55, 3]} />
               <meshStandardMaterial color="#4169E1" />
             </mesh>
           </group>
