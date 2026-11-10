@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { trackErrors, openFrozen, replayCdnFonts, expectNoErrors, setCamera } from './helpers.js'
+import { HOUSE_FURNITURE, FURNITURE_FOOTPRINT } from '../../src/levels/houseLayout.js'
+import { BED_FRONT, BED_REACH } from '../../src/levels/astridLayout.js'
 
 // Hiding under Astrid's bed (level 2, ?inside=1) on the frozen clock. Only the "test" project matches this file.
 // The bed's foot end is at (5, -19.5) (levels/astridLayout.js, from houseLayout.js); the button shows within 1.2 of it.
@@ -23,6 +25,11 @@ async function settleHeight(page, ok) {
     }, { timeout: 30_000 })
     .toBe(true)
 }
+/** Lets Astrid wake (the first advance), waits for her state to land, then runs her 15 s hide timer out. */
+async function runTimerOut(page) {
+  await expect.poll(async () => { await ADVANCE(page, 0.5); return page.getByText(/VAKNAR/).count() }, { timeout: 30_000 }).toBeGreaterThan(0)
+  await ADVANCE(page, 16, 1 / 10) // the player stands still: coarse steps save software-GL frames
+}
 const under = (y) => y < 0.5
 const standing = (y) => y > 1.5
 const prompt = (page) => page.getByTestId('hide-prompt')
@@ -41,6 +48,18 @@ async function stand(page, [x, z], visible) {
   await expect(prompt(page)).toBeVisible({ visible })
 }
 
+/**
+ * Stands at a spot where the prompt must be hidden. The prompt is already hidden at the start pose, so stand(.., false) alone
+ * would never move the player: go to the bed first (prompt up), then to the spot, and check that the camera really is there.
+ */
+async function standAwayFromBed(page, [x, z]) {
+  await stand(page, NEAR, true)
+  await stand(page, [x, z], false)
+  const p = await page.evaluate(() => ({ x: window.__YHH_TEST_MODE__.camera.position.x, z: window.__YHH_TEST_MODE__.camera.position.z }))
+  expect(Math.abs(p.x - x), `camera x ${p.x} at ${x}`).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(p.z - z), `camera z ${p.z} at ${z}`).toBeLessThanOrEqual(0.01)
+}
+
 test.describe('hiding under the bed (level 2)', () => {
   test.beforeEach(async ({ page }) => {
     await replayCdnFonts(page)
@@ -51,7 +70,7 @@ test.describe('hiding under the bed (level 2)', () => {
     await openFrozen(page, { level: 2, inside: true })
     await ADVANCE(page, 4.5) // Astrid wakes: the generic "hide" text appears
     await expect(page.locator('body')).not.toContainText(/s[aä]ng|bed/i)
-    await stand(page, FAR, false)
+    await standAwayFromBed(page, FAR)
     await expect(prompt(page)).toBeHidden()
     await stand(page, NEAR, true)
     await expect(prompt(page)).toHaveText('Krypa in (F)')
@@ -77,6 +96,48 @@ test.describe('hiding under the bed (level 2)', () => {
     expectNoErrors(errors)
   })
 
+  // A spot in front of a piece of furniture (its +z face plus `gap`), from houseLayout.js. The wardrobe is the bookshelf.
+  const inFrontOf = (type, gap) => [HOUSE_FURNITURE[type][0], HOUSE_FURNITURE[type][2] + FURNITURE_FOOTPRINT[type].d / 2 + gap]
+  // Just outside the bed's reach: BED_REACH * 1.18 from the middle of the foot end, diagonally in front of the bed.
+  const OUT_OF_REACH = [BED_FRONT[0] - BED_REACH * 0.92, BED_FRONT[1] + BED_REACH * 0.75]
+  for (const [name, spot] of [['the sofa', inFrontOf('sofa', 0.6)], ['the table', inFrontOf('table', 0.85)], ['the wardrobe (bookshelf)', inFrontOf('bookshelf', 0.55)], ['just out of reach of the bed', OUT_OF_REACH]]) {
+    test(`next to ${name}: no button, and F does not hide`, async ({ page }) => {
+      const errors = trackErrors(page)
+      await openFrozen(page, { level: 2, inside: true })
+      await standAwayFromBed(page, spot)
+      await page.keyboard.press('KeyF')
+      await ADVANCE(page, 1)
+      await expect(underBed(page)).toBeHidden()
+      await expect(page.getByText('Status: GÖMD!')).toHaveCount(0)
+      await expect(prompt(page)).toBeHidden()
+      expect(await cameraY(page)).toBeGreaterThan(1.5)
+      expectNoErrors(errors)
+    })
+  }
+
+  // Astrid's hide timer: 15 s from her wake-up at ~4 s (Character.jsx).
+  test('Astrid does not find a player who is hidden when the timer runs out', async ({ page }) => {
+    const errors = trackErrors(page)
+    await openFrozen(page, { level: 2, inside: true })
+    await stand(page, NEAR, true)
+    await page.keyboard.press('KeyF')
+    await expect(underBed(page)).toBeVisible()
+    await settleHeight(page, under)
+    await runTimerOut(page)
+    await expect(page.locator('.victory-screen')).toBeVisible()
+    await expect(page.locator('.game-over-screen')).toHaveCount(0)
+    expectNoErrors(errors)
+  })
+
+  test('Astrid finds a player who only stands next to the bed', async ({ page }) => {
+    const errors = trackErrors(page)
+    await openFrozen(page, { level: 2, inside: true })
+    await stand(page, NEAR, true)
+    await runTimerOut(page)
+    await expect(page.locator('.game-over-screen')).toBeVisible()
+    await expect(page.locator('.victory-screen')).toHaveCount(0)
+    expectNoErrors(errors)
+  })
 })
 
 test.describe('hiding under the bed on a phone', () => {

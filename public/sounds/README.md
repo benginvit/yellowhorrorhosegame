@@ -20,8 +20,8 @@
 - `astrid-failed.m4a` - "Nu ska du få!" (när timern tar slut)
 - `astrid-success.m4a` - "Vart tog den vägen?" (när du lyckas gömma dig)
 - `molltas-meow.m4a` - Din katts jamande
-- `rasmus-kottbullar.m4a` - Rasmus: "Köttbullar..." (IKEA-nivån). **Tillfällig syntetisk platshållare (Piper `sv_SE-nst-medium`, svensk röst)**, ersätts med en riktig inspelning. Samma fil ligger i `en/` tills vidare.
-- `rasmus-lingondryck.m4a` - Rasmus: "Lingondryck" (IKEA-nivån, när han fått maten). **Tillfällig syntetisk platshållare (Piper `sv_SE-nst-medium`, svensk röst)**, ersätts med en riktig inspelning. Samma fil ligger i `en/` tills vidare.
+- `rasmus-kottbullar.m4a` - Rasmus: "Köttbullar..." (IKEA-nivån). **Riktig inspelning (inte längre en platshållare).** Samma fil ligger i `en/` tills vidare.
+- `rasmus-lingondryck.m4a` - Rasmus: "Lingondryck" (IKEA-nivån, när han fått maten). **Riktig inspelning (inte längre en platshållare).** Samma fil ligger i `en/` tills vidare.
 - (Valfritt) Lägg till fler för andra familjemedlemmar!
 
 ### English (en folder):
@@ -31,8 +31,8 @@
 - `astrid-failed.m4a` - "Now I got you!" (when timer runs out)
 - `astrid-success.m4a` - "Where did they go?" (when you successfully hide)
 - `molltas-meow.m4a` - Your cat's meowing
-- `rasmus-kottbullar.m4a` - Rasmus: "Meatballs..." (IKEA level). **Temporary synthetic placeholder** (Piper `sv_SE-nst-medium`, Swedish voice; the Swedish clip, copied) to be replaced by a real recording.
-- `rasmus-lingondryck.m4a` - Rasmus: "Lingonberry drink" (IKEA level, once he has his food). **Temporary synthetic placeholder** (Piper `sv_SE-nst-medium`, Swedish voice; the Swedish clip, copied) to be replaced by a real recording.
+- `rasmus-kottbullar.m4a` - Rasmus: "Meatballs..." (IKEA level). **Real recording (no longer a placeholder)**; the Swedish clip, copied.
+- `rasmus-lingondryck.m4a` - Rasmus: "Lingonberry drink" (IKEA level, once he has his food). **Real recording (no longer a placeholder)**; the Swedish clip, copied.
 - (Optional) Add more for other family members!
 
 ## Exempel / Examples:

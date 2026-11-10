@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { HOUSE_POSITION, HOUSE_FURNITURE, FURNITURE_FOOTPRINT, INTERIOR_WALL, INTERIOR_WALL_AT } from '../../src/levels/houseLayout.js'
+import { CLASSROOM, CLASSROOM_WALL } from '../../src/levels/classroomLayout.js'
+import { IKEA_BOUNDS, IKEA_TABLES, CHAIR_SIZE } from '../../src/levels/ikeaLayout.js'
 import { openFrozen, setCamera, startGame, waitReady, replayCdnFonts, trackErrors, expectNoErrors } from './helpers.js'
 
 // Player collision (src/utils/collision.js, src/levels/colliders/*): walls and
@@ -66,6 +69,23 @@ async function placeAt(page, x, z) {
 }
 
 const near = (value, expected, tolerance = 0.01) => expect(Math.abs(value - expected), `expected ${value} to be within ${tolerance} of ${expected}`).toBeLessThanOrEqual(tolerance)
+/** value lies between a and b (either order), give or take the tolerance. */
+const between = (value, a, b, tolerance = 0.01) => {
+  expect(value, `expected ${value} to be within [${Math.min(a, b)}, ${Math.max(a, b)}]`).toBeGreaterThanOrEqual(Math.min(a, b) - tolerance)
+  expect(value, `expected ${value} to be within [${Math.min(a, b)}, ${Math.max(a, b)}]`).toBeLessThanOrEqual(Math.max(a, b) + tolerance)
+}
+
+// Faces from the layout files. The house: furniture front (+z) faces and the left wall's inner face.
+const frontFace = (type) => HOUSE_FURNITURE[type][2] + FURNITURE_FOOTPRINT[type].d / 2
+const HOUSE_LEFT_INNER = HOUSE_POSITION[0] - INTERIOR_WALL_AT + INTERIOR_WALL / 2
+// IKEA: the near (-z) face of the restaurant table at (9, 6), chairs included (levels/colliders/ikea.js).
+const TABLE_9_6 = IKEA_TABLES.find((t) => t.x === 9 && t.z === 6)
+const TABLE_9_6_NEAR = TABLE_9_6.z - Math.max(TABLE_9_6.length / 2, Math.max(...TABLE_9_6.chairDz.map(Math.abs)) + CHAIR_SIZE / 2)
+// Classroom: the walls' inner faces. Player.jsx clamps x to +-8.5 and z to [-7.5, 5.8], which is inside them on all but the back wall.
+const ROOM_WEST_INNER = CLASSROOM.minX + CLASSROOM_WALL / 2
+const ROOM_EAST_INNER = CLASSROOM.maxX - CLASSROOM_WALL / 2
+const ROOM_FRONT_INNER = CLASSROOM.minZ + CLASSROOM_WALL / 2
+const ROOM_BACK_INNER = CLASSROOM.maxZ - CLASSROOM_WALL / 2
 
 test.describe('collision: outdoors (the house)', () => {
   // House.jsx: front wall face at z = -17.5, x in [-7.5, 7.5]; door opening x in [-1.25, 1.25], door front at z = -17.1.
@@ -215,6 +235,39 @@ test.describe("collision: Astrid's house", () => {
     expectNoErrors(errors)
   })
 
+  test('the sofa blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -3, -20.4) // sofa (-3, -22) 3 x 1.2
+    await walk(page, ['KeyW'], 0.5)
+    const p = await position(page)
+    near(p.z, frontFace('sofa') + RADIUS)
+    near(p.x, -3)
+    expectNoErrors(errors)
+  })
+
+  test('the bookshelf blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 3, -22.5) // bookshelf (3, -24) 2 x 0.5
+    await walk(page, ['KeyW'], 0.5)
+    const p = await position(page)
+    near(p.z, frontFace('bookshelf') + RADIUS)
+    near(p.x, 3)
+    expectNoErrors(errors)
+  })
+
+  test('a diagonal move into the side wall slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -5.5, -26) // left wall
+    await walk(page, ['KeyW', 'KeyA'], 0.6) // -x blocked after 0.23 s, -z keeps going (3 units)
+    const p = await position(page)
+    near(p.x, HOUSE_LEFT_INNER + RADIUS)
+    near(p.z, -29)
+    expectNoErrors(errors)
+  })
+
   test('an inside corner stops the player, who can walk back out', async ({ page }) => {
     const errors = trackErrors(page)
     await open(page)
@@ -280,6 +333,54 @@ test.describe('collision: classroom', () => {
     near(p.z, 4)
     expectNoErrors(errors)
   })
+
+  test('the back wall blocks, ahead of the room clamp', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 4.5, 4) // the aisle between the desk columns x = 3 and x = 6
+    await walk(page, ['KeyS'], 0.5) // 2.5 units: would end at z = 6.5
+    const p = await position(page)
+    near(p.z, ROOM_BACK_INNER - RADIUS) // 5.65: the wall, before the clamp at 5.8
+    near(p.x, 4.5)
+    expectNoErrors(errors)
+  })
+
+  test('the west wall blocks', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, -4.5, 0.5) // the aisle between the desk rows z = -1 and z = 2
+    await walk(page, ['KeyA'], 1.2)
+    const p = await position(page)
+    between(p.x, ROOM_WEST_INNER + RADIUS, -8.5) // from the wall to the room clamp (Player.jsx)
+    near(p.z, 0.5)
+    expectNoErrors(errors)
+  })
+
+  test('a diagonal move into the front wall slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 3, -6.5) // beside the teacher's desk (x in [-1.25, 1.25]); front wall plane z = -8
+    await walk(page, ['KeyW', 'KeyD'], 0.6)
+    const p = await position(page)
+    between(p.z, ROOM_FRONT_INNER + RADIUS, -7.5) // from the wall to the room clamp
+    near(p.x, 6)
+    expectNoErrors(errors)
+  })
+
+  test('a corner stops the player, who can walk back out', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 7, -6) // towards the front-right corner
+    await walk(page, ['KeyW', 'KeyD'], 0.6)
+    const corner = await position(page)
+    between(corner.x, ROOM_EAST_INNER - RADIUS, 8.5) // each stop lies between the wall and the room clamp
+    between(corner.z, ROOM_FRONT_INNER + RADIUS, -7.5)
+    await walk(page, ['KeyS', 'KeyA'], 0.3)
+    const out = await position(page)
+    near(out.x, corner.x - 1.5)
+    near(out.z, corner.z + 1.5)
+    expectNoErrors(errors)
+  })
 })
 
 test.describe('collision: IKEA', () => {
@@ -297,7 +398,7 @@ test.describe('collision: IKEA', () => {
     await placeAt(page, 9, 3.2)
     await walk(page, ['KeyS'], 0.5) // 2.5 units: would end at z = 5.7, on the table
     const p = await position(page)
-    near(p.z, 4.8 - RADIUS)
+    near(p.z, TABLE_9_6_NEAR - RADIUS)
     near(p.x, 9)
     expectNoErrors(errors)
   })
@@ -322,6 +423,42 @@ test.describe('collision: IKEA', () => {
     const p = await position(page)
     near(p.x, -2.5 + RADIUS)
     near(p.z, 6)
+    expectNoErrors(errors)
+  })
+
+  test('a diagonal move into a table slides along it', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 8, 3.2) // table (9, 6): z from 4.8
+    await walk(page, ['KeyS', 'KeyD'], 0.4) // +z blocked after 0.25 s, +x keeps going (2 units)
+    const p = await position(page)
+    near(p.z, TABLE_9_6_NEAR - RADIUS)
+    near(p.x, 10)
+    expectNoErrors(errors)
+  })
+
+  test('the east edge of the room stops the player', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 11, 9)
+    await walk(page, ['KeyD'], 0.6) // 3 units: would pass x = 13
+    const p = await position(page)
+    near(p.x, IKEA_BOUNDS.maxX) // IKEA_BOUNDS, inside the wall (x = 14)
+    expectNoErrors(errors)
+  })
+
+  test('the south-east corner of IKEA_BOUNDS stops the player, who can walk back out', async ({ page }) => {
+    const errors = trackErrors(page)
+    await open(page)
+    await placeAt(page, 11, 9.5)
+    await walk(page, ['KeyS', 'KeyD'], 0.6) // 3 units each: past both edges
+    const corner = await position(page)
+    near(corner.x, IKEA_BOUNDS.maxX)
+    near(corner.z, IKEA_BOUNDS.maxZ)
+    await walk(page, ['KeyW', 'KeyA'], 0.3)
+    const out = await position(page)
+    near(out.x, corner.x - 1.5)
+    near(out.z, corner.z - 1.5)
     expectNoErrors(errors)
   })
 })
